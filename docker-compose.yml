@@ -55,7 +55,7 @@ services:
       # Auto-switches between localhost and production
       - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
     ports:
-      - "5173:5173"    # Vite dev server
+      - "4173:4173"    # Vite dev server
     depends_on:
       - backend
 
@@ -66,6 +66,8 @@ services:
     environment:
       - GITEA_INSTANCE_URL=http://gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
+      - RUNNER_NAME=marine-runner
+      - RUNNER_LABELS=linux,docker
       #- CONFIG_FILE=/data/config.yaml
     volumes:
       - ./runner:/data

@@ -4,12 +4,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-COPY vite.config.js ./
-COPY index.html ./
-COPY src ./src
+COPY . ./
+COPY package.json ./package.json
+RUN rm Dockerfile
 
-RUN npm install --production
+RUN npm install
 RUN npm run build
 
 EXPOSE 4173
