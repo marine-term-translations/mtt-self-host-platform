@@ -1,8 +1,6 @@
-# docker-compose.yml  ← works everywhere
-
 services:
   gitea:
-    image: docker.gitea.com/gitea:1.25.2
+    image: gitea/gitea:1.25
     container_name: gitea
     restart: unless-stopped
     environment:
@@ -57,21 +55,21 @@ services:
       # Auto-switches between localhost and production
       - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
     ports:
-      - "4173:4173"    # Vite preview server
+      - "5173:5173"    # Vite dev server
     depends_on:
       - backend
 
   runner:
     image: gitea/act_runner:latest
+    container_name: act-runner
     restart: unless-stopped
     environment:
       - GITEA_INSTANCE_URL=http://gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
-      - GITEA_RUNNER_NAME=local-runner
-      - GITEA_RUNNER_LABELS=docker:docker://node:20-bullseye
+      #- CONFIG_FILE=/data/config.yaml
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - ./runner:/data
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   gitea-data:
