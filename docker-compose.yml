@@ -1,8 +1,8 @@
-version: "3.8"
+# docker-compose.yml  ← works everywhere
 
 services:
   gitea:
-    image: gitea/gitea:1.22
+    image: docker.gitea.com/gitea:1.25.2
     container_name: gitea
     restart: unless-stopped
     environment:
@@ -13,23 +13,21 @@ services:
       - GITEA__database__NAME=gitea
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD=${GITEA_DB_PASS}
-      - GITEA__server__DOMAIN=${DOMAIN_NAME}
-      - GITEA__server__ROOT_URL=https://${DOMAIN_NAME}/
-      - GITEA__server__HTTP_PORT=3000
+      # These two lines auto-detect localhost vs production
+      - GITEA__server__DOMAIN=${DOMAIN:-localhost}
+      - GITEA__server__ROOT_URL=${ROOT_URL:-http://localhost:3000/}
       - GITEA__security__INSTALL_LOCK=true
     volumes:
       - ./gitea/data:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     ports:
-      - "127.0.0.1:3000:3000"
-      - "2222:22"
+      - "3000:3000"    # ← only exposed locally
     depends_on:
       - db
 
   db:
     image: postgres:16-alpine
-    container_name: gitea-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=gitea
@@ -46,9 +44,8 @@ services:
       - NODE_ENV=production
       - GITEA_URL=http://gitea:3000
       - GITEA_TOKEN=${GITEA_ADMIN_TOKEN}
-      - DOMAIN=${DOMAIN_NAME}
-    volumes:
-      - ./backend:/app
+    ports:
+      - "5000:5000"    # ← handy locally
     depends_on:
       - gitea
 
@@ -57,46 +54,24 @@ services:
     container_name: marine-frontend
     restart: unless-stopped
     environment:
-      - VITE_API_URL=https://${DOMAIN_NAME}/api
+      # Auto-switches between localhost and production
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+    ports:
+      - "4173:4173"    # Vite preview server
     depends_on:
       - backend
 
   runner:
     image: gitea/act_runner:latest
-    container_name: gitea-runner
     restart: unless-stopped
     environment:
       - GITEA_INSTANCE_URL=http://gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
-      - GITEA_RUNNER_NAME=docker-runner-1
+      - GITEA_RUNNER_NAME=local-runner
       - GITEA_RUNNER_LABELS=docker:docker://node:20-bullseye
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./runner:/data
-
-  nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    depends_on:
-      - gitea
-      - frontend
-      - backend
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h; done;'"
 
 volumes:
   gitea-data:
