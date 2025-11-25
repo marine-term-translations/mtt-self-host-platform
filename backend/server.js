@@ -1,3 +1,51 @@
+require("dotenv").config();
+const GITEA_API_URL = "http://gitea:3000";
+const axios = require("axios");
+
+async function createOrganization() {
+  const apiUrl = `${GITEA_API_URL}/api/v1/admin/users/admin/orgs`;
+  const token = process.env.GITEA_ADMIN_TOKEN; // Ensure this is set in your .env
+
+  const orgData = {
+    username: process.env.GITEA_ORG_NAME,
+    full_name: process.env.GITEA_ORG_FULL_NAME,
+    description: process.env.GITEA_ORG_DESCRIPTION,
+    email: process.env.GITEA_ORG_EMAIL,
+    location: process.env.GITEA_ORG_LOCATION,
+    repo_admin_change_team_access: true,
+    visibility: process.env.GITEA_ORG_VISIBILITY,
+    website: process.env.GITEA_ORG_WEBSITE,
+  };
+
+  console.log("Creating organization with the following data:");
+  console.log("API URL:", apiUrl);
+  console.log(
+    "Authorization Token:",
+    token ? token.substring(0, 6) + "..." : "undefined"
+  );
+  console.log("Organization Data:", orgData);
+
+  try {
+    const response = await axios.post(apiUrl, orgData, {
+      headers: {
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    console.log("Organization created:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating organization:");
+    if (error.response) {
+      console.error("Status:", error.response.status);
+      console.error("Headers:", error.response.headers);
+      console.error("Data:", error.response.data);
+    } else {
+      console.error("Message:", error.message);
+    }
+    throw error;
+  }
+}
 // Minimal Node.js API server
 
 const express = require("express");
@@ -23,26 +71,6 @@ app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
  * @openapi
- * /api/hello:
- *   get:
- *     summary: Hello world endpoint
- *     responses:
- *       200:
- *         description: Returns a hello world message
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- */
-app.get("/api/hello", (req, res) => {
-  res.json({ message: "Hello, world" });
-});
-
-/**
- * @openapi
  * /api/setup-gitea:
  *   post:
  *     summary: Setup Gitea organization
@@ -55,28 +83,8 @@ app.get("/api/hello", (req, res) => {
  *               type: object
  */
 app.post("/api/setup-gitea", async (req, res) => {
-  const { GITEA_ADMIN_USER, GITEA_ADMIN_PASS, GITEA_ORG_NAME } = process.env;
-
-  const GITEA_API = "http://gitea:3000/api/v1";
-
   try {
-    // Create organization
-    const orgResp = await fetch(`${GITEA_API}/orgs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:
-          "Basic " +
-          Buffer.from(`${GITEA_ADMIN_USER}:${GITEA_ADMIN_PASS}`).toString(
-            "base64"
-          ),
-      },
-      body: JSON.stringify({
-        username: GITEA_ORG_NAME,
-      }),
-    });
-    const orgData = await orgResp.json();
-
+    const orgData = await createOrganization();
     res.json({ org: orgData });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -38,6 +38,8 @@ services:
     build: ./backend
     container_name: marine-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - GITEA_URL=http://gitea:3000
