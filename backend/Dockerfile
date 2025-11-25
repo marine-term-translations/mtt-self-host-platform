@@ -1,11 +1,12 @@
-# Minimal Dockerfile for marine-backend
 
+# Minimal Dockerfile for marine-backend
 FROM node:20-alpine
 
+# Copy .env file
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install --production
+RUN npm install --production && npm install axios && npm install dotenv
 
 COPY server.js ./
 
