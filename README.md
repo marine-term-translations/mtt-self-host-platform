@@ -1,25 +1,66 @@
-This repository contains everything required to deploy and operate a fully sovereign instance of the Marine Term Translations platform, including:
+# marine-term-translations/platform
 
-• Gitea – private Git forge with built-in authentication and CI/CD (Gitea Actions)  
-• Node.js REST backend – all translation, review, and suggestion services  
-• React/Vite frontend – public-facing editor and viewer  
-• Self-hosted Gitea Actions runners  
-• Automated generation and publication of LDES fragments  
-• One-way push-mirror to the canonical public fragment repository  
-• Optional w3id.org permanent identifier redirect service  
-• PostgreSQL database, Redis cache, backup scripts, and TLS termination  
+Production-ready monorepo for marine term translations platform.
 
-After deployment, the platform operates independently of any third-party provider:
-- All user accounts and permissions are managed internally  
-- All translation repositories and their history reside on infrastructure under your control  
-- No external API rate limits or CORS restrictions  
-- LDES fragments are published instantly to the public mirror on every approved merge  
+## Structure
 
-Designed for deployment on a single virtual private server, cloud instance, or on-premises hardware via Docker Compose (provided) or Kubernetes Helm chart (planned).
+```
+marine-term-translations/platform/
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── README.md
+│
+├── backend/
+│   └── ... (Node backend app)
+├── frontend/
+│   └── ... (React/Vite frontend app)
+├── gitea/
+│   ├── data/
+│   └── custom/conf/app.ini
+├── runner/
+│   └── config.yaml
+├── nginx/
+│   ├── nginx.conf
+│   └── certbot/
+│       ├── conf/
+│       └── www/
+├── backups/
+├── infra/
+│   ├── backup.sh
+│   ├── restore.sh
+│   └── push-mirror-setup.sh
+└── templates/
+    └── translation-repo/
+        ├── terms.yaml
+        └── README.md
+```
 
-Intended audience  
-Research institutions, national maritime agencies, standards bodies, and consortiums wishing to operate their own instance of the multilingual marine terminology service with guaranteed availability, auditability, and data sovereignty.
+## Quick Start
 
-License: AGPL-3.0 (same as Gitea) with additional contributor terms for translation content.
+1. Clone the repo:
+   ```
+   git clone https://github.com/marine-term-translations/platform.git
+   cd platform
+   ```
+2. Copy and edit environment:
+   ```
+   cp .env.example .env
+   # Edit .env with your domain & tokens
+   ```
+3. Deploy:
+   ```
+   docker compose up -d
+   ```
 
-Deploy your own instance in minutes and take full ownership of the marine terminology translation ecosystem.
+In 3–5 minutes you have:
+- https://terms.yourdomain.org → Gitea login (create first admin)
+- https://terms.yourdomain.org/api/docs → backend
+- https://terms.yourdomain.org/app → frontend
+- Automatic Let’s Encrypt SSL
+- Runner ready for LDES fragment actions
+- Full source-of-truth sovereignty
+
+## License
+
+MIT
