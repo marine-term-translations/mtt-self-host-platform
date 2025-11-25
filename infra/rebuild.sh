@@ -13,5 +13,5 @@ if [[ $WIPE -eq 1 ]]; then
   rm -rf gitea/data gitea/postgres
 fi
 
-docker rmi self-host-platform-backend self-host-platform-frontend || true
+docker rmi mtt-self-host-platform-backend mtt-self-host-platform-frontend || true
 docker compose up -d
