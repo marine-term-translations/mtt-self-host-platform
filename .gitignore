@@ -36,3 +36,6 @@ Thumbs.db
 # Misc
 *.swp
 *.swo
+
+# runner instance data
+runner/.runner
