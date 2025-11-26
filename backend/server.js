@@ -1,6 +1,70 @@
-require("dotenv").config();
-const GITEA_API_URL = "http://gitea:3000";
+// Minimal Node.js API server
+
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch");
+const swaggerUi = require("swagger-ui-express");
+const swaggerJsdoc = require("swagger-jsdoc");
+const app = express();
+
+// Enable CORS for all domains
+app.use(cors());
+app.use(express.json());
+const port = 5000;
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const Database = require("better-sqlite3");
+
+const GITEA_API_URL = process.env.GITEA_URL;
 const axios = require("axios");
+
+// --- Git-backed SQLite DB setup ---
+const REPO_URL = `http://oauth2:${
+  process.env.GITEA_TOKEN
+}@${process.env.GITEA_URL.replace(/^https?:\/\//, "")}/${
+  process.env.GITEA_ORG_NAME
+}/${process.env.TRANSLATIONS_REPO}.git`;
+const REPO_PATH = process.env.TRANSLATIONS_REPO_PATH;
+const DB_PATH = process.env.SQLITE_DB_PATH;
+
+if (!fs.existsSync(REPO_PATH)) {
+  console.log("Cloning translations repo...");
+  execSync(`git clone ${REPO_URL} ${REPO_PATH}`);
+}
+console.log("Pulling latest translations repo...");
+execSync(`git -C ${REPO_PATH} pull --ff-only`);
+
+// Initialize DB with schema if missing tables
+const db = new Database(DB_PATH);
+const hasTermsTable = db
+  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='terms'")
+  .get();
+if (!hasTermsTable) {
+  console.log("Initializing SQLite DB with schema...");
+  const schemaPath = path.join(__dirname, "schema.sql");
+  const schemaSQL = fs.readFileSync(schemaPath, "utf8");
+  db.exec(schemaSQL);
+  console.log("Schema applied to SQLite DB.");
+  // Commit and push the initialized DB to the repo
+  try {
+    execSync(
+      `git -C ${REPO_PATH} config user.name "${process.env.GITEA_ADMIN_USER}"`
+    );
+    execSync(
+      `git -C ${REPO_PATH} config user.email "${process.env.GITEA_ADMIN_EMAIL}"`
+    );
+    execSync(`git -C ${REPO_PATH} add ${DB_PATH}`);
+    execSync(
+      `git -C ${REPO_PATH} commit -m "chore: initialize translations database" --author="${process.env.GITEA_ADMIN_USER} <${process.env.GITEA_ADMIN_EMAIL}>"`
+    );
+    execSync(`git -C ${REPO_PATH} push`);
+    console.log("Initial DB committed and pushed to repo.");
+  } catch (err) {
+    console.error("Failed to commit/push initial DB:", err.message);
+  }
+}
+console.log("SQLite DB loaded from repo.");
 
 async function createOrganization() {
   const apiUrl = `${GITEA_API_URL}/api/v1/admin/users/admin/orgs`;
@@ -46,19 +110,6 @@ async function createOrganization() {
     throw error;
   }
 }
-// Minimal Node.js API server
-
-const express = require("express");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsdoc = require("swagger-jsdoc");
-const app = express();
-
-// Enable CORS for all domains
-app.use(cors());
-app.use(express.json());
-const port = 5000;
 
 const swaggerSpec = swaggerJsdoc({
   definition: {
@@ -211,11 +262,9 @@ app.post("/api/check-admin", async (req, res) => {
   } catch (err) {
     console.error("check-admin error:", err.response?.data || err.message);
     if (err.response) {
-      return res
-        .status(err.response.status)
-        .json({
-          error: err.response.data?.message || "Failed to check admin status",
-        });
+      return res.status(err.response.status).json({
+        error: err.response.data?.message || "Failed to check admin status",
+      });
     }
     return res.status(500).json({ error: err.message });
   }
@@ -344,6 +393,109 @@ app.post("/api/register-gitea-user", async (req, res) => {
     if (err.response) {
       return res.status(err.response.status).json({ error: err.response.data });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/terms:
+ *   post:
+ *     summary: Create a new term
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               uri:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Term created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+app.post("/api/terms", (req, res) => {
+  const { uri } = req.body;
+  if (!uri) return res.status(400).json({ error: "Missing uri" });
+  try {
+    const stmt = db.prepare("INSERT INTO terms (uri) VALUES (?)");
+    const info = stmt.run(uri);
+    res.status(201).json({ id: info.lastInsertRowid, uri });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/terms/{id}:
+ *   put:
+ *     summary: Update a term
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               uri:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Term updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+app.put("/api/terms/:id", (req, res) => {
+  const { id } = req.params;
+  const { uri } = req.body;
+  if (!uri) return res.status(400).json({ error: "Missing uri" });
+  try {
+    const stmt = db.prepare(
+      "UPDATE terms SET uri = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    );
+    const info = stmt.run(uri, id);
+    if (info.changes === 0)
+      return res.status(404).json({ error: "Term not found" });
+    res.json({ id, uri });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/terms:
+ *   get:
+ *     summary: List all SKOS/RDF terms
+ *     responses:
+ *       200:
+ *         description: Returns all terms
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ */
+app.get("/api/terms", (req, res) => {
+  try {
+    const terms = db.prepare("SELECT * FROM terms").all();
+    res.json(terms);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
