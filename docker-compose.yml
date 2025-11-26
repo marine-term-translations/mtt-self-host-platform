@@ -48,6 +48,11 @@ services:
       - NODE_ENV=production
       - GITEA_URL=http://gitea:3000
       - GITEA_TOKEN=${GITEA_ADMIN_TOKEN}
+      - TRANSLATIONS_REPO=translations-data
+      - TRANSLATIONS_REPO_PATH=/app/translations-data
+      - SQLITE_DB_PATH=/app/translations-data/translations.db
+    volumes:
+      - ./backend:/app
     ports:
       - "5000:5000"    # ← handy locally
     depends_on:
