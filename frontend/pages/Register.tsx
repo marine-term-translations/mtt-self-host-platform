@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Waves, Info, Check } from 'lucide-react';
+import { Waves, Info, Check, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { backendApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const languages = [
   { name: 'Nederlands', code: 'NL' },
@@ -18,15 +20,43 @@ const languages = [
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
+  
   const [form, setForm] = useState({
+    username: '',
     name: '',
     email: '',
+    password: '',
     languages: [] as string[],
   });
+  const [errors, setErrors] = useState({
+    username: '',
+    email: '',
+    password: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const validateEmail = (email: string) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const validatePassword = (password: string) => {
+    if (password.length < 8) return "Password must be at least 8 characters long";
+    if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter";
+    if (!/[0-9]/.test(password)) return "Password must contain at least one number";
+    return "";
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+
+    // Clear errors on change
+    if (name === 'email' || name === 'password' || name === 'username') {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   const handleLanguageChange = (code: string) => {
@@ -43,14 +73,58 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    const emailIsValid = validateEmail(form.email);
+    const passwordError = validatePassword(form.password);
+    const usernameValid = form.username.length >= 3;
+    
+    setErrors({
+      username: usernameValid ? '' : 'Username must be at least 3 characters.',
+      email: emailIsValid ? '' : 'Please enter a valid email address.',
+      password: passwordError,
+    });
+
+    if (!emailIsValid || passwordError || !usernameValid) {
+      toast.error("Please fix the errors in the form.");
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setIsSubmitting(false);
-    toast.success("Registration successful! Please sign in.");
-    navigate('/login');
+    try {
+      // 1. Register the user
+      await backendApi.post('/register-gitea-user', {
+        username: form.username,
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        lang: form.languages
+      });
+      
+      toast.success("Account created successfully!");
+      
+      // 2. Auto Login
+      try {
+        await login(form.username, form.password);
+        toast.success("Logged in successfully!");
+        navigate('/dashboard');
+      } catch (loginError) {
+        console.error("Auto-login failed", loginError);
+        toast.error("Registration successful, but auto-login failed. Please sign in.");
+        navigate('/login');
+      }
+      
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.error(
+        error instanceof Error 
+          ? error.message 
+          : "Registration failed. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,8 +138,34 @@ const Register: React.FC = () => {
           <p className="mt-2 text-slate-600 dark:text-slate-400">Join the community to start translating</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
+           {/* Username Field */}
+           <div>
+              <label htmlFor="username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                name="username"
+                value={form.username}
+                onChange={handleChange}
+                required
+                className={`block w-full rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm sm:text-sm p-2.5 ${
+                  errors.username 
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                    : 'border-slate-300 dark:border-slate-600 focus:border-marine-500 focus:ring-marine-500'
+                }`}
+                placeholder="jdoe"
+              />
+              {errors.username && (
+                <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.username}
+                </p>
+              )}
+            </div>
+
+            {/* Name Field */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Full Name
@@ -82,6 +182,7 @@ const Register: React.FC = () => {
               />
             </div>
             
+            {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 Email address
@@ -93,11 +194,61 @@ const Register: React.FC = () => {
                 value={form.email}
                 onChange={handleChange}
                 required
-                className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-2.5"
+                className={`block w-full rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm sm:text-sm p-2.5 ${
+                  errors.email 
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                    : 'border-slate-300 dark:border-slate-600 focus:border-marine-500 focus:ring-marine-500'
+                }`}
                 placeholder="jane@example.com"
               />
+              {errors.email && (
+                <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.email}
+                </p>
+              )}
             </div>
 
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                  className={`block w-full rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm sm:text-sm p-2.5 pr-10 ${
+                    errors.password 
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+                      : 'border-slate-300 dark:border-slate-600 focus:border-marine-500 focus:ring-marine-500'
+                  }`}
+                  placeholder="Create a strong password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.password}
+                </p>
+              )}
+              {!errors.password && form.password.length > 0 && (
+                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                   Must be 8+ chars, include 1 uppercase & 1 number.
+                 </p>
+              )}
+            </div>
+
+            {/* Language Selection */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -115,17 +266,17 @@ const Register: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 border border-slate-200 dark:border-slate-700 rounded-lg">
                 {languages.map((lang) => {
                   const isSelected = form.languages.includes(lang.code);
                   return (
                     <label 
                       key={lang.code} 
                       className={`
-                        relative flex items-center p-3 rounded-lg border cursor-pointer transition-all
+                        relative flex items-center p-2 rounded-lg border cursor-pointer transition-all
                         ${isSelected 
                           ? 'border-marine-500 bg-marine-50 dark:bg-marine-900/20 ring-1 ring-marine-500' 
-                          : 'border-slate-200 dark:border-slate-700 hover:border-marine-300 dark:hover:border-marine-700'}
+                          : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'}
                       `}
                     >
                       <input
@@ -135,10 +286,10 @@ const Register: React.FC = () => {
                         onChange={() => handleLanguageChange(lang.code)}
                       />
                       <div className={`
-                        w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors
+                        w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors
                         ${isSelected ? 'bg-marine-500 border-marine-500' : 'border-slate-300 bg-white dark:bg-slate-600'}
                       `}>
-                        {isSelected && <Check size={12} className="text-white" />}
+                        {isSelected && <Check size={10} className="text-white" />}
                       </div>
                       <span className="text-sm font-medium text-slate-900 dark:text-slate-200">
                         {lang.name} <span className="text-slate-400 text-xs ml-1">({lang.code})</span>
@@ -148,7 +299,6 @@ const Register: React.FC = () => {
                 })}
               </div>
             </div>
-          </div>
 
           <button
             type="submit"

@@ -4,14 +4,19 @@ import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Browse from './pages/Browse';
 import TermDetail from './pages/TermDetail';
 import About from './pages/About';
 import Profile from './pages/Profile';
+import History from './pages/History';
+import Reputation from './pages/Reputation';
+import Leaderboard from './pages/Leaderboard';
+import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
-import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 
 const App: React.FC = () => {
   return (
@@ -39,8 +44,8 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/about" element={<About />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         
         {/* Protected Routes */}
         <Route path="/dashboard" element={
@@ -62,6 +67,28 @@ const App: React.FC = () => {
           <ProtectedRoute>
             <Profile />
           </ProtectedRoute>
+        } />
+         <Route path="/history" element={
+          <ProtectedRoute>
+            <History />
+          </ProtectedRoute>
+        } />
+         <Route path="/reputation" element={
+          <ProtectedRoute>
+            <Reputation />
+          </ProtectedRoute>
+        } />
+         <Route path="/leaderboard" element={
+          <ProtectedRoute>
+            <Leaderboard />
+          </ProtectedRoute>
+        } />
+
+        {/* Admin Routes */}
+        <Route path="/admin" element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
         } />
 
         <Route path="*" element={<NotFound />} />

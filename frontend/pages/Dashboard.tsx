@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Award, TrendingUp, Clock } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
@@ -21,35 +21,42 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
-          <div className="p-3 bg-marine-100 dark:bg-marine-900 text-marine-600 dark:text-marine-400 rounded-lg mr-4">
+        
+        {/* History / Translations Card */}
+        <Link to="/history" className="group bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center hover:shadow-md hover:border-marine-300 dark:hover:border-marine-600 transition-all cursor-pointer">
+          <div className="p-3 bg-marine-100 dark:bg-marine-900 text-marine-600 dark:text-marine-400 rounded-lg mr-4 group-hover:scale-110 transition-transform">
             <BookOpen size={24} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Translations</p>
+          <div className="flex-grow">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Your Translations</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">12</p>
           </div>
-        </div>
+          <ChevronRight className="text-slate-300 group-hover:text-marine-500 transition-colors" size={20} />
+        </Link>
         
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
-          <div className="p-3 bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400 rounded-lg mr-4">
+        {/* Reputation Card */}
+        <Link to="/reputation" className="group bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center hover:shadow-md hover:border-teal-300 dark:hover:border-teal-600 transition-all cursor-pointer">
+          <div className="p-3 bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400 rounded-lg mr-4 group-hover:scale-110 transition-transform">
             <Award size={24} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Reputation</p>
+          <div className="flex-grow">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Reputation Score</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">450</p>
           </div>
-        </div>
+           <ChevronRight className="text-slate-300 group-hover:text-teal-500 transition-colors" size={20} />
+        </Link>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center">
-          <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg mr-4">
+        {/* Leaderboard Card */}
+        <Link to="/leaderboard" className="group bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-600 transition-all cursor-pointer">
+          <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg mr-4 group-hover:scale-110 transition-transform">
             <TrendingUp size={24} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Rank</p>
+          <div className="flex-grow">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Global Rank</p>
             <p className="text-2xl font-bold text-slate-900 dark:text-white">#42</p>
           </div>
-        </div>
+           <ChevronRight className="text-slate-300 group-hover:text-indigo-500 transition-colors" size={20} />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

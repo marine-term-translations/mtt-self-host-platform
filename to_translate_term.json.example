@@ -1,0 +1,43 @@
+{
+    "uri": "http://vocab.nerc.ac.uk/collection/P02/current/AAMN",
+    "data": [
+        {
+            "field_uri": "http://www.w3.org/2004/02/skos/core#prefLabel",
+            "field_term": "prefLabel",
+            "field_value": "Concentration of nitrogen species in the atmosphere"
+            translations: {
+                "nl": {
+                    "value": "Concentratie van stikstofsoorten in de atmosfeer",
+                    "status": "review",
+                    "modified": "2024-06-12T10:00:00Z",
+                    "reviewedBy": ["cedricddcc", "janedoe"]
+                }, 
+                "fr": {
+                    "value": "Concentration des espèces d'azote dans l'atmosphère",
+                    "status": "approved",
+                    "modified": "2024-06-10T14:30:00Z",
+                    "reviewedBy": ["jeandupont"]
+                }
+            }
+        },
+        {
+            "field_uri": "http://www.w3.org/2004/02/skos/core#altLabel",
+            "field_term": "altLabel",
+            "field_value": "Nitrogen species concentration in air"
+            translations: {
+                "nl": {
+                    "value": "Stikstofsoorten concentratie in de lucht",
+                    "status": "approved",
+                    "modified": "2024-06-11T09:15:00Z",
+                    "reviewedBy": ["janedoe"]
+                }, 
+                "fr": {
+                    "value": "Concentration des espèces d'azote dans l'air",
+                    "status": "review",
+                    "modified": "2024-06-12T11:45:00Z",
+                    "reviewedBy": ["jeandupont", "mariedurand"]
+                }
+            }
+        }
+    ]
+}
