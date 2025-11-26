@@ -14,4 +14,4 @@ if [[ $WIPE -eq 1 ]]; then
 fi
 
 docker rmi mtt-self-host-platform-backend mtt-self-host-platform-frontend || true
-docker compose up -d
+docker compose up -d --build

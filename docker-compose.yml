@@ -27,6 +27,11 @@ services:
       - "3000:3000"    # ← only exposed locally
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   db:
     image: postgres:16-alpine
@@ -51,12 +56,11 @@ services:
       - TRANSLATIONS_REPO=translations-data
       - TRANSLATIONS_REPO_PATH=/app/translations-data
       - SQLITE_DB_PATH=/app/translations-data/translations.db
-    volumes:
-      - ./backend:/app
     ports:
       - "5000:5000"    # ← handy locally
     depends_on:
-      - gitea
+      gitea:
+        condition: service_healthy
 
   frontend:
     build: 
