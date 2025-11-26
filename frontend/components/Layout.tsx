@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -68,6 +68,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <>
                   <Link to="/browse" className={isActive('/browse')}>Browse</Link>
                   <Link to="/dashboard" className={isActive('/dashboard')}>Dashboard</Link>
+                  {user?.isAdmin && (
+                    <Link to="/admin" className={`${isActive('/admin')} flex items-center gap-1`}>
+                       <ShieldCheck size={16} /> Admin
+                    </Link>
+                  )}
                 </>
               )}
             </nav>
@@ -120,6 +125,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Link to="/browse" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Browse Terms</Link>
                   <Link to="/dashboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
                   <Link to="/profile" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>My Profile</Link>
+                   {user?.isAdmin && (
+                    <Link to="/admin" className="block py-2 text-marine-600 dark:text-marine-400 font-semibold" onClick={() => setIsMenuOpen(false)}>Admin Dashboard</Link>
+                  )}
                   <button onClick={handleLogout} className="w-full text-left py-2 text-red-500 font-medium">Sign Out</button>
                 </>
               )}

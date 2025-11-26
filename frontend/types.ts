@@ -18,6 +18,7 @@ export interface User {
   name: string;
   avatar: string;
   token: string;
+  isAdmin?: boolean;
 }
 
 export interface Stats {

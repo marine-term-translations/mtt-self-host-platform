@@ -15,6 +15,10 @@ services:
       - GITEA__server__DOMAIN=${DOMAIN:-localhost}
       - GITEA__server__ROOT_URL=${ROOT_URL:-http://localhost:3000/}
       - GITEA__security__INSTALL_LOCK=true
+      - GITEA__security__REGISTER_EMAIL_CONFIRM=false
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__service__DISABLE_REGISTRATION=false
+      - GITEA__service__SHOW_REGISTRATION_BUTTON=true
     volumes:
       - ./gitea/data:/data
       - /etc/timezone:/etc/timezone:ro
@@ -50,12 +54,19 @@ services:
       - gitea
 
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+        - VITE_GITEA_URL=${VITE_GITEA_URL:-http://localhost:3000}
+        - VITE_DOMAIN=${DOMAIN:-localhost}
+        - VITE_ROOT_URL=${ROOT_URL:-http://localhost:3000/}
     container_name: marine-frontend
     restart: unless-stopped
     environment:
       # Auto-switches between localhost and production
       - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+      - VITE_GITEA_URL=${VITE_GITEA_URL:-http://localhost:3000}
     ports:
       - "4173:4173"    # Vite dev server
     depends_on:
