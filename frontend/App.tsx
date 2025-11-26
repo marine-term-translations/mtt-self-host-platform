@@ -10,6 +10,7 @@ import TermDetail from './pages/TermDetail';
 import About from './pages/About';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
+import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App: React.FC = () => {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/about" element={<About />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         
         {/* Protected Routes */}

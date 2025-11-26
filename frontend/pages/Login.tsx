@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Waves } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -63,6 +63,15 @@ const Login: React.FC = () => {
           <p className="text-xs text-center text-slate-400">
             Clicking sign in will create a local mock session. No real data is sent to Gitea.
           </p>
+
+          <div className="pt-4 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-medium text-marine-600 hover:text-marine-500">
+                Register here
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
