@@ -23,7 +23,7 @@ CREATE TABLE translations (
     term_field_id  INTEGER NOT NULL REFERENCES term_fields(id) ON DELETE CASCADE,
     language       TEXT    NOT NULL CHECK(language IN ('nl','fr','de','es','it','pt')),
     value          TEXT    NOT NULL,
-    status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'review', 'approved', 'rejected')),
+    status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'review', 'approved', 'rejected', 'merged')),
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_by     TEXT    NOT NULL,
