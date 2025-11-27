@@ -20,11 +20,6 @@ marine-term-translations/platform/
 │   └── custom/conf/app.ini
 ├── runner/
 │   └── config.yaml
-├── nginx/
-│   ├── nginx.conf
-│   └── certbot/
-│       ├── conf/
-│       └── www/
 ├── backups/
 ├── infra/
 │   ├── backup.sh
@@ -77,25 +72,36 @@ After running `docker compose up -d`, follow these steps to complete your admin 
 
 ---
 
-### (Optional) Register a Gitea Act Runner
-
-To enable automated runner actions, follow the official instructions:  
-See [Gitea Act Runner documentation](https://gitea.com/gitea/act_runner).
-
-1. Log in to Gitea as admin.
-2. Go to **Actions** → **Runners**.
-3. Click **Register Runner**.
-4. Enter a name and description, then click **Generate Token**.
-5. Copy the token and add it to your `.env` file as `RUNNER_TOKEN=`.
-
----
-
 4. **Restart the Services**
    - Run:
      ```
      docker compose restart
      ```
    - This reloads the backend and runner with the new token(s).
+
+---
+
+5. **Run infra scripts for setup**
+   - Run the following commands to set up backups and push mirror:
+     ```
+     sh ./infra/setup-gitea.sh
+     ```
+---
+
+6. **Register the Runner**
+
+To enable automated runner actions, follow the official instructions:  
+See [Gitea Act Runner documentation](https://gitea.com/gitea/act_runner).
+
+1. Log in to Gitea as admin and goto the translations repo.
+2. Go to **Actions** → **Runners**.
+3. Click **Register Runner**.
+4. Enter a name and description, then click **Generate Token**.
+5. Copy the token and add it to your `.env` file as `RUNNER_TOKEN=`.
+6. run sh infra/rebuild.sh to restart the runner with the new token.
+---
+
+
 
 Your platform is now fully configured for admin access and automation.
 
