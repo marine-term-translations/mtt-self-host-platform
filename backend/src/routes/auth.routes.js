@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const giteaService = require("../services/gitea.service");
+const { authLimiter } = require("../middleware/rateLimit");
 
 /**
  * @openapi
@@ -31,7 +32,7 @@ const giteaService = require("../services/gitea.service");
  *                 token:
  *                   type: string
  */
-router.post("/login-gitea", async (req, res) => {
+router.post("/login-gitea", authLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
