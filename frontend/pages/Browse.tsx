@@ -1,15 +1,82 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { MOCK_TERMS } from '../mock/terms';
 import TermCard from '../components/TermCard';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Loader2, AlertTriangle } from 'lucide-react';
+import { backendApi } from '../services/api';
+import { Term, ApiTerm } from '../types';
+import toast from 'react-hot-toast';
 
 const Browse: React.FC = () => {
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const categories = ['All', ...Array.from(new Set(MOCK_TERMS.map(t => t.category)))];
+  // Fetch Terms Logic
+  useEffect(() => {
+    const fetchTerms = async () => {
+      setLoading(true);
+      try {
+        console.log("Fetching terms from API...");
+        const apiTerms = await backendApi.getTerms();
+        
+        // Map API response to UI Term model
+        const mappedTerms: Term[] = apiTerms.map((apiTerm: ApiTerm) => {
+          // Find key fields
+          const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+          const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
+          const altLabelField = apiTerm.fields.find(f => f.field_term === 'skos:altLabel');
+          
+          // Construct Translations Map
+          const translations: Record<string, string | null> = {
+            en_plain: null,
+            es: null,
+            fr: null,
+            nl: null,
+          };
 
-  const filteredTerms = MOCK_TERMS.filter(term => {
+          // Try to populate translations if they exist in the nested fields
+          // Assuming translations are attached to the definition field for now
+          if (definitionField && definitionField.translations) {
+            definitionField.translations.forEach(t => {
+              if (t.language_code) {
+                 translations[t.language_code] = t.translation_value;
+              }
+            });
+          }
+
+          // Use URI or fallback to a string ID
+          return {
+            id: apiTerm.uri,
+            prefLabel: prefLabelField?.original_value || 'Unknown Term',
+            definition: definitionField?.original_value || 'No definition available.',
+            // Try to guess category from URI or default to General
+            category: 'General Oceanography', 
+            translations: translations,
+            contributors: [] // API doesn't provide this yet
+          };
+        });
+
+        setTerms(mappedTerms);
+        setUsingMock(false);
+      } catch (error) {
+        console.error("Failed to fetch terms from API, using mock data:", error);
+        setTerms(MOCK_TERMS);
+        setUsingMock(true);
+        toast.error("Could not connect to live data. Showing offline/mock data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTerms();
+  }, []);
+
+  const categories = ['All', ...Array.from(new Set(terms.map(t => t.category)))];
+
+  const filteredTerms = terms.filter(term => {
     const matchesSearch = term.prefLabel.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           term.definition.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'All' || term.category === filterCategory;
@@ -24,6 +91,12 @@ const Browse: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Browse Terms</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Explore and filter the marine vocabulary.</p>
         </div>
+        {usingMock && (
+          <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium">
+            <AlertTriangle size={14} />
+            Offline Mode / Mock Data
+          </div>
+        )}
       </div>
 
       {/* Controls */}
@@ -57,8 +130,13 @@ const Browse: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid */}
-      {filteredTerms.length > 0 ? (
+      {/* Content */}
+      {loading ? (
+        <div className="min-h-[40vh] flex flex-col items-center justify-center text-slate-500">
+           <Loader2 size={40} className="animate-spin text-marine-500 mb-4" />
+           <p>Loading terms library...</p>
+        </div>
+      ) : filteredTerms.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTerms.map(term => (
             <TermCard key={term.id} term={term} />

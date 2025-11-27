@@ -1,5 +1,6 @@
 
 import { CONFIG } from '../config';
+import { ApiTerm } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -106,6 +107,16 @@ class ApiService {
 
   public delete<T>(endpoint: string, token?: string) {
     return this.request<T>(endpoint, { method: 'DELETE', token });
+  }
+
+  // --- Domain Specific Methods ---
+
+  public async getTerms(): Promise<ApiTerm[]> {
+    return this.get<ApiTerm[]>('/terms');
+  }
+
+  public async getUserTeams(username: string, org: string): Promise<any[]> {
+    return this.get<any[]>('/user-teams', { username, org });
   }
 }
 
