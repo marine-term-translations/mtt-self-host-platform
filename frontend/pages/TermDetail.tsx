@@ -57,11 +57,15 @@ const TermDetail: React.FC = () => {
              }
         });
 
+        // Extract collection from URI (e.g. .../collection/P02/current/...)
+        const collectionMatch = foundApiTerm.uri.match(/\/collection\/([^/]+)\//);
+        const collectionName = collectionMatch ? collectionMatch[1] : 'General';
+
         const mappedTerm: Term = {
           id: foundApiTerm.uri,
           prefLabel: prefLabelField?.original_value || 'Unknown Term',
           definition: definitionField?.original_value || 'No definition available.',
-          category: 'General', 
+          category: collectionName, 
           translations: translations,
           contributors: []
         };

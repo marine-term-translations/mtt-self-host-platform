@@ -27,7 +27,6 @@ const Browse: React.FC = () => {
           // Find key fields
           const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
           const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
-          const altLabelField = apiTerm.fields.find(f => f.field_term === 'skos:altLabel');
           
           // Construct Translations Map
           const translations: Record<string, string | null> = {
@@ -47,13 +46,17 @@ const Browse: React.FC = () => {
             });
           }
 
+          // Extract collection from URI (e.g. .../collection/P02/current/...)
+          // Default to 'General' if not found
+          const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
+          const collectionName = collectionMatch ? collectionMatch[1] : 'General';
+
           // Use URI or fallback to a string ID
           return {
             id: apiTerm.uri,
             prefLabel: prefLabelField?.original_value || 'Unknown Term',
             definition: definitionField?.original_value || 'No definition available.',
-            // Try to guess category from URI or default to General
-            category: 'General Oceanography', 
+            category: collectionName, 
             translations: translations,
             contributors: [] // API doesn't provide this yet
           };
