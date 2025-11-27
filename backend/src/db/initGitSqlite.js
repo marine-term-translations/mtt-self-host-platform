@@ -36,7 +36,7 @@ function setupRepo() {
     console.log("No database found → creating new one");
     // Create empty DB + run schema
     const db = new Database(dbPath);
-    db.exec(fs.readFileSync(path.join(__dirname, "../../schema.sql"), "utf8"));
+    db.exec(fs.readFileSync(path.join(__dirname, "migrations/schema.sql"), "utf8"));
     db.close();
 
     execSync(`git -C "${REPO_PATH}" add translations.db`);
