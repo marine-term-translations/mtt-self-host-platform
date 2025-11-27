@@ -563,6 +563,66 @@ app.get("/api/terms", (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/user-teams:
+ *   get:
+ *     summary: Get teams for a user in an organization
+ *     parameters:
+ *       - in: query
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: org
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of teams the user is in
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ */
+app.get("/api/user-teams", async (req, res) => {
+  const { username, org } = req.query;
+  const token = process.env.GITEA_ADMIN_TOKEN;
+  if (!username || !org) {
+    return res.status(400).json({ error: "Missing username or org" });
+  }
+  try {
+    // Get all teams in the org
+    const teamsRes = await axios.get(
+      `${GITEA_API_URL}/api/v1/orgs/${org}/teams`,
+      { headers: { Authorization: `token ${token}` } }
+    );
+    // Filter teams where user is a member
+    const userTeams = [];
+    for (const team of teamsRes.data) {
+      try {
+        await axios.get(
+          `${GITEA_API_URL}/api/v1/teams/${team.id}/members/${username}`,
+          { headers: { Authorization: `token ${token}` } }
+        );
+        userTeams.push(team);
+      } catch (err) {
+        // 404 means user is not in this team, skip
+        if (err.response && err.response.status === 404) continue;
+        throw err;
+      }
+    }
+    res.json(userTeams);
+  } catch (err) {
+    console.error("Failed to get user teams:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });
