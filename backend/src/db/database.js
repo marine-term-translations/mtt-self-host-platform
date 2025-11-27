@@ -37,7 +37,7 @@ function isDatabaseInitialized() {
  */
 function applySchema() {
   const database = getDatabase();
-  const schemaPath = path.join(__dirname, "../../schema.sql");
+  const schemaPath = path.join(__dirname, "migrations/schema.sql");
   const schemaSQL = fs.readFileSync(schemaPath, "utf8");
   database.exec(schemaSQL);
   console.log("Schema applied to SQLite DB.");
