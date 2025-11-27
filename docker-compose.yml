@@ -6,6 +6,7 @@ services:
     environment:
       - USER_UID=1000
       - USER_GID=1000
+      - GITEA__actions__ENABLED=true
       - GITEA__database__DB_TYPE=postgres
       - GITEA__database__HOST=db:5432
       - GITEA__database__NAME=gitea
@@ -86,7 +87,7 @@ services:
     container_name: act-runner
     restart: unless-stopped
     environment:
-      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_INSTANCE_URL=http://host.docker.internal:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
       - RUNNER_NAME=marine-runner
       - RUNNER_LABELS=linux,docker
@@ -94,6 +95,8 @@ services:
     volumes:
       - ./runner:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # ← THIS IS THE MAGIC
 
 volumes:
   gitea-data:

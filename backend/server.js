@@ -1,6 +1,9 @@
 // Minimal Node.js API server
 
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+
 const cors = require("cors");
 const fetch = require("node-fetch");
 const swaggerUi = require("swagger-ui-express");
@@ -12,8 +15,6 @@ app.use(cors());
 app.use(express.json());
 const port = 5000;
 const { execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
 const Database = require("better-sqlite3");
 
 const GITEA_API_URL = process.env.GITEA_URL;
@@ -46,6 +47,44 @@ if (!hasTermsTable) {
   const schemaSQL = fs.readFileSync(schemaPath, "utf8");
   db.exec(schemaSQL);
   console.log("Schema applied to SQLite DB.");
+
+  // After cloning/pulling the translations repo
+  const workflowsDir = path.join(REPO_PATH, ".gitea", "workflows");
+  const harvestYmlPath = path.join(workflowsDir, "harvest.yml");
+  const harvestYmlContent = `
+name: Harvest NERC
+
+on:
+  workflow_dispatch:
+    inputs:
+      collection-uri:
+        description: 'NERC collection URI to harvest'
+        required: true
+        default: 'http://vocab.nerc.ac.uk/collection/P02/current/'
+        type: string
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: \${{ secrets.GITEA_TOKEN }}
+
+      - uses: marine-term-translations/setup-harvest-action@main
+        with:
+          collection-uri: \${{ inputs.collection-uri || 'http://vocab.nerc.ac.uk/collection/P02/current/' }}
+          token: \${{ secrets.GITEA_TOKEN }}
+  `;
+
+  if (!fs.existsSync(workflowsDir)) {
+    fs.mkdirSync(workflowsDir, { recursive: true });
+  }
+  fs.writeFileSync(harvestYmlPath, harvestYmlContent, "utf8");
+  console.log("harvest.yml workflow created in translations repo.");
+
   // Commit and push the initialized DB to the repo
   try {
     execSync(
@@ -54,9 +93,9 @@ if (!hasTermsTable) {
     execSync(
       `git -C ${REPO_PATH} config user.email "${process.env.GITEA_ADMIN_EMAIL}"`
     );
-    execSync(`git -C ${REPO_PATH} add ${DB_PATH}`);
+    execSync(`git -C ${REPO_PATH} add ${DB_PATH} ${harvestYmlPath}`);
     execSync(
-      `git -C ${REPO_PATH} commit -m "chore: initialize translations database" --author="${process.env.GITEA_ADMIN_USER} <${process.env.GITEA_ADMIN_EMAIL}>"`
+      `git -C ${REPO_PATH} commit -m "chore: initialize translations database and workflow" --author="${process.env.GITEA_ADMIN_USER} <${process.env.GITEA_ADMIN_EMAIL}>"`
     );
     execSync(`git -C ${REPO_PATH} push`);
     console.log("Initial DB committed and pushed to repo.");
@@ -65,6 +104,18 @@ if (!hasTermsTable) {
   }
 }
 console.log("SQLite DB loaded from repo.");
+
+try {
+  execSync(`git -C ${REPO_PATH} add .`);
+  execSync(
+    `git -C ${REPO_PATH} commit -m "chore: update translations repo" --author="${process.env.GITEA_ADMIN_USER} <${process.env.GITEA_ADMIN_EMAIL}>"`,
+    { stdio: "ignore" }
+  );
+  execSync(`git -C ${REPO_PATH} push`, { stdio: "ignore" });
+  console.log("Changes pushed to Gitea repository.");
+} catch (err) {
+  console.error("Failed to push changes to Gitea repository:", err.message);
+}
 
 async function createOrganization() {
   const apiUrl = `${GITEA_API_URL}/api/v1/admin/users/admin/orgs`;
@@ -268,10 +319,6 @@ app.post("/api/check-admin", async (req, res) => {
     }
     return res.status(500).json({ error: err.message });
   }
-});
-
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
 });
 
 /**
@@ -493,9 +540,29 @@ app.put("/api/terms/:id", (req, res) => {
  */
 app.get("/api/terms", (req, res) => {
   try {
+    // Get all terms
     const terms = db.prepare("SELECT * FROM terms").all();
-    res.json(terms);
+    // For each term, get its fields and translations
+    const termDetails = terms.map((term) => {
+      // Get fields for this term
+      const fields = db
+        .prepare("SELECT * FROM term_fields WHERE term_id = ?")
+        .all(term.id);
+      // For each field, get translations
+      const fieldsWithTranslations = fields.map((field) => {
+        const translations = db
+          .prepare("SELECT * FROM translations WHERE term_field_id = ?")
+          .all(field.id);
+        return { ...field, translations };
+      });
+      return { ...term, fields: fieldsWithTranslations };
+    });
+    res.json(termDetails);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
 });
