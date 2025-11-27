@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
+const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 
 /**
  * @openapi
@@ -26,7 +27,7 @@ const { getDatabase } = require("../db/database");
  *             schema:
  *               type: object
  */
-router.post("/terms", (req, res) => {
+router.post("/terms", writeLimiter, (req, res) => {
   const { uri } = req.body;
   if (!uri) return res.status(400).json({ error: "Missing uri" });
   try {
@@ -67,7 +68,7 @@ router.post("/terms", (req, res) => {
  *             schema:
  *               type: object
  */
-router.put("/terms/:id", (req, res) => {
+router.put("/terms/:id", writeLimiter, (req, res) => {
   const { id } = req.params;
   const { uri } = req.body;
   if (!uri) return res.status(400).json({ error: "Missing uri" });
@@ -100,7 +101,7 @@ router.put("/terms/:id", (req, res) => {
  *               items:
  *                 type: object
  */
-router.get("/terms", (req, res) => {
+router.get("/terms", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     // Get all terms
