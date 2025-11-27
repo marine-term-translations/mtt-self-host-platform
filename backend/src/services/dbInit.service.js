@@ -24,7 +24,7 @@ name: Harvest NERC
 on:
   workflow_dispatch:
     inputs:
-      collection-uri:
+      collection-url:
         description: 'NERC collection URI to harvest'
         required: true
         default: 'http://vocab.nerc.ac.uk/collection/P02/current/'
@@ -42,7 +42,7 @@ jobs:
 
       - uses: marine-term-translations/setup-harvest-action@main
         with:
-          collection-uri: \${{ inputs.collection-uri || 'http://vocab.nerc.ac.uk/collection/P02/current/' }}
+          collection-url: \${{ inputs.collection-url || 'http://vocab.nerc.ac.uk/collection/P02/current/' }}
           token: \${{ secrets.GITEA_TOKEN }}
   `;
 
