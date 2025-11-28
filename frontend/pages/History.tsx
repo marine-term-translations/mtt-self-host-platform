@@ -1,33 +1,90 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, Edit2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-interface HistoryItem {
-  id: number;
-  term: string;
-  action: 'Created' | 'Edited' | 'Reviewed';
-  lang: string;
-  status: 'Approved' | 'Pending' | 'Rejected';
-  date: string;
-  details: string;
-}
+import { useAuth } from '../context/AuthContext';
+import { backendApi } from '../services/api';
+import { ApiUserActivity, ApiTerm } from '../types';
+import toast from 'react-hot-toast';
 
 const History: React.FC = () => {
-  const mockHistory: HistoryItem[] = [
-    { id: 1, term: "Water Turbidity", action: "Edited", lang: "EN", status: "Approved", date: "2023-10-25", details: "Added plain english definition" },
-    { id: 2, term: "Bathyal zone", action: "Reviewed", lang: "FR", status: "Approved", date: "2023-10-24", details: "Verified technical accuracy" },
-    { id: 3, term: "Salinity", action: "Created", lang: "NL", status: "Pending", date: "2023-10-22", details: "Initial translation submission" },
-    { id: 4, term: "Anthropogenic debris", action: "Edited", lang: "ES", status: "Rejected", date: "2023-10-20", details: "Translation too literal" },
-    { id: 5, term: "Dissolved oxygen", action: "Created", lang: "EN", status: "Approved", date: "2023-10-15", details: "Added comprehensive description" },
-  ];
+  const { user } = useAuth();
+  const [history, setHistory] = useState<ApiUserActivity[]>([]);
+  const [termMap, setTermMap] = useState<Record<number, string>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.username) return;
+      try {
+        setLoading(true);
+        // Fetch user history and all terms to resolve names
+        const [historyData, termsData] = await Promise.all([
+          backendApi.getUserHistory(user.username),
+          backendApi.getTerms()
+        ]);
+
+        // Create a map of term ID -> prefLabel
+        const tMap: Record<number, string> = {};
+        termsData.forEach((t: ApiTerm) => {
+          const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
+          tMap[t.id] = prefLabel;
+        });
+        setTermMap(tMap);
+
+        // Sort history by date descending
+        const sortedHistory = historyData.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setHistory(sortedHistory);
+      } catch (error) {
+        console.error("Failed to load history", error);
+        toast.error("Could not load your history.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const formatAction = (action: string) => {
+    switch (action) {
+        case 'translation_created': return 'Created Translation';
+        case 'translation_edited': return 'Edited Translation';
+        case 'translation_approved': return 'Approved';
+        case 'translation_rejected': return 'Rejected';
+        case 'translation_status_changed': return 'Status Change';
+        case 'term_uri_changed': return 'Updated URI';
+        default: return action.replace(/_/g, ' ');
+    }
+  };
+
+  const parseDetails = (extra: string | null) => {
+    if (!extra) return { text: "No details", status: 'Pending', lang: '-' };
+    try {
+      const data = JSON.parse(extra);
+      let text = "";
+      if (data.value) text = `"${data.value}"`;
+      if (data.old_value && data.new_value) text = `"${data.old_value}" → "${data.new_value}"`;
+      if (data.old_status && data.new_status) text = `Status: ${data.old_status} → ${data.new_status}`;
+      
+      return {
+          text: text || "Update",
+          status: data.new_status || data.status || 'Pending',
+          lang: data.language ? data.language.toUpperCase() : '-'
+      };
+    } catch {
+      return { text: "Complex update", status: 'Pending', lang: '-' };
+    }
+  };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Approved': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle size={12} className="mr-1"/> Approved</span>;
-      case 'Pending': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock size={12} className="mr-1"/> Pending</span>;
-      case 'Rejected': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"><XCircle size={12} className="mr-1"/> Rejected</span>;
-      default: return null;
-    }
+    const s = status.toLowerCase();
+    if (s.includes('approved') || s.includes('merged')) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle size={12} className="mr-1"/> Approved</span>;
+    if (s.includes('rejected')) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"><XCircle size={12} className="mr-1"/> Rejected</span>;
+    if (s.includes('review')) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"><Clock size={12} className="mr-1"/> In Review</span>;
+    return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300"><Clock size={12} className="mr-1"/> {status}</span>;
   };
 
   return (
@@ -47,41 +104,60 @@ const History: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-            <thead className="bg-slate-50 dark:bg-slate-900/50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Term</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Language</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Action</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Details</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-              {mockHistory.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{item.date}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{item.term}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{item.lang}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{item.action}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs">{item.details}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(item.status)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {loading ? (
+            <div className="p-12 text-center text-slate-500">Loading history...</div>
+        ) : history.length === 0 ? (
+            <div className="p-12 text-center text-slate-500">No activity recorded yet. Start translating!</div>
+        ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-900/50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Term</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Language</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Action</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Details</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                  {history.map((item) => {
+                    const parsed = parseDetails(item.extra);
+                    return (
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                            {new Date(item.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                {item.term_id ? termMap[item.term_id] || `Term #${item.term_id}` : 'Unknown'}
+                            </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                            {parsed.lang}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                            {formatAction(item.action)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 truncate max-w-xs">
+                            {parsed.text}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            {getStatusBadge(parsed.status)}
+                        </td>
+                        </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+        )}
       </div>
       
       <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-500">
         <AlertCircle size={16} />
-        <span>Only showing the last 30 days of activity.</span>
+        <span>Only showing activity recorded in the database.</span>
       </div>
     </div>
   );
