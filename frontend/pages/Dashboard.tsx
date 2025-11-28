@@ -61,7 +61,7 @@ const Dashboard: React.FC = () => {
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
 
-        setActivities(sortedHistory.slice(0, 10)); // Top 10 recent
+        setActivities(sortedHistory.slice(0, 5)); // Top 5 recent
         setStats({
           activityCount: history.length,
           reputation: currentUserData?.reputation || 0,

@@ -6,7 +6,7 @@ import { backendApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen, 
-  CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle 
+  CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle, ChevronRight, Edit3 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,7 +25,9 @@ const TermDetail: React.FC = () => {
   const [selectedLang, setSelectedLang] = useState('');
   const [allowedLanguages, setAllowedLanguages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const [openHistoryFieldId, setOpenHistoryFieldId] = useState<number | null>(null);
+  const [selectedHistoryEventId, setSelectedHistoryEventId] = useState<number | null>(null);
 
   // Derived display values
   const [displayLabel, setDisplayLabel] = useState('Loading...');
@@ -116,9 +118,6 @@ const TermDetail: React.FC = () => {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  // Helper to build payload and submit
-  // targetFieldId: Only apply the new status to this field
-  // targetStatus: The specific status to set (e.g. 'review', 'approved')
   const submitUpdate = async (targetFieldId?: number, targetStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
     if (!term || !user) return;
     setIsSubmitting(true);
@@ -128,7 +127,6 @@ const TermDetail: React.FC = () => {
             const currentLangCode = selectedLang.toLowerCase();
             const newValue = formValues[field.id];
             
-            // Existing translations minus current lang
             let translationsPayload = field.translations?.map(t => ({
                 language: t.language.toLowerCase(),
                 value: t.value,
@@ -136,22 +134,14 @@ const TermDetail: React.FC = () => {
                 created_by: t.created_by || 'unknown'
             })).filter(t => t.language !== currentLangCode) || [];
 
-            // Add/Update current lang translation
             if (newValue && newValue.trim() !== '') {
-                // Find previous translation to check state
                 const prevTrans = field.translations?.find(t => t.language.toLowerCase() === currentLangCode);
                 
-                // Determine new status logic:
-                // 1. Start with existing status or default to 'draft'
                 let newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged' = prevTrans?.status || 'draft';
                 
-                // 2. If this is the specific field targeted by an action (e.g. "Approve"), use that status
                 if (targetFieldId !== undefined && field.id === targetFieldId && targetStatus) {
                     newStatus = targetStatus;
                 } else {
-                    // 3. General "Save" logic or side-effect for other fields:
-                    // If the content has changed from what was on server, revert to draft (unless it was already draft)
-                    // This prevents stealth edits to approved terms
                     if (prevTrans && prevTrans.value !== newValue) {
                         newStatus = 'draft';
                     }
@@ -205,7 +195,67 @@ const TermDetail: React.FC = () => {
   };
 
   const toggleHistory = (fieldId: number) => {
-    setOpenHistoryFieldId(openHistoryFieldId === fieldId ? null : fieldId);
+    if (openHistoryFieldId === fieldId) {
+        setOpenHistoryFieldId(null);
+        setSelectedHistoryEventId(null);
+    } else {
+        setOpenHistoryFieldId(fieldId);
+        setSelectedHistoryEventId(null); 
+    }
+  };
+
+  const parseExtra = (extra: string | null) => {
+    try {
+        return extra ? JSON.parse(extra) : {};
+    } catch { return {}; }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch(status) {
+        case 'approved': return 'bg-green-500 border-green-200';
+        case 'review': return 'bg-amber-500 border-amber-200';
+        case 'rejected': return 'bg-red-500 border-red-200';
+        case 'merged': return 'bg-purple-500 border-purple-200';
+        default: return 'bg-slate-400 border-slate-200';
+    }
+  };
+
+  const getBaseColorName = (activity: any, parsedExtra: any) => {
+     if (activity.action === 'translation_status_changed' && parsedExtra.new_status) {
+         switch(parsedExtra.new_status) {
+            case 'approved': return 'green-500';
+            case 'review': return 'amber-500';
+            case 'rejected': return 'red-500';
+            case 'merged': return 'purple-500';
+            default: return 'slate-400';
+         }
+     }
+     if (activity.action === 'translation_created') return 'blue-500';
+     if (activity.action === 'translation_edited') return 'blue-400';
+     return 'slate-300';
+  };
+
+  const getColorHex = (name: string) => {
+    const colors: Record<string, string> = {
+        'green-500': '#22c55e',
+        'amber-500': '#f59e0b',
+        'red-500': '#ef4444',
+        'purple-500': '#a855f7',
+        'slate-300': '#cbd5e1',
+        'slate-400': '#94a3b8',
+        'blue-500': '#3b82f6',
+        'blue-400': '#60a5fa'
+    };
+    return colors[name] || '#cbd5e1';
+  };
+
+  const getEventDotColor = (activity: any, parsedExtra: any) => {
+     if (activity.action === 'translation_status_changed' && parsedExtra.new_status) {
+         return getStatusColor(parsedExtra.new_status);
+     }
+     if (activity.action === 'translation_created') return 'bg-blue-500 border-blue-200';
+     if (activity.action === 'translation_edited') return 'bg-blue-400 border-blue-200';
+     return 'bg-slate-300 border-slate-100';
   };
 
   if (loading) {
@@ -244,12 +294,6 @@ const TermDetail: React.FC = () => {
     if (uri.includes('altLabel')) return 'Alternative Label';
     if (uri.includes('definition')) return 'Definition';
     return 'Other Field';
-  };
-
-  const parseExtra = (extra: string | null) => {
-      try {
-          return extra ? JSON.parse(extra) : {};
-      } catch { return {}; }
   };
 
   return (
@@ -311,9 +355,22 @@ const TermDetail: React.FC = () => {
               const isMyTranslation = currentTranslation?.created_by === user?.username;
               const hasValue = formValues[field.id] && formValues[field.id].trim().length > 0;
               
-              // Filter history for this field
-              const fieldHistory = history.filter(h => h.term_field_id === field.id);
               const isHistoryOpen = openHistoryFieldId === field.id;
+
+              // Filter history for this field AND this language
+              const fieldHistoryRaw = history
+                  .map(h => ({ ...h, parsedExtra: parseExtra(h.extra) }))
+                  .filter(h => 
+                      h.parsedExtra?.field_uri === field.field_uri && 
+                      h.parsedExtra?.language?.toLowerCase() === selectedLang.toLowerCase()
+                  )
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+              // Determine view mode
+              const useHorizontalTimeline = fieldHistoryRaw.length > 3;
+              const selectedEvent = selectedHistoryEventId 
+                  ? fieldHistoryRaw.find(h => h.id === selectedHistoryEventId) 
+                  : fieldHistoryRaw[0];
 
               return (
                 <div key={field.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
@@ -352,7 +409,7 @@ const TermDetail: React.FC = () => {
                          {isTextArea ? (
                              <textarea
                                rows={4}
-                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
+                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
                                disabled={!canTranslate}
@@ -361,7 +418,7 @@ const TermDetail: React.FC = () => {
                          ) : (
                              <input
                                type="text"
-                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
+                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
                                disabled={!canTranslate}
@@ -380,7 +437,6 @@ const TermDetail: React.FC = () => {
                           </button>
 
                           <div className="flex items-center gap-2">
-                              {/* Workflow: Mark for Review (For Owners) */}
                               {status === 'draft' && isMyTranslation && hasValue && (
                                   <button
                                     onClick={() => handleStatusChange(field.id, 'review')}
@@ -391,7 +447,6 @@ const TermDetail: React.FC = () => {
                                   </button>
                               )}
 
-                              {/* Workflow: Review Actions (For Others) */}
                               {status === 'review' && !isMyTranslation && (
                                   <>
                                     <button
@@ -411,7 +466,6 @@ const TermDetail: React.FC = () => {
                                   </>
                               )}
 
-                              {/* Default Save Button */}
                               <button
                                  onClick={(e) => { e.preventDefault(); submitUpdate(); }} 
                                  disabled={isSubmitting || !canTranslate}
@@ -426,32 +480,107 @@ const TermDetail: React.FC = () => {
                       {isHistoryOpen && (
                           <div className="mt-6 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2">
                              <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-1">
-                                <History size={12} /> Timeline for this field
+                                <History size={12} /> Timeline for {label} ({selectedLang})
                              </h4>
-                             {fieldHistory.length === 0 ? (
+                             
+                             {fieldHistoryRaw.length === 0 ? (
                                  <p className="text-xs text-slate-400 italic">No recorded history.</p>
+                             ) : useHorizontalTimeline ? (
+                                 // Horizontal Timeline (>3 items)
+                                 <div>
+                                     <div className="relative pt-2 pb-6 px-4 overflow-x-auto">
+                                         <div className="flex items-start min-w-max">
+                                            {fieldHistoryRaw.map((h, idx) => {
+                                                const extra = h.parsedExtra;
+                                                const dotColor = getEventDotColor(h, extra);
+                                                const isSelected = selectedEvent && selectedEvent.id === h.id;
+                                                const nextH = fieldHistoryRaw[idx + 1];
+                                                
+                                                const color1Name = getBaseColorName(h, extra);
+                                                const color2Name = nextH ? getBaseColorName(nextH, nextH.parsedExtra) : 'slate-300';
+                                                
+                                                const color1Hex = getColorHex(color1Name);
+                                                const color2Hex = getColorHex(color2Name);
+                                                
+                                                return (
+                                                    <div key={h.id} className="flex items-center">
+                                                        <div className="flex flex-col items-center cursor-pointer group w-20" onClick={() => setSelectedHistoryEventId(h.id)}>
+                                                            <div className={`w-4 h-4 rounded-full border-2 transition-all z-10 ${dotColor} ${isSelected ? 'ring-2 ring-marine-500 scale-125' : 'group-hover:scale-110'}`}></div>
+                                                            <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{new Date(h.created_at).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+                                                        </div>
+                                                        {nextH && (
+                                                             <div 
+                                                               className="h-0.5 w-12 rounded-full mx-0.5"
+                                                               style={{ background: `linear-gradient(to right, ${color1Hex}, ${color2Hex})` }}
+                                                             ></div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                         </div>
+                                     </div>
+
+                                     {/* Selected Event Details */}
+                                     {selectedEvent && (
+                                         <div className="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-3 mt-2 text-sm">
+                                             <div className="flex justify-between items-center mb-2">
+                                                 <span className="font-bold text-slate-700 dark:text-slate-300">{selectedEvent.user}</span>
+                                                 <span className="text-xs text-slate-400">{new Date(selectedEvent.created_at).toLocaleString()}</span>
+                                             </div>
+                                             <div className="text-xs text-slate-500 mb-2 font-mono bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded inline-block">
+                                                {selectedEvent.action.replace(/_/g, ' ')}
+                                             </div>
+                                             
+                                             <div className="space-y-1">
+                                                {selectedEvent.parsedExtra.old_status && selectedEvent.parsedExtra.new_status && (
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <span className={`px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700`}>{selectedEvent.parsedExtra.old_status}</span>
+                                                        <ChevronRight size={12} className="text-slate-400"/>
+                                                        <span className={`px-1.5 py-0.5 rounded font-bold ${getStatusColor(selectedEvent.parsedExtra.new_status).split(' ')[0]} text-white`}>
+                                                            {selectedEvent.parsedExtra.new_status}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {selectedEvent.parsedExtra.old_value && selectedEvent.parsedExtra.new_value && (
+                                                     <div className="text-xs mt-2 border-t border-slate-100 dark:border-slate-700 pt-2">
+                                                        <div className="text-red-500 line-through opacity-70 mb-1">"{selectedEvent.parsedExtra.old_value}"</div>
+                                                        <div className="text-green-600 dark:text-green-400">"{selectedEvent.parsedExtra.new_value}"</div>
+                                                     </div>
+                                                )}
+                                                {selectedEvent.parsedExtra.value && !selectedEvent.parsedExtra.old_value && (
+                                                     <div className="text-xs text-slate-600 dark:text-slate-400 italic">
+                                                        "{selectedEvent.parsedExtra.value}"
+                                                     </div>
+                                                )}
+                                             </div>
+                                         </div>
+                                     )}
+                                 </div>
                              ) : (
+                                 // Vertical Timeline (<=3 items)
                                  <div className="relative border-l border-slate-200 dark:border-slate-700 ml-2 space-y-4 pl-4">
-                                     {fieldHistory.map(h => {
-                                         const extra = parseExtra(h.extra);
-                                         // Filter visual history items if they don't match the current view language
-                                         // (optional, but cleaner)
-                                         // if (extra.language && extra.language.toLowerCase() !== selectedLang.toLowerCase()) return null;
-                                         
+                                     {fieldHistoryRaw.map(h => {
+                                         const extra = h.parsedExtra;
                                          return (
                                            <div key={h.id} className="relative">
-                                              <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800"></div>
+                                              <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-800 ${getEventDotColor(h, extra).split(' ')[0]}`}></div>
                                               <div className="text-xs">
                                                   <span className="font-bold text-slate-700 dark:text-slate-300">{h.user}</span>
                                                   <span className="text-slate-500 ml-1">{h.action.replace(/_/g, ' ')}</span>
                                               </div>
-                                              {extra.value && (
+                                              
+                                              {/* Simple Inline Details for Vertical View */}
+                                              {extra.new_status && (
+                                                   <div className="text-[10px] mt-0.5">
+                                                       Changed status to <span className="font-bold">{extra.new_status}</span>
+                                                   </div>
+                                              )}
+                                              {(extra.value || extra.new_value) && (
                                                   <div className="text-xs text-slate-600 dark:text-slate-400 italic mt-0.5 bg-white dark:bg-slate-800 inline-block px-2 py-1 rounded border border-slate-100 dark:border-slate-700">
-                                                      "{extra.value}" 
-                                                      {extra.language && <span className="ml-1 not-italic font-bold text-marine-500 text-[10px] uppercase">({extra.language})</span>}
+                                                      "{extra.value || extra.new_value}" 
                                                   </div>
                                               )}
-                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString()}</div>
+                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleString()}</div>
                                            </div>
                                          );
                                      })}
