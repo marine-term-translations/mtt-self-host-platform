@@ -63,3 +63,41 @@ CREATE INDEX idx_translations_status ON translations(status);
 CREATE INDEX idx_translations_lang   ON translations(language);
 CREATE INDEX idx_appeals_status     ON appeals(status);
 CREATE INDEX idx_term_fields_term_id ON term_fields(term_id);
+
+-- Generic activity / history table
+CREATE TABLE user_activity (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user          TEXT    NOT NULL,
+    action        TEXT    NOT NULL,  -- e.g. 'translation_created', 'translation_approved', 'appeal_opened', etc.
+    term_id           INTEGER,
+    term_field_id     INTEGER,
+    translation_id    INTEGER,
+    appeal_id         INTEGER,
+    appeal_message_id INTEGER,
+    extra             TEXT,  -- JSON string recommended
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user)          REFERENCES users(username)         ON DELETE CASCADE,
+    FOREIGN KEY(term_id)       REFERENCES terms(id)               ON DELETE SET NULL,
+    FOREIGN KEY(term_field_id) REFERENCES term_fields(id)         ON DELETE SET NULL,
+    FOREIGN KEY(translation_id)REFERENCES translations(id)        ON DELETE SET NULL,
+    FOREIGN KEY(appeal_id)     REFERENCES appeals(id)             ON DELETE SET NULL,
+    FOREIGN KEY(appeal_message_id) REFERENCES appeal_messages(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_user_activity_user      ON user_activity(user);
+CREATE INDEX idx_user_activity_created   ON user_activity(created_at DESC);
+CREATE INDEX idx_user_activity_action    ON user_activity(action);
+CREATE INDEX idx_user_activity_user_created ON user_activity(user, created_at DESC);
+
+-- Reputation history (optional)
+CREATE TABLE reputation_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user        TEXT NOT NULL,
+    delta       INTEGER NOT NULL,          -- +5, -2, etc.
+    reason      TEXT NOT NULL,             -- 'translation_approved', 'appeal_spam', etc.
+    related_activity_id INTEGER,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user) REFERENCES users(username) ON DELETE CASCADE,
+    FOREIGN KEY(related_activity_id) REFERENCES user_activity(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_reputation_user ON reputation_events(user, created_at DESC);

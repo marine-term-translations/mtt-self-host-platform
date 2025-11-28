@@ -40,8 +40,8 @@ const Browse: React.FC = () => {
           // Assuming translations are attached to the definition field for now
           if (definitionField && definitionField.translations) {
             definitionField.translations.forEach(t => {
-              if (t.language_code) {
-                 translations[t.language_code] = t.translation_value;
+              if (t.language) {
+                 translations[t.language] = t.value;
               }
             });
           }

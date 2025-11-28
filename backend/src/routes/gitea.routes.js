@@ -75,7 +75,7 @@ router.post("/register-gitea-user", async (req, res) => {
   }
 
   try {
-    // 1. Create user
+    // 1. Create user in Gitea
     const userRes = await giteaService.createUser({
       username,
       name,
@@ -83,7 +83,22 @@ router.post("/register-gitea-user", async (req, res) => {
       password,
     });
 
-    // 2. For each language, ensure team exists and add user
+    // 2. Add user to local database
+    const { getDatabase } = require("../db/database");
+    const db = getDatabase();
+    db.prepare(
+      "INSERT OR IGNORE INTO users (username, joined_at) VALUES (?, CURRENT_TIMESTAMP)"
+    ).run(username);
+    // 2b. Git commit and push after user creation
+    const { gitCommitAndPush } = require("../db/gitOps");
+    try {
+      gitCommitAndPush(`Gitea user ${username} registered`, username);
+    } catch (gitErr) {
+      console.error("Git push failed after user registration:", gitErr.message);
+      // Optionally, you can return an error or continue
+    }
+
+    // 3. For each language, ensure team exists and add user
     const teamResults = [];
     for (const langName of lang) {
       const teamName = langName.replace(/\s+/g, "_");

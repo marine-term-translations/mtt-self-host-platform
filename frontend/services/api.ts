@@ -73,6 +73,7 @@ class ApiService {
         try {
           const errorBody = await response.json();
           if (errorBody.message) errorMessage = errorBody.message;
+          else if (errorBody.error) errorMessage = errorBody.error;
         } catch (e) {
           // Response wasn't JSON
         }
@@ -117,6 +118,10 @@ class ApiService {
 
   public async getUserTeams(username: string, org: string): Promise<any[]> {
     return this.get<any[]>('/user-teams', { username, org });
+  }
+
+  public async updateTerm(id: number | string, data: any): Promise<any> {
+    return this.put<any>(`/terms/${id}`, data);
   }
 }
 

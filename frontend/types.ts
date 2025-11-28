@@ -30,10 +30,13 @@ export interface Stats {
 // API Response Interfaces
 export interface ApiTranslation {
   id: number;
-  field_id: number;
-  language_code: string;
-  translation_value: string;
-  author_name?: string;
+  term_field_id: number;
+  language: string;
+  value: string;
+  created_by?: string;
+  status?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged';
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ApiField {
@@ -43,6 +46,8 @@ export interface ApiField {
   field_term: string; // e.g. "skos:prefLabel", "skos:definition"
   original_value: string;
   translations: ApiTranslation[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ApiTerm {
