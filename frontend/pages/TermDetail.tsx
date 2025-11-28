@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ApiTerm, ApiField } from '../types';
+import { ApiTerm, ApiField, ApiUserActivity } from '../types';
 import { backendApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen } from 'lucide-react';
+import { 
+  ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen, 
+  CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle 
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const TermDetail: React.FC = () => {
@@ -12,8 +15,8 @@ const TermDetail: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  // We use ApiTerm directly now to access specific fields
   const [term, setTerm] = useState<ApiTerm | null>(null);
+  const [history, setHistory] = useState<ApiUserActivity[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Form State: field_id -> translation value
@@ -22,6 +25,7 @@ const TermDetail: React.FC = () => {
   const [selectedLang, setSelectedLang] = useState('');
   const [allowedLanguages, setAllowedLanguages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openHistoryFieldId, setOpenHistoryFieldId] = useState<number | null>(null);
 
   // Derived display values
   const [displayLabel, setDisplayLabel] = useState('Loading...');
@@ -49,7 +53,17 @@ const TermDetail: React.FC = () => {
 
       setTerm(foundApiTerm);
 
-      // 3. Extract Meta Info for Header/Context
+      // 3. Fetch History for this term
+      try {
+        // Fallback: If getTermHistory fails or returns empty, we might not show history.
+        // We pass the numeric ID of the found term
+        const termHistory = await backendApi.getTermHistory(foundApiTerm.id);
+        setHistory(termHistory);
+      } catch (err) {
+        console.warn("Could not fetch term history", err);
+      }
+
+      // 4. Extract Meta Info
       const prefLabelField = foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
       const definitionField = foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
       
@@ -59,7 +73,7 @@ const TermDetail: React.FC = () => {
       const collectionMatch = foundApiTerm.uri.match(/\/collection\/([^/]+)\//);
       setDisplayCategory(collectionMatch ? collectionMatch[1] : 'General');
 
-      // 4. Fetch User Teams for Permissions
+      // 5. Fetch Permissions
       if (user?.username) {
           try {
               const teams = await backendApi.getUserTeams(user.username, 'marine-org');
@@ -67,7 +81,6 @@ const TermDetail: React.FC = () => {
               setAllowedLanguages(userLangs);
               
               if (userLangs.length > 0) {
-                  // Only set default if not already set to avoid jumpiness on re-fetch
                   setSelectedLang(prev => prev || userLangs[0]);
               }
           } catch (teamError) {
@@ -88,69 +101,64 @@ const TermDetail: React.FC = () => {
     if (id) {
         fetchTermData();
     }
-  }, [id, user, navigate]);
+  }, [id, user]);
 
-  // Effect: Populate form values when Language or Term changes
   useEffect(() => {
     if (term && selectedLang) {
       const newValues: Record<number, string> = {};
-      
       term.fields.forEach(field => {
-        // Find existing translation for this field in the selected language
-        // Note: Comparing lowercase for safety as DB is strict lowercase
         const existing = field.translations?.find(t => t.language.toLowerCase() === selectedLang.toLowerCase());
-        if (existing) {
-          newValues[field.id] = existing.value;
-        } else {
-          newValues[field.id] = '';
-        }
+        newValues[field.id] = existing ? existing.value : '';
       });
-      
       setFormValues(newValues);
     }
   }, [term, selectedLang]);
 
   const handleInputChange = (fieldId: number, value: string) => {
-    setFormValues(prev => ({
-      ...prev,
-      [fieldId]: value
-    }));
+    setFormValues(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Helper to build payload and submit
+  const submitUpdate = async (overrideStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
     if (!term || !user) return;
-    
     setIsSubmitting(true);
     
     try {
-        // Construct the full payload required by the backend.
-        // We must include ALL fields and ALL translations, merging our new edits.
-        
         const updatedFields = term.fields.map(field => {
-            // 1. Start with existing translations
+            const currentLangCode = selectedLang.toLowerCase();
+            const newValue = formValues[field.id];
+            
+            // Existing translations minus current lang
             let translationsPayload = field.translations?.map(t => ({
-                language: t.language.toLowerCase(), // Ensure lowercase for DB 'nl','fr' etc
+                language: t.language.toLowerCase(),
                 value: t.value,
                 status: t.status || 'draft',
                 created_by: t.created_by || 'unknown'
-            })) || [];
+            })).filter(t => t.language !== currentLangCode) || [];
 
-            // 2. Remove the translation for the CURRENT language from the list
-            // (Because we are about to replace it with the form value)
-            const currentLangCode = selectedLang.toLowerCase();
-            translationsPayload = translationsPayload.filter(t => t.language !== currentLangCode);
-
-            // 3. Add the new value from the form
-            const newValue = formValues[field.id];
-            
-            // Only add if it has content. If empty, we effectively delete the translation for this language.
+            // Add/Update current lang translation
             if (newValue && newValue.trim() !== '') {
+                // Find previous translation to check if status should persist
+                const prevTrans = field.translations?.find(t => t.language.toLowerCase() === currentLangCode);
+                
+                // Determine new status:
+                // If override provided (e.g. "approved"), use it.
+                // If no override, preserve existing status OR default to 'draft' if changed?
+                // Usually editing resets to draft, unless user is admin. Let's keep logic simple:
+                // If explicit action (overrideStatus), use that. Else 'draft'.
+                
+                let newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged' = overrideStatus || 'draft';
+                if (!overrideStatus && prevTrans && prevTrans.status === 'approved') {
+                    // If editing an approved translation, downgrade to draft?
+                    // For now, let's assume editing always resets to draft for safety.
+                    newStatus = 'draft';
+                }
+
                 translationsPayload.push({
                     language: currentLangCode,
                     value: newValue,
-                    status: 'draft', // New edits generally revert to draft until reviewed
-                    created_by: user.username
+                    status: newStatus,
+                    created_by: prevTrans?.created_by || user.username
                 });
             }
 
@@ -169,21 +177,24 @@ const TermDetail: React.FC = () => {
             username: user.username
         };
 
-        console.log("Submitting payload:", payload);
-
         await backendApi.updateTerm(term.id, payload);
-        
-        toast.success(`Saved translations for ${selectedLang}`);
-        
-        // Refresh data to reflect changes
+        toast.success(overrideStatus ? `Status updated to ${overrideStatus}` : "Translations saved");
         await fetchTermData();
         
     } catch (error) {
         console.error("Update failed", error);
-        toast.error("Failed to save translations. Please try again.");
+        toast.error("Failed to save changes.");
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  const handleStatusChange = async (newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
+    await submitUpdate(newStatus);
+  };
+
+  const toggleHistory = (fieldId: number) => {
+    setOpenHistoryFieldId(openHistoryFieldId === fieldId ? null : fieldId);
   };
 
   if (loading) {
@@ -205,8 +216,6 @@ const TermDetail: React.FC = () => {
 
   const canTranslate = allowedLanguages.length > 0;
   
-  // Filter fields we want to show for translation
-  // We generally want prefLabel, altLabel, and definition
   const translatableFields = term.fields.filter(f => 
     f.original_value && 
     (f.field_term.includes('prefLabel') || f.field_term.includes('altLabel') || f.field_term.includes('definition'))
@@ -226,30 +235,31 @@ const TermDetail: React.FC = () => {
     return 'Other Field';
   };
 
+  const parseExtra = (extra: string | null) => {
+      try {
+          return extra ? JSON.parse(extra) : {};
+      } catch { return {}; }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Link to="/browse" className="inline-flex items-center text-slate-500 hover:text-marine-600 mb-6 transition-colors">
         <ArrowLeft size={16} className="mr-1" /> Back to Browse
       </Link>
 
-      {/* Header Section */}
       <div className="mb-8">
-        <div className="flex items-start justify-between">
-            <div>
-              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-marine-100 dark:bg-marine-900 text-marine-700 dark:text-marine-300 mb-3">
-                  {displayCategory}
-              </span>
-              <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{displayLabel}</h1>
-              <a href={term.uri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-xs text-slate-400 hover:text-marine-600 transition-colors">
-                  {term.uri} <ExternalLink size={12} className="ml-1" />
-              </a>
-            </div>
-        </div>
+        <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-marine-100 dark:bg-marine-900 text-marine-700 dark:text-marine-300 mb-3">
+            {displayCategory}
+        </span>
+        <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{displayLabel}</h1>
+        <a href={term.uri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-xs text-slate-400 hover:text-marine-600 transition-colors">
+            {term.uri} <ExternalLink size={12} className="ml-1" />
+        </a>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         
-        {/* Left Column: Context / Definition (Sticky) */}
+        {/* Context Column */}
         <div className="lg:col-span-1">
           <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-xl border border-slate-200 dark:border-slate-700 sticky top-24">
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -258,122 +268,188 @@ const TermDetail: React.FC = () => {
             <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-serif text-lg">
               {displayDef}
             </p>
-            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-              <p className="mb-2"><span className="font-semibold">Context:</span> Use this definition as the source of truth for your translations.</p>
-              <p>Ensure that translated labels accurately reflect this concept.</p>
-            </div>
           </div>
         </div>
 
-        {/* Right Column: Translation Workspace */}
-        <div className="lg:col-span-2">
-           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-             
-             {/* Toolbar */}
-             <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">Translation Workspace</h2>
-                   {!canTranslate && <Lock size={16} className="text-slate-400" />}
-                </div>
-
-                <div className="flex items-center gap-3">
-                   <label className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">Target Language:</label>
+        {/* Workspace Column */}
+        <div className="lg:col-span-2 space-y-6">
+           {/* Top Bar */}
+           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                 <Globe size={20} className="text-marine-500" /> Translation Workspace
+               </h2>
+               <div className="flex items-center gap-2">
+                   <span className="text-sm text-slate-500">Language:</span>
                    <select 
                       value={selectedLang} 
                       onChange={(e) => setSelectedLang(e.target.value)}
                       disabled={!canTranslate}
-                      className="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 text-sm py-2"
+                      className="rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm py-1.5"
                     >
-                      {allowedLanguages.length === 0 ? (
-                          <option>No permissions</option>
-                      ) : (
-                          allowedLanguages.map(lang => (
-                              <option key={lang} value={lang}>{lang}</option>
-                          ))
-                      )}
+                      {allowedLanguages.length === 0 ? <option>No permissions</option> : allowedLanguages.map(l => <option key={l} value={l}>{l}</option>)}
                     </select>
-                </div>
-             </div>
-
-             {/* Form */}
-             <div className="p-6 relative">
-                {!canTranslate && (
-                    <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center p-6">
-                        <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full mb-3">
-                           <Lock className="text-slate-400" size={32} />
-                        </div>
-                        <h4 className="font-bold text-slate-800 dark:text-white text-lg">Restricted Access</h4>
-                        <p className="text-slate-600 dark:text-slate-300 mt-2 max-w-sm">
-                            You must be a member of a language team to edit translations. Please contact an admin or check your profile.
-                        </p>
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-8">
-                  {translatableFields.map(field => {
-                    const isTextArea = field.field_term.includes('definition');
-                    const label = getFieldLabel(field.field_term);
-                    
-                    return (
-                      <div key={field.id} className="bg-slate-50 dark:bg-slate-900/20 p-5 rounded-xl border border-slate-100 dark:border-slate-800">
-                         {/* Original Field Info */}
-                         <div className="flex items-center gap-2 mb-3">
-                            {getFieldIcon(field.field_term)}
-                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{label}</span>
-                            <span className="text-xs text-slate-400 uppercase tracking-wider ml-auto font-mono bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">EN</span>
-                         </div>
-                         
-                         {/* Original Value Display */}
-                         <div className="mb-4 text-slate-600 dark:text-slate-400 text-sm bg-white dark:bg-slate-800/50 p-3 rounded border border-slate-200 dark:border-slate-700/50 italic">
-                            "{field.original_value}"
-                         </div>
-
-                         {/* Input Field */}
-                         <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide">
-                               {selectedLang} Translation
-                            </label>
-                            {isTextArea ? (
-                               <textarea
-                                 rows={4}
-                                 className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
-                                 placeholder={`Enter ${label.toLowerCase()} translation...`}
-                                 value={formValues[field.id] || ''}
-                                 onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                 disabled={!canTranslate}
-                               ></textarea>
-                            ) : (
-                               <input
-                                 type="text"
-                                 className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
-                                 placeholder={`Enter ${label.toLowerCase()} translation...`}
-                                 value={formValues[field.id] || ''}
-                                 onChange={(e) => handleInputChange(field.id, e.target.value)}
-                                 disabled={!canTranslate}
-                               />
-                            )}
-                         </div>
-                      </div>
-                    );
-                  })}
-
-                  <div className="pt-4 flex items-center justify-between">
-                     <div className="text-xs text-slate-400 flex items-center gap-1">
-                        <Info size={14} />
-                        Translations are auto-saved to your draft history.
-                     </div>
-                     <button
-                        type="submit"
-                        disabled={isSubmitting || !canTranslate}
-                        className="inline-flex justify-center items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-lg text-white bg-marine-600 hover:bg-marine-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-marine-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-95"
-                      >
-                        <Send size={18} className="mr-2" />
-                        {isSubmitting ? 'Submitting...' : 'Submit Translations'}
-                      </button>
-                  </div>
-                </form>
-             </div>
+               </div>
            </div>
+
+           {/* Fields Loop */}
+           {translatableFields.map(field => {
+              const label = getFieldLabel(field.field_term);
+              const isTextArea = field.field_term.includes('definition');
+              const currentTranslation = field.translations?.find(t => t.language.toLowerCase() === selectedLang.toLowerCase());
+              const status = currentTranslation?.status || 'draft';
+              const isMyTranslation = currentTranslation?.created_by === user?.username;
+              const hasValue = formValues[field.id] && formValues[field.id].trim().length > 0;
+              
+              // Filter history for this field
+              const fieldHistory = history.filter(h => h.term_field_id === field.id);
+              const isHistoryOpen = openHistoryFieldId === field.id;
+
+              return (
+                <div key={field.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                   
+                   {/* Field Header */}
+                   <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                          {getFieldIcon(field.field_term)}
+                          <span className="font-bold text-slate-700 dark:text-slate-200">{label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                         <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">EN</span>
+                         <span className="text-xs text-slate-400">Original</span>
+                      </div>
+                   </div>
+
+                   <div className="p-6">
+                      {/* Original Value */}
+                      <div className="mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 italic">
+                         "{field.original_value}"
+                      </div>
+
+                      {/* Input Area */}
+                      <div className="mb-4">
+                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between">
+                            <span>{selectedLang} Translation</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full capitalize
+                               ${status === 'approved' ? 'bg-green-100 text-green-700' : 
+                                 status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                                 status === 'review' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}
+                            `}>
+                               Status: {status}
+                            </span>
+                         </label>
+                         
+                         {isTextArea ? (
+                             <textarea
+                               rows={4}
+                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
+                               value={formValues[field.id] || ''}
+                               onChange={(e) => handleInputChange(field.id, e.target.value)}
+                               disabled={!canTranslate}
+                               placeholder="Enter translation..."
+                             />
+                         ) : (
+                             <input
+                               type="text"
+                               className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm"
+                               value={formValues[field.id] || ''}
+                               onChange={(e) => handleInputChange(field.id, e.target.value)}
+                               disabled={!canTranslate}
+                               placeholder="Enter translation..."
+                             />
+                         )}
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                          <button 
+                             onClick={() => toggleHistory(field.id)}
+                             className="text-xs text-slate-500 hover:text-marine-600 flex items-center gap-1 transition-colors"
+                          >
+                             <History size={14} /> {isHistoryOpen ? 'Hide' : 'View'} History
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                              {/* Workflow: Mark for Review (For Owners) */}
+                              {status === 'draft' && isMyTranslation && hasValue && (
+                                  <button
+                                    onClick={() => handleStatusChange('review')}
+                                    disabled={isSubmitting}
+                                    className="flex items-center px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded text-xs font-medium transition-colors"
+                                  >
+                                    <Clock size={14} className="mr-1" /> Mark for Review
+                                  </button>
+                              )}
+
+                              {/* Workflow: Review Actions (For Others) */}
+                              {status === 'review' && !isMyTranslation && (
+                                  <>
+                                    <button
+                                      onClick={() => handleStatusChange('rejected')}
+                                      disabled={isSubmitting}
+                                      className="flex items-center px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-medium transition-colors"
+                                    >
+                                      <XCircle size={14} className="mr-1" /> Reject
+                                    </button>
+                                    <button
+                                      onClick={() => handleStatusChange('approved')}
+                                      disabled={isSubmitting}
+                                      className="flex items-center px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs font-medium transition-colors"
+                                    >
+                                      <CheckCircle size={14} className="mr-1" /> Approve
+                                    </button>
+                                  </>
+                              )}
+
+                              {/* Default Save Button */}
+                              <button
+                                 onClick={(e) => { e.preventDefault(); submitUpdate(); }} // Default save keeps draft
+                                 disabled={isSubmitting || !canTranslate}
+                                 className="flex items-center px-4 py-2 bg-marine-600 text-white hover:bg-marine-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                              >
+                                 <Send size={14} className="mr-2" /> Save Draft
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* Timeline Section */}
+                      {isHistoryOpen && (
+                          <div className="mt-6 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-800 animate-in fade-in slide-in-from-top-2">
+                             <h4 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-1">
+                                <History size={12} /> Timeline for this field
+                             </h4>
+                             {fieldHistory.length === 0 ? (
+                                 <p className="text-xs text-slate-400 italic">No recorded history.</p>
+                             ) : (
+                                 <div className="relative border-l border-slate-200 dark:border-slate-700 ml-2 space-y-4 pl-4">
+                                     {fieldHistory.map(h => {
+                                         const extra = parseExtra(h.extra);
+                                         // Filter history to relevant language if possible, otherwise show all
+                                         // The API returns all history for term, so we should visually indicate language
+                                         return (
+                                           <div key={h.id} className="relative">
+                                              <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800"></div>
+                                              <div className="text-xs">
+                                                  <span className="font-bold text-slate-700 dark:text-slate-300">{h.user}</span>
+                                                  <span className="text-slate-500 ml-1">{h.action.replace(/_/g, ' ')}</span>
+                                              </div>
+                                              {extra.value && (
+                                                  <div className="text-xs text-slate-600 dark:text-slate-400 italic mt-0.5 bg-white dark:bg-slate-800 inline-block px-2 py-1 rounded border border-slate-100 dark:border-slate-700">
+                                                      "{extra.value}" 
+                                                      {extra.language && <span className="ml-1 not-italic font-bold text-marine-500 text-[10px] uppercase">({extra.language})</span>}
+                                                  </div>
+                                              )}
+                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleDateString()}</div>
+                                           </div>
+                                         );
+                                     })}
+                                 </div>
+                             )}
+                          </div>
+                      )}
+                   </div>
+                </div>
+              );
+           })}
         </div>
       </div>
     </div>
