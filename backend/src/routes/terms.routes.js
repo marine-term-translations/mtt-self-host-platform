@@ -459,13 +459,13 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
                 new_value: value,
               })
             );
-          } else if (existingTranslation.status !== status) {
+          } else if (existingTranslation.status !== (status || "draft")) {
             console.log("Logging translation_status_changed activity", {
               username,
               field_uri,
               language,
               old_status: existingTranslation.status,
-              new_status: status,
+              new_status: status || "draft",
             });
             db.prepare(
               "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
@@ -479,7 +479,7 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
                 field_uri,
                 language,
                 old_status: existingTranslation.status,
-                new_status: status,
+                new_status: status || "draft",
               })
             );
           }
