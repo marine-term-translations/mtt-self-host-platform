@@ -1,4 +1,5 @@
 
+
 export interface Translation {
   lang: string;
   text: string | null;
@@ -85,4 +86,23 @@ export interface ApiPublicUser {
   reputation: number;
   joined_at: string;
   extra: string | null;
+}
+
+export interface ApiAppealMessage {
+  id: number;
+  appeal_id: number;
+  author: string;
+  message: string;
+  created_at: string;
+}
+
+export interface ApiAppeal {
+  id: number;
+  translation_id: number;
+  opened_by: string;
+  opened_at: string;
+  closed_at: string | null;
+  status: 'open' | 'closed' | 'resolved';
+  resolution: string | null; // Initial reason
+  messages?: ApiAppealMessage[]; // Optional: populated via join or separate call
 }
