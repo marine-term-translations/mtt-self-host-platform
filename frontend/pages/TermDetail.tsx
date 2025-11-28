@@ -55,8 +55,6 @@ const TermDetail: React.FC = () => {
 
       // 3. Fetch History for this term
       try {
-        // Fallback: If getTermHistory fails or returns empty, we might not show history.
-        // We pass the numeric ID of the found term
         const termHistory = await backendApi.getTermHistory(foundApiTerm.id);
         setHistory(termHistory);
       } catch (err) {
@@ -119,7 +117,9 @@ const TermDetail: React.FC = () => {
   };
 
   // Helper to build payload and submit
-  const submitUpdate = async (overrideStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
+  // targetFieldId: Only apply the new status to this field
+  // targetStatus: The specific status to set (e.g. 'review', 'approved')
+  const submitUpdate = async (targetFieldId?: number, targetStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
     if (!term || !user) return;
     setIsSubmitting(true);
     
@@ -138,20 +138,23 @@ const TermDetail: React.FC = () => {
 
             // Add/Update current lang translation
             if (newValue && newValue.trim() !== '') {
-                // Find previous translation to check if status should persist
+                // Find previous translation to check state
                 const prevTrans = field.translations?.find(t => t.language.toLowerCase() === currentLangCode);
                 
-                // Determine new status:
-                // If override provided (e.g. "approved"), use it.
-                // If no override, preserve existing status OR default to 'draft' if changed?
-                // Usually editing resets to draft, unless user is admin. Let's keep logic simple:
-                // If explicit action (overrideStatus), use that. Else 'draft'.
+                // Determine new status logic:
+                // 1. Start with existing status or default to 'draft'
+                let newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged' = prevTrans?.status || 'draft';
                 
-                let newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged' = overrideStatus || 'draft';
-                if (!overrideStatus && prevTrans && prevTrans.status === 'approved') {
-                    // If editing an approved translation, downgrade to draft?
-                    // For now, let's assume editing always resets to draft for safety.
-                    newStatus = 'draft';
+                // 2. If this is the specific field targeted by an action (e.g. "Approve"), use that status
+                if (targetFieldId !== undefined && field.id === targetFieldId && targetStatus) {
+                    newStatus = targetStatus;
+                } else {
+                    // 3. General "Save" logic or side-effect for other fields:
+                    // If the content has changed from what was on server, revert to draft (unless it was already draft)
+                    // This prevents stealth edits to approved terms
+                    if (prevTrans && prevTrans.value !== newValue) {
+                        newStatus = 'draft';
+                    }
                 }
 
                 translationsPayload.push({
@@ -178,7 +181,15 @@ const TermDetail: React.FC = () => {
         };
 
         await backendApi.updateTerm(term.id, payload);
-        toast.success(overrideStatus ? `Status updated to ${overrideStatus}` : "Translations saved");
+        
+        let msg = "Changes saved successfully";
+        if (targetStatus) {
+            if (targetStatus === 'review') msg = "Marked for review";
+            if (targetStatus === 'approved') msg = "Translation approved";
+            if (targetStatus === 'rejected') msg = "Translation rejected";
+        }
+        toast.success(msg);
+        
         await fetchTermData();
         
     } catch (error) {
@@ -189,8 +200,8 @@ const TermDetail: React.FC = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
-    await submitUpdate(newStatus);
+  const handleStatusChange = async (fieldId: number, newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
+    await submitUpdate(fieldId, newStatus);
   };
 
   const toggleHistory = (fieldId: number) => {
@@ -372,7 +383,7 @@ const TermDetail: React.FC = () => {
                               {/* Workflow: Mark for Review (For Owners) */}
                               {status === 'draft' && isMyTranslation && hasValue && (
                                   <button
-                                    onClick={() => handleStatusChange('review')}
+                                    onClick={() => handleStatusChange(field.id, 'review')}
                                     disabled={isSubmitting}
                                     className="flex items-center px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded text-xs font-medium transition-colors"
                                   >
@@ -384,14 +395,14 @@ const TermDetail: React.FC = () => {
                               {status === 'review' && !isMyTranslation && (
                                   <>
                                     <button
-                                      onClick={() => handleStatusChange('rejected')}
+                                      onClick={() => handleStatusChange(field.id, 'rejected')}
                                       disabled={isSubmitting}
                                       className="flex items-center px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-medium transition-colors"
                                     >
                                       <XCircle size={14} className="mr-1" /> Reject
                                     </button>
                                     <button
-                                      onClick={() => handleStatusChange('approved')}
+                                      onClick={() => handleStatusChange(field.id, 'approved')}
                                       disabled={isSubmitting}
                                       className="flex items-center px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs font-medium transition-colors"
                                     >
@@ -402,7 +413,7 @@ const TermDetail: React.FC = () => {
 
                               {/* Default Save Button */}
                               <button
-                                 onClick={(e) => { e.preventDefault(); submitUpdate(); }} // Default save keeps draft
+                                 onClick={(e) => { e.preventDefault(); submitUpdate(); }} 
                                  disabled={isSubmitting || !canTranslate}
                                  className="flex items-center px-4 py-2 bg-marine-600 text-white hover:bg-marine-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
                               >
@@ -423,8 +434,10 @@ const TermDetail: React.FC = () => {
                                  <div className="relative border-l border-slate-200 dark:border-slate-700 ml-2 space-y-4 pl-4">
                                      {fieldHistory.map(h => {
                                          const extra = parseExtra(h.extra);
-                                         // Filter history to relevant language if possible, otherwise show all
-                                         // The API returns all history for term, so we should visually indicate language
+                                         // Filter visual history items if they don't match the current view language
+                                         // (optional, but cleaner)
+                                         // if (extra.language && extra.language.toLowerCase() !== selectedLang.toLowerCase()) return null;
+                                         
                                          return (
                                            <div key={h.id} className="relative">
                                               <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800"></div>
@@ -438,7 +451,7 @@ const TermDetail: React.FC = () => {
                                                       {extra.language && <span className="ml-1 not-italic font-bold text-marine-500 text-[10px] uppercase">({extra.language})</span>}
                                                   </div>
                                               )}
-                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleDateString()}</div>
+                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleDateString()} {new Date(h.created_at).toLocaleTimeString()}</div>
                                            </div>
                                          );
                                      })}
