@@ -4,7 +4,7 @@ import { MOCK_TERMS } from '../mock/terms';
 import TermCard from '../components/TermCard';
 import { Search, Filter, Loader2, AlertTriangle } from 'lucide-react';
 import { backendApi } from '../services/api';
-import { Term, ApiTerm } from '../types';
+import { Term, ApiTerm, TermStats } from '../types';
 import toast from 'react-hot-toast';
 
 const Browse: React.FC = () => {
@@ -28,7 +28,7 @@ const Browse: React.FC = () => {
           const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
           const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
           
-          // Construct Translations Map
+          // Construct Translations Map & Calculate Stats
           const translations: Record<string, string | null> = {
             en_plain: null,
             es: null,
@@ -36,15 +36,34 @@ const Browse: React.FC = () => {
             nl: null,
           };
 
-          // Try to populate translations if they exist in the nested fields
-          // Assuming translations are attached to the definition field for now
-          if (definitionField && definitionField.translations) {
-            definitionField.translations.forEach(t => {
-              if (t.language) {
-                 translations[t.language] = t.value;
-              }
-            });
-          }
+          const stats: TermStats = {
+            draft: 0,
+            review: 0,
+            approved: 0,
+            rejected: 0,
+            merged: 0
+          };
+
+          // Iterate over ALL fields to gather stats
+          apiTerm.fields.forEach(field => {
+            if (field.translations) {
+              field.translations.forEach(t => {
+                // Populate legacy translation map (preferring definition translations for display)
+                if (field.field_term === 'skos:definition' && t.language) {
+                   translations[t.language] = t.value;
+                }
+
+                // Aggregate Stats
+                if (t.status) {
+                  // Normalize status key just in case, though API is typed
+                  const statusKey = t.status as keyof TermStats;
+                  if (stats[statusKey] !== undefined) {
+                    stats[statusKey]++;
+                  }
+                }
+              });
+            }
+          });
 
           // Extract collection from URI (e.g. .../collection/P02/current/...)
           // Default to 'General' if not found
@@ -58,7 +77,8 @@ const Browse: React.FC = () => {
             definition: definitionField?.original_value || 'No definition available.',
             category: collectionName, 
             translations: translations,
-            contributors: [] // API doesn't provide this yet
+            contributors: [], // API doesn't provide this yet
+            stats: stats
           };
         });
 

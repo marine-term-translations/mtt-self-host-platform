@@ -1,16 +1,119 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Award, TrendingUp, Clock, ChevronRight } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { backendApi } from '../services/api';
+import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
+import toast from 'react-hot-toast';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    activityCount: 0,
+    reputation: 0,
+    rank: 0,
+    needsTranslationCount: 0
+  });
+  const [activities, setActivities] = useState<ApiUserActivity[]>([]);
+  const [termsMap, setTermsMap] = useState<Record<number, string>>({});
 
-  const mockActivity = [
-    { id: 1, action: "Translated", term: "Water Turbidity", time: "2 hours ago" },
-    { id: 2, action: "Reviewed", term: "Bathyal zone", time: "1 day ago" },
-    { id: 3, action: "Joined", term: "Marine Term Translations", time: "3 days ago" }
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.username) return;
+
+      try {
+        setLoading(true);
+
+        // Fetch data in parallel
+        const [terms, history, users] = await Promise.all([
+          backendApi.getTerms(),
+          backendApi.getUserHistory(user.username),
+          backendApi.getUsers()
+        ]);
+
+        // 1. Process Terms for quick stats
+        const termIdToLabel: Record<number, string> = {};
+        let needsTrans = 0;
+        terms.forEach((t: ApiTerm) => {
+          // Map ID to Label for activity feed lookup
+          const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
+          termIdToLabel[t.id] = prefLabel;
+
+          // Simple heuristic for "Needs Translation": if no translations exist on definition
+          const def = t.fields.find(f => f.field_term.includes('definition'));
+          if (!def || !def.translations || def.translations.length === 0) {
+            needsTrans++;
+          }
+        });
+        setTermsMap(termIdToLabel);
+
+        // 2. Process User Ranking & Reputation
+        const sortedUsers = users.sort((a: ApiPublicUser, b: ApiPublicUser) => b.reputation - a.reputation);
+        const currentUserData = sortedUsers.find(u => u.username === user.username);
+        const rank = sortedUsers.findIndex(u => u.username === user.username) + 1;
+
+        // 3. Process History
+        // Sort by created_at desc just in case API doesn't
+        const sortedHistory = history.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        setActivities(sortedHistory.slice(0, 10)); // Top 10 recent
+        setStats({
+          activityCount: history.length,
+          reputation: currentUserData?.reputation || 0,
+          rank: rank > 0 ? rank : users.length + 1,
+          needsTranslationCount: needsTrans
+        });
+
+      } catch (error) {
+        console.error("Dashboard data fetch failed:", error);
+        toast.error("Failed to load dashboard statistics");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.username]);
+
+  const formatActivityAction = (action: string) => {
+    switch (action) {
+      case 'translation_created': return 'Created translation';
+      case 'translation_edited': return 'Edited translation';
+      case 'translation_approved': return 'Approved translation';
+      case 'term_uri_changed': return 'Updated term URI';
+      default: return action.replace('_', ' ');
+    }
+  };
+
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  };
+
+  const parseExtra = (extra: string | null) => {
+    if (!extra) return null;
+    try {
+      const data = JSON.parse(extra);
+      // Construct a friendly string based on common extra fields
+      if (data.language && data.value) {
+        return `"${data.value}" (${data.language.toUpperCase()})`;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -22,14 +125,21 @@ const Dashboard: React.FC = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
-        {/* History / Translations Card */}
+        {/* Activity Card */}
         <Link to="/history" className="group bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center hover:shadow-md hover:border-marine-300 dark:hover:border-marine-600 transition-all cursor-pointer">
           <div className="p-3 bg-marine-100 dark:bg-marine-900 text-marine-600 dark:text-marine-400 rounded-lg mr-4 group-hover:scale-110 transition-transform">
-            <BookOpen size={24} />
+            <Activity size={24} />
           </div>
           <div className="flex-grow">
-            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Your Translations</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">12</p>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Your Activity</p>
+            <div className="flex items-baseline gap-2">
+               {loading ? (
+                   <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 animate-pulse rounded mt-1"></div>
+               ) : (
+                   <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.activityCount}</p>
+               )}
+               <span className="text-xs text-slate-400">actions</span>
+            </div>
           </div>
           <ChevronRight className="text-slate-300 group-hover:text-marine-500 transition-colors" size={20} />
         </Link>
@@ -41,7 +151,11 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="flex-grow">
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Reputation Score</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">450</p>
+             {loading ? (
+                 <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 animate-pulse rounded mt-1"></div>
+             ) : (
+                 <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.reputation}</p>
+             )}
           </div>
            <ChevronRight className="text-slate-300 group-hover:text-teal-500 transition-colors" size={20} />
         </Link>
@@ -53,7 +167,11 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="flex-grow">
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Global Rank</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">#42</p>
+             {loading ? (
+                 <div className="h-8 w-16 bg-slate-200 dark:bg-slate-700 animate-pulse rounded mt-1"></div>
+             ) : (
+                 <p className="text-2xl font-bold text-slate-900 dark:text-white">#{stats.rank}</p>
+             )}
           </div>
            <ChevronRight className="text-slate-300 group-hover:text-indigo-500 transition-colors" size={20} />
         </Link>
@@ -64,7 +182,12 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 bg-gradient-to-r from-marine-600 to-marine-800 rounded-xl p-8 text-white shadow-md relative overflow-hidden">
           <div className="relative z-10">
             <h3 className="text-xl font-bold mb-2">Needs Translation</h3>
-            <p className="text-marine-100 mb-6 max-w-md">There are 15 new terms in "Chemical Oceanography" waiting for plain English definitions.</p>
+            <p className="text-marine-100 mb-6 max-w-md">
+              {loading 
+                ? "Analyzing terms library..." 
+                : `There are approximately ${stats.needsTranslationCount} terms waiting for plain English definitions or translations in your language.`
+              }
+            </p>
             <Link to="/browse" className="inline-block px-5 py-2.5 bg-white text-marine-700 font-semibold rounded-lg hover:bg-slate-100 transition-colors">
               Start Translating
             </Link>
@@ -75,22 +198,53 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Activity Feed */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 min-h-[300px]">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <Clock size={18} className="text-slate-400" /> Recent Activity
           </h3>
+          
           <div className="space-y-4">
-            {mockActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start pb-4 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
-                <div className="w-2 h-2 mt-2 rounded-full bg-marine-500 mr-3"></div>
-                <div>
-                  <p className="text-sm text-slate-800 dark:text-slate-200">
-                    {activity.action} <span className="font-medium">"{activity.term}"</span>
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">{activity.time}</p>
+            {loading ? (
+              Array(4).fill(0).map((_, i) => (
+                <div key={i} className="flex items-start pb-4 border-b border-slate-100 dark:border-slate-700 last:border-0">
+                  <div className="w-2 h-2 mt-2 rounded-full bg-slate-200 dark:bg-slate-700 mr-3"></div>
+                  <div className="space-y-2 w-full">
+                     <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                     <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/4"></div>
+                  </div>
                 </div>
+              ))
+            ) : activities.length > 0 ? (
+              activities.map((activity) => {
+                const termLabel = activity.term_id ? termsMap[activity.term_id] : 'Deleted Term';
+                const details = parseExtra(activity.extra);
+                
+                return (
+                  <div key={activity.id} className="flex items-start pb-4 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
+                    <div className="w-2 h-2 mt-2 rounded-full bg-marine-500 mr-3 flex-shrink-0"></div>
+                    <div>
+                      <p className="text-sm text-slate-800 dark:text-slate-200">
+                        <span className="capitalize font-medium">{formatActivityAction(activity.action)}</span>
+                        {' '}for{' '}
+                        <Link to={`/term/${encodeURIComponent(activity.term_id ? '' : '')}`} className="font-medium text-marine-600 hover:underline">
+                           "{termLabel}"
+                        </Link>
+                      </p>
+                      {details && (
+                          <p className="text-xs text-slate-500 dark:text-slate-500 italic mt-0.5">
+                              {details}
+                          </p>
+                      )}
+                      <p className="text-xs text-slate-400 mt-1">{getRelativeTime(activity.created_at)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8 text-slate-500 text-sm">
+                 No recent activity found.
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
