@@ -1,6 +1,7 @@
 
+
 import { CONFIG } from '../config';
-import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -105,6 +106,10 @@ class ApiService {
   public put<T>(endpoint: string, body: any, token?: string) {
     return this.request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body), token });
   }
+  
+  public patch<T>(endpoint: string, body: any, token?: string) {
+    return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body), token });
+  }
 
   public delete<T>(endpoint: string, token?: string) {
     return this.request<T>(endpoint, { method: 'DELETE', token });
@@ -130,11 +135,6 @@ class ApiService {
 
   // Fetch history for a specific term (mocked or real endpoint)
   public async getTermHistory(termId: number | string): Promise<ApiUserActivity[]> {
-    // Assuming backend supports /api/term-history/:id or similar
-    // If not, we might need to filter from a larger set, but let's assume endpoint exists
-    // based on typical REST patterns or the mock requirement.
-    // For now, mapping to the user-activity endpoint if term specific isn't available, 
-    // but ideally:
     try {
         return await this.get<ApiUserActivity[]>(`/term-history/${termId}`);
     } catch (e) {
@@ -145,6 +145,29 @@ class ApiService {
 
   public async getUsers(): Promise<ApiPublicUser[]> {
     return this.get<ApiPublicUser[]>('/users');
+  }
+
+  // --- Appeals ---
+
+  public async getAppeals(translation_id?: number): Promise<ApiAppeal[]> {
+    const params = translation_id ? { translation_id: translation_id.toString() } : undefined;
+    return this.get<ApiAppeal[]>('/appeals', params);
+  }
+
+  public async createAppeal(data: { translation_id: number; opened_by: string; resolution: string; token: string }): Promise<any> {
+    return this.post<any>('/appeals', data);
+  }
+
+  public async updateAppeal(id: number, data: { status?: string, resolution?: string, username: string, token: string }): Promise<any> {
+    return this.patch<any>(`/appeals/${id}`, data);
+  }
+
+  public async createAppealMessage(appealId: number, data: { author: string, message: string, token: string }): Promise<any> {
+    return this.post<any>(`/appeals/${appealId}/messages`, data);
+  }
+  
+  public async getAppealMessages(appealId: number): Promise<any[]> {
+    return this.get<any[]>(`/appeals/${appealId}/messages`);
   }
 }
 

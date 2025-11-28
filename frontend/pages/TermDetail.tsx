@@ -1,12 +1,14 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ApiTerm, ApiField, ApiUserActivity } from '../types';
+import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage } from '../types';
 import { backendApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen, 
-  CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle, ChevronRight, Edit3 
+  CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle, ChevronRight, 
+  Edit3, MessageSquare, AlertTriangle, CheckSquare, MessageCircle 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,6 +19,7 @@ const TermDetail: React.FC = () => {
   
   const [term, setTerm] = useState<ApiTerm | null>(null);
   const [history, setHistory] = useState<ApiUserActivity[]>([]);
+  const [appeals, setAppeals] = useState<Record<number, ApiAppeal[]>>({}); // translation_id -> appeals
   const [loading, setLoading] = useState(true);
   
   // Form State: field_id -> translation value
@@ -27,7 +30,24 @@ const TermDetail: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [openHistoryFieldId, setOpenHistoryFieldId] = useState<number | null>(null);
+  const [openAppealFieldId, setOpenAppealFieldId] = useState<number | null>(null);
   const [selectedHistoryEventId, setSelectedHistoryEventId] = useState<number | null>(null);
+
+  // New Message State
+  const [newMessage, setNewMessage] = useState<string>('');
+
+  // Rejection Modal State
+  const [rejectionModal, setRejectionModal] = useState<{
+    isOpen: boolean;
+    fieldId: number | null;
+    translationId: number | null;
+    reason: string;
+  }>({
+    isOpen: false,
+    fieldId: null,
+    translationId: null,
+    reason: ''
+  });
 
   // Derived display values
   const [displayLabel, setDisplayLabel] = useState('Loading...');
@@ -55,7 +75,7 @@ const TermDetail: React.FC = () => {
 
       setTerm(foundApiTerm);
 
-      // 3. Fetch History for this term
+      // 3. Fetch History
       try {
         const termHistory = await backendApi.getTermHistory(foundApiTerm.id);
         setHistory(termHistory);
@@ -63,7 +83,36 @@ const TermDetail: React.FC = () => {
         console.warn("Could not fetch term history", err);
       }
 
-      // 4. Extract Meta Info
+      // 4. Fetch Appeals for all translations in this term
+      // We collect all translation IDs first to efficiently fetch (or fetch all and filter)
+      try {
+        // Fetch all appeals (assuming endpoint returns a list we can filter, 
+        // or loop through translations if API requires specific ID)
+        // For efficiency in this demo, we'll fetch all appeals and filter client side
+        // In prod, use ?translation_id=...
+        const allAppeals = await backendApi.getAppeals(); 
+        const appealsMap: Record<number, ApiAppeal[]> = {};
+        
+        // Enrich appeals with their messages
+        for (const appeal of allAppeals) {
+            try {
+                const messages = await backendApi.getAppealMessages(appeal.id);
+                appeal.messages = messages;
+            } catch (e) {
+                appeal.messages = [];
+            }
+            
+            if (!appealsMap[appeal.translation_id]) {
+                appealsMap[appeal.translation_id] = [];
+            }
+            appealsMap[appeal.translation_id].push(appeal);
+        }
+        setAppeals(appealsMap);
+      } catch (err) {
+        console.warn("Could not fetch appeals", err);
+      }
+
+      // 5. Extract Meta Info
       const prefLabelField = foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
       const definitionField = foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
       
@@ -73,7 +122,7 @@ const TermDetail: React.FC = () => {
       const collectionMatch = foundApiTerm.uri.match(/\/collection\/([^/]+)\//);
       setDisplayCategory(collectionMatch ? collectionMatch[1] : 'General');
 
-      // 5. Fetch Permissions
+      // 6. Fetch Permissions
       if (user?.username) {
           try {
               const teams = await backendApi.getUserTeams(user.username, 'marine-org');
@@ -190,11 +239,100 @@ const TermDetail: React.FC = () => {
     }
   };
 
-  const handleStatusChange = async (fieldId: number, newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
+  const handleStatusChange = async (fieldId: number, newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged', translationId?: number) => {
+    // Intercept rejection to show modal
+    if (newStatus === 'rejected') {
+      if (!translationId) {
+        toast.error("Cannot reject a translation without a valid ID.");
+        return;
+      }
+      setRejectionModal({
+        isOpen: true,
+        fieldId,
+        translationId,
+        reason: ''
+      });
+      return;
+    }
+    
     await submitUpdate(fieldId, newStatus);
   };
 
+  const confirmRejection = async () => {
+    if (!user || !rejectionModal.translationId || !rejectionModal.fieldId) return;
+    
+    setIsSubmitting(true);
+    try {
+      // 1. Create Appeal/Rejection Record
+      await backendApi.createAppeal({
+        translation_id: rejectionModal.translationId,
+        opened_by: user.username,
+        resolution: rejectionModal.reason || "Rejected by reviewer",
+        token: user.token
+      });
+
+      // 2. Update Status to Rejected
+      await submitUpdate(rejectionModal.fieldId, 'rejected');
+
+      setRejectionModal(prev => ({ ...prev, isOpen: false, reason: '' }));
+      // Toast is handled in submitUpdate
+    } catch (error) {
+      console.error("Rejection failed", error);
+      toast.error("Failed to submit rejection appeal.");
+      setIsSubmitting(false);
+    }
+  };
+
+  // Appeal Actions
+  const handleReplyAppeal = async (appealId: number) => {
+    if (!user || !newMessage.trim()) return;
+    try {
+        await backendApi.createAppealMessage(appealId, {
+            author: user.username,
+            message: newMessage,
+            token: user.token
+        });
+        setNewMessage('');
+        toast.success("Reply sent");
+        await fetchTermData(); // Refresh to show new message
+    } catch (error) {
+        toast.error("Failed to send reply");
+    }
+  };
+
+  const handleResolveAppeal = async (appealId: number) => {
+    if (!user) return;
+    try {
+        await backendApi.updateAppeal(appealId, {
+            status: 'resolved',
+            username: user.username,
+            token: user.token
+        });
+        toast.success("Appeal marked as resolved. Reviewer will verify.");
+        await fetchTermData();
+    } catch (error) {
+        toast.error("Failed to resolve appeal");
+    }
+  };
+
+  const handleCloseAppeal = async (appealId: number) => {
+     if (!user) return;
+    try {
+        await backendApi.updateAppeal(appealId, {
+            status: 'closed',
+            username: user.username,
+            token: user.token
+        });
+        toast.success("Appeal closed.");
+        await fetchTermData();
+    } catch (error) {
+        toast.error("Failed to close appeal");
+    }
+  };
+
+
   const toggleHistory = (fieldId: number) => {
+    setOpenAppealFieldId(null); // Close appeal if opening history
     if (openHistoryFieldId === fieldId) {
         setOpenHistoryFieldId(null);
         setSelectedHistoryEventId(null);
@@ -203,6 +341,15 @@ const TermDetail: React.FC = () => {
         setSelectedHistoryEventId(null); 
     }
   };
+
+  const toggleAppeal = (fieldId: number) => {
+    setOpenHistoryFieldId(null); // Close history if opening appeal
+    if (openAppealFieldId === fieldId) {
+        setOpenAppealFieldId(null);
+    } else {
+        setOpenAppealFieldId(fieldId);
+    }
+  }
 
   const parseExtra = (extra: string | null) => {
     try {
@@ -298,6 +445,46 @@ const TermDetail: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Rejection Modal */}
+      {rejectionModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700">
+             <div className="flex items-center gap-3 mb-4 text-red-600 dark:text-red-400">
+                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <XCircle size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Reject Translation</h3>
+             </div>
+             <p className="text-slate-600 dark:text-slate-300 mb-4 text-sm">
+                Please provide a reason for rejecting this translation. This will open an appeal ticket for the author.
+             </p>
+             <textarea
+               className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white p-3 mb-4 focus:ring-red-500 focus:border-red-500"
+               rows={4}
+               placeholder="Reason for rejection (e.g., incorrect terminology, grammar issues)..."
+               value={rejectionModal.reason}
+               onChange={(e) => setRejectionModal(prev => ({ ...prev, reason: e.target.value }))}
+             />
+             <div className="flex justify-end gap-3">
+               <button
+                 onClick={() => setRejectionModal(prev => ({ ...prev, isOpen: false, reason: '' }))}
+                 className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg font-medium"
+                 disabled={isSubmitting}
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={confirmRejection}
+                 disabled={isSubmitting || !rejectionModal.reason.trim()}
+                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+               >
+                 {isSubmitting ? 'Submitting...' : 'Confirm Reject'}
+               </button>
+             </div>
+          </div>
+        </div>
+      )}
+
       <Link to="/browse" className="inline-flex items-center text-slate-500 hover:text-marine-600 mb-6 transition-colors">
         <ArrowLeft size={16} className="mr-1" /> Back to Browse
       </Link>
@@ -354,8 +541,15 @@ const TermDetail: React.FC = () => {
               const status = currentTranslation?.status || 'draft';
               const isMyTranslation = currentTranslation?.created_by === user?.username;
               const hasValue = formValues[field.id] && formValues[field.id].trim().length > 0;
+              const translationId = currentTranslation?.id;
               
               const isHistoryOpen = openHistoryFieldId === field.id;
+              const isAppealOpen = openAppealFieldId === field.id;
+
+              // Check for appeals on this translation
+              const fieldAppeals = translationId ? (appeals[translationId] || []) : [];
+              const activeAppeals = fieldAppeals.filter(a => a.status !== 'closed');
+              const hasActiveAppeal = activeAppeals.length > 0;
 
               // Filter history for this field AND this language
               const fieldHistoryRaw = history
@@ -373,13 +567,18 @@ const TermDetail: React.FC = () => {
                   : fieldHistoryRaw[0];
 
               return (
-                <div key={field.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                <div key={field.id} className={`bg-white dark:bg-slate-800 rounded-xl border overflow-hidden shadow-sm transition-colors ${hasActiveAppeal ? 'border-red-300 dark:border-red-900' : 'border-slate-200 dark:border-slate-700'}`}>
                    
                    {/* Field Header */}
                    <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                       <div className="flex items-center gap-2">
                           {getFieldIcon(field.field_term)}
                           <span className="font-bold text-slate-700 dark:text-slate-200">{label}</span>
+                          {hasActiveAppeal && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 animate-pulse">
+                                  <AlertTriangle size={12} className="mr-1"/> Changes Requested
+                              </span>
+                          )}
                       </div>
                       <div className="flex items-center gap-2">
                          <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">EN</span>
@@ -429,12 +628,23 @@ const TermDetail: React.FC = () => {
 
                       {/* Action Bar */}
                       <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                          <button 
-                             onClick={() => toggleHistory(field.id)}
-                             className="text-xs text-slate-500 hover:text-marine-600 flex items-center gap-1 transition-colors"
-                          >
-                             <History size={14} /> {isHistoryOpen ? 'Hide' : 'View'} History
-                          </button>
+                          <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => toggleHistory(field.id)}
+                                className="text-xs text-slate-500 hover:text-marine-600 flex items-center gap-1 transition-colors"
+                            >
+                                <History size={14} /> {isHistoryOpen ? 'Hide' : 'View'} History
+                            </button>
+                            {(fieldAppeals.length > 0) && (
+                                <button 
+                                    onClick={() => toggleAppeal(field.id)}
+                                    className={`text-xs flex items-center gap-1 transition-colors ${hasActiveAppeal ? 'text-red-500 font-bold' : 'text-slate-500 hover:text-marine-600'}`}
+                                >
+                                    <MessageSquare size={14} /> 
+                                    {isAppealOpen ? 'Hide' : 'View'} Appeals ({fieldAppeals.length})
+                                </button>
+                            )}
+                          </div>
 
                           <div className="flex items-center gap-2">
                               {status === 'draft' && isMyTranslation && hasValue && (
@@ -450,7 +660,7 @@ const TermDetail: React.FC = () => {
                               {status === 'review' && !isMyTranslation && (
                                   <>
                                     <button
-                                      onClick={() => handleStatusChange(field.id, 'rejected')}
+                                      onClick={() => handleStatusChange(field.id, 'rejected', translationId)}
                                       disabled={isSubmitting}
                                       className="flex items-center px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-medium transition-colors"
                                     >
@@ -475,6 +685,94 @@ const TermDetail: React.FC = () => {
                               </button>
                           </div>
                       </div>
+
+                      {/* Appeals / Disputes Section */}
+                      {isAppealOpen && (
+                          <div className="mt-6 bg-red-50 dark:bg-slate-900/50 rounded-lg p-4 border border-red-100 dark:border-slate-800 animate-in fade-in slide-in-from-top-2">
+                             <h4 className="text-xs font-bold text-red-600 dark:text-red-400 uppercase mb-3 flex items-center gap-1">
+                                <MessageSquare size={12} /> Appeals & Disputes
+                             </h4>
+                             <div className="space-y-4">
+                                {fieldAppeals.length === 0 ? (
+                                    <p className="text-sm text-slate-500 italic">No appeals filed.</p>
+                                ) : (
+                                    fieldAppeals.map(appeal => (
+                                        <div key={appeal.id} className="bg-white dark:bg-slate-800 rounded border border-red-100 dark:border-slate-700 p-3 shadow-sm">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize mb-1 ${
+                                                        appeal.status === 'open' ? 'bg-red-100 text-red-800' :
+                                                        appeal.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                                                        'bg-slate-100 text-slate-800'
+                                                    }`}>
+                                                        {appeal.status}
+                                                    </span>
+                                                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                        {appeal.resolution}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500">
+                                                        Opened by {appeal.opened_by} on {new Date(appeal.opened_at).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {/* Actions */}
+                                                    {appeal.status === 'open' && (
+                                                        <button 
+                                                            onClick={() => handleResolveAppeal(appeal.id)}
+                                                            className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded hover:bg-green-100 border border-green-200 flex items-center"
+                                                        >
+                                                            <CheckSquare size={12} className="mr-1"/> Mark Resolved
+                                                        </button>
+                                                    )}
+                                                    {appeal.status === 'resolved' && appeal.opened_by === user?.username && (
+                                                         <button 
+                                                            onClick={() => handleCloseAppeal(appeal.id)}
+                                                            className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded hover:bg-slate-200 border border-slate-300 flex items-center"
+                                                         >
+                                                             <XCircle size={12} className="mr-1"/> Close Appeal
+                                                         </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Thread */}
+                                            <div className="mt-3 pl-3 border-l-2 border-slate-200 dark:border-slate-700 space-y-2">
+                                                {appeal.messages?.map(msg => (
+                                                    <div key={msg.id} className="text-sm">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.author}</span>
+                                                            <span className="text-xs text-slate-400">{new Date(msg.created_at).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <p className="text-slate-600 dark:text-slate-400">{msg.message}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Reply Input */}
+                                            {appeal.status !== 'closed' && (
+                                                <div className="mt-3 flex gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Reply to this appeal..."
+                                                        className="flex-grow text-sm rounded border border-slate-300 dark:border-slate-600 px-2 py-1 bg-slate-50 dark:bg-slate-900"
+                                                        value={newMessage}
+                                                        onChange={(e) => setNewMessage(e.target.value)}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') handleReplyAppeal(appeal.id); }}
+                                                    />
+                                                    <button 
+                                                        onClick={() => handleReplyAppeal(appeal.id)}
+                                                        className="p-1.5 bg-marine-600 text-white rounded hover:bg-marine-700"
+                                                    >
+                                                        <Send size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                             </div>
+                          </div>
+                      )}
 
                       {/* Timeline Section */}
                       {isHistoryOpen && (
