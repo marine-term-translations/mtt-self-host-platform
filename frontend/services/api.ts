@@ -1,6 +1,6 @@
 
 import { CONFIG } from '../config';
-import { ApiTerm } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -122,6 +122,14 @@ class ApiService {
 
   public async updateTerm(id: number | string, data: any): Promise<any> {
     return this.put<any>(`/terms/${id}`, data);
+  }
+
+  public async getUserHistory(username: string): Promise<ApiUserActivity[]> {
+    return this.get<ApiUserActivity[]>(`/user-history/${username}`);
+  }
+
+  public async getUsers(): Promise<ApiPublicUser[]> {
+    return this.get<ApiPublicUser[]>('/users');
   }
 }
 

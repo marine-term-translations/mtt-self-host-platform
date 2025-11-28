@@ -5,6 +5,14 @@ export interface Translation {
   author?: string;
 }
 
+export interface TermStats {
+  draft: number;
+  review: number;
+  approved: number;
+  rejected: number;
+  merged: number;
+}
+
 export interface Term {
   id: string;
   prefLabel: string;
@@ -12,6 +20,7 @@ export interface Term {
   translations: Record<string, string | null>;
   contributors: string[];
   category: string;
+  stats?: TermStats;
 }
 
 export interface User {
@@ -56,4 +65,24 @@ export interface ApiTerm {
   created_at: string;
   updated_at: string;
   fields: ApiField[];
+}
+
+export interface ApiUserActivity {
+  id: number;
+  user: string;
+  action: string;
+  term_id: number | null;
+  term_field_id: number | null;
+  translation_id: number | null;
+  appeal_id: number | null;
+  appeal_message_id: number | null;
+  extra: string | null; // JSON string
+  created_at: string;
+}
+
+export interface ApiPublicUser {
+  username: string;
+  reputation: number;
+  joined_at: string;
+  extra: string | null;
 }
