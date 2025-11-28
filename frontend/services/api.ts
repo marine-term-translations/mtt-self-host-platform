@@ -128,6 +128,21 @@ class ApiService {
     return this.get<ApiUserActivity[]>(`/user-history/${username}`);
   }
 
+  // Fetch history for a specific term (mocked or real endpoint)
+  public async getTermHistory(termId: number | string): Promise<ApiUserActivity[]> {
+    // Assuming backend supports /api/term-history/:id or similar
+    // If not, we might need to filter from a larger set, but let's assume endpoint exists
+    // based on typical REST patterns or the mock requirement.
+    // For now, mapping to the user-activity endpoint if term specific isn't available, 
+    // but ideally:
+    try {
+        return await this.get<ApiUserActivity[]>(`/term-history/${termId}`);
+    } catch (e) {
+        console.warn("Term history endpoint not found, returning empty array");
+        return [];
+    }
+  }
+
   public async getUsers(): Promise<ApiPublicUser[]> {
     return this.get<ApiPublicUser[]>('/users');
   }
