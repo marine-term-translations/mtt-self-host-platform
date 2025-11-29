@@ -4,6 +4,15 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const {
+  applyRejectionPenalty,
+  applyFalseRejectionPenalty,
+  applyReputationChange,
+  getReputationTierInfo,
+  applyApprovalReward,
+  applyMergeReward,
+  applyCreationReward,
+} = require("../services/reputation.service");
 
 /**
  * @openapi
@@ -141,7 +150,7 @@ router.get("/user-history/:username", apiLimiter, (req, res) => {
  *                 type: integer
  *               reason:
  *                 type: string
- *               related_activity_id:
+ *               translation_id:
  *                 type: integer
  *     responses:
  *       200:
@@ -153,25 +162,54 @@ router.get("/user-history/:username", apiLimiter, (req, res) => {
  */
 router.post("/user-reputation/:username", writeLimiter, (req, res) => {
   const { username } = req.params;
-  const { delta, reason, related_activity_id } = req.body;
+  const { delta, reason, translation_id } = req.body;
   if (typeof delta !== "number" || !reason) {
     return res.status(400).json({ error: "Missing delta or reason" });
   }
   try {
-    const db = getDatabase();
-    // Update reputation
-    db.prepare(
-      "UPDATE users SET reputation = reputation + ? WHERE username = ?"
-    ).run(delta, username);
-    // Log event
-    db.prepare(
-      "INSERT INTO reputation_events (user, delta, reason, related_activity_id) VALUES (?, ?, ?, ?)"
-    ).run(username, delta, reason, related_activity_id || null);
-    // Return updated reputation
-    const user = db
-      .prepare("SELECT reputation FROM users WHERE username = ?")
-      .get(username);
-    res.json({ username, reputation: user ? user.reputation : null });
+    const result = applyReputationChange(
+      username,
+      delta,
+      reason,
+      translation_id || null
+    );
+    if (!result) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({
+      username,
+      reputation: result.newReputation,
+      eventId: result.eventId,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user-reputation/{username}:
+ *   get:
+ *     summary: Get a user's reputation tier info
+ *     parameters:
+ *       - in: path
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Returns user reputation tier info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+router.get("/user-reputation/:username", apiLimiter, (req, res) => {
+  const { username } = req.params;
+  try {
+    const tierInfo = getReputationTierInfo(username);
+    res.json({ username, ...tierInfo });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -482,6 +520,90 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
                 new_status: status || "draft",
               })
             );
+
+            // Apply reputation penalties based on status change
+            const newStatus = status || "draft";
+            const oldStatus = existingTranslation.status;
+
+            // When status changes to 'rejected', apply rejection penalty to the translator
+            if (oldStatus !== "rejected" && newStatus === "rejected") {
+              // Get the user who created/modified the translation
+              const translatorUsername =
+                existingTranslation.modified_by ||
+                existingTranslation.created_by;
+              if (translatorUsername) {
+                const penaltyResult = applyRejectionPenalty(
+                  translatorUsername,
+                  existingTranslation.id
+                );
+                console.log("Applied rejection penalty", {
+                  translatorUsername,
+                  penaltyResult,
+                });
+              }
+            }
+
+            // When status changes to 'approved', reward the translator
+            if (oldStatus !== "approved" && newStatus === "approved") {
+              const translatorUsername =
+                existingTranslation.modified_by ||
+                existingTranslation.created_by;
+              if (translatorUsername) {
+                const rewardResult = applyApprovalReward(
+                  translatorUsername,
+                  existingTranslation.id
+                );
+                console.log("Applied approval reward", {
+                  translatorUsername,
+                  rewardResult,
+                });
+              }
+            }
+
+            // When status changes to 'merged', reward the translator and check for false rejections
+            if (oldStatus !== "merged" && newStatus === "merged") {
+              // Reward the translator for merged translation
+              const translatorUsername =
+                existingTranslation.modified_by ||
+                existingTranslation.created_by;
+              if (translatorUsername) {
+                const rewardResult = applyMergeReward(
+                  translatorUsername,
+                  existingTranslation.id
+                );
+                console.log("Applied merge reward", {
+                  translatorUsername,
+                  rewardResult,
+                });
+              }
+
+              // Find previous rejections of translations with same value
+              // that were reviewed by someone other than the current user
+              const previousRejections = db
+                .prepare(
+                  `SELECT DISTINCT ua.user as reviewer
+                   FROM user_activity ua
+                   WHERE ua.translation_id = ?
+                     AND ua.action = 'translation_status_changed'
+                     AND ua.extra LIKE '%"new_status":"rejected"%'
+                     AND ua.user != ?`
+                )
+                .all(existingTranslation.id, username);
+
+              for (const rejection of previousRejections) {
+                // The reviewer who rejected it was wrong (false rejection)
+                if (rejection.reviewer) {
+                  const falseRejectionResult = applyFalseRejectionPenalty(
+                    rejection.reviewer,
+                    existingTranslation.id
+                  );
+                  console.log("Applied false rejection penalty", {
+                    reviewerUsername: rejection.reviewer,
+                    falseRejectionResult,
+                  });
+                }
+              }
+            }
           }
         } else {
           // Insert new translation
@@ -514,6 +636,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             translationResult.lastInsertRowid,
             JSON.stringify({ field_uri, language, value })
           );
+
+          // Apply creation reward for new translations
+          const creationRewardResult = applyCreationReward(
+            created_by,
+            translationResult.lastInsertRowid
+          );
+          console.log("Applied creation reward", {
+            created_by,
+            creationRewardResult,
+          });
         }
       }
     }
