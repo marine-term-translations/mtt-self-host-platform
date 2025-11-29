@@ -23,6 +23,11 @@ const REPUTATION_TIERS = {
 const BASE_REJECTION_PENALTY = -5;
 
 /**
+ * Base penalty for false rejections
+ */
+const BASE_FALSE_REJECTION_PENALTY = -10;
+
+/**
  * Days to look back for cascading rejection penalty
  */
 const REJECTION_LOOKBACK_DAYS = 14;
@@ -48,15 +53,18 @@ function getUserReputation(username) {
  */
 function countRecentRejections(username, excludeTranslationId = null) {
   const db = getDatabase();
+  // Use parameterized query with string interpolation for lookback days
+  // Since REJECTION_LOOKBACK_DAYS is a constant defined in this module, we use it safely
+  const lookbackModifier = `-${REJECTION_LOOKBACK_DAYS} days`;
   let query = `
     SELECT COUNT(*) AS cnt
     FROM translations t
     WHERE t.status = 'rejected'
       AND (t.submitted_for_review_by = ? OR t.modified_by = ? OR t.created_by = ?)
-      AND t.updated_at >= datetime('now', '-${REJECTION_LOOKBACK_DAYS} days')
+      AND t.updated_at >= datetime('now', ?)
   `;
 
-  const params = [username, username, username];
+  const params = [username, username, username, lookbackModifier];
 
   if (excludeTranslationId !== null) {
     query += " AND t.id != ?";
@@ -126,7 +134,7 @@ function calculateRejectionPenalty(username, excludeTranslationId = null) {
  */
 function calculateFalseRejectionPenalty(username) {
   const reputation = getUserReputation(username);
-  const rawPenalty = -10;
+  const rawPenalty = BASE_FALSE_REJECTION_PENALTY;
 
   let shieldedPenalty;
   if (reputation >= REPUTATION_TIERS.VETERAN) {
@@ -202,6 +210,17 @@ function applyReputationChange(
   translationId = null,
   extra = null
 ) {
+  const db = getDatabase();
+
+  // Check if user exists first
+  const userExists = db
+    .prepare("SELECT 1 FROM users WHERE username = ?")
+    .get(username);
+
+  if (!userExists) {
+    return null;
+  }
+
   if (delta === 0) {
     // No change needed, but still record the event if there's a reason
     const eventId = recordReputationEvent(
@@ -214,8 +233,6 @@ function applyReputationChange(
     const reputation = getUserReputation(username);
     return { newReputation: reputation, eventId };
   }
-
-  const db = getDatabase();
 
   // Update user reputation
   db.prepare(
@@ -271,12 +288,23 @@ function applyRejectionPenalty(username, translationId) {
     }
   );
 
+  // If user doesn't exist, applyReputationChange returns null
+  if (!result) {
+    return {
+      applied: false,
+      penalty: 0,
+      rawPenalty,
+      shielded: false,
+      newReputation: null,
+    };
+  }
+
   return {
     applied: true,
     penalty: shieldedPenalty,
     rawPenalty,
     shielded: shieldedPenalty > rawPenalty,
-    newReputation: result ? result.newReputation : null,
+    newReputation: result.newReputation,
   };
 }
 
@@ -313,12 +341,23 @@ function applyFalseRejectionPenalty(username, translationId) {
     }
   );
 
+  // If user doesn't exist, applyReputationChange returns null
+  if (!result) {
+    return {
+      applied: false,
+      penalty: 0,
+      rawPenalty,
+      shielded: false,
+      newReputation: null,
+    };
+  }
+
   return {
     applied: true,
     penalty: shieldedPenalty,
     rawPenalty,
     shielded: shieldedPenalty > rawPenalty,
-    newReputation: result ? result.newReputation : null,
+    newReputation: result.newReputation,
   };
 }
 
@@ -389,6 +428,7 @@ module.exports = {
   // Constants
   REPUTATION_TIERS,
   BASE_REJECTION_PENALTY,
+  BASE_FALSE_REJECTION_PENALTY,
   REJECTION_LOOKBACK_DAYS,
 
   // Core functions
