@@ -1,5 +1,13 @@
 
 #!/bin/bash
+# Trigger Gitea setup via backend API
+
+BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
+
+echo "Please create the Gitea admin account manually via the web UI using the credentials in .env."
+echo "After creating the account, generate an admin API token in Gitea and fill GITEA_ADMIN_TOKEN in .env."
+echo "Then rerun this script to create the organization automatically."
+curl -X POST "$BACKEND_URL/api/setup-gitea"
 set -e
 
 # Load environment variables from parent .env file
@@ -160,12 +168,4 @@ EOF
 fi
 
 echo "Gitea translations-data repo setup complete. Backend should use this repo for SQLite translations.db."
-#!/bin/bash
-# Trigger Gitea setup via backend API
 
-BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
-
-echo "Please create the Gitea admin account manually via the web UI using the credentials in .env."
-echo "After creating the account, generate an admin API token in Gitea and fill GITEA_ADMIN_TOKEN in .env."
-echo "Then rerun this script to create the organization automatically."
-curl -X POST "$BACKEND_URL/api/setup-gitea"
