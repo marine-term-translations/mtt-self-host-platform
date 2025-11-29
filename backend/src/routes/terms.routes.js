@@ -328,17 +328,25 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
       oldFields,
       oldTranslations,
     });
-    // 1. Delete translations first
-    for (const field of oldFields) {
-      console.log("Deleting translations for field", field.id);
-      db.prepare("DELETE FROM translations WHERE term_field_id = ?").run(
-        field.id
-      );
+
+    // Build a map of existing fields by field_uri for quick lookup
+    const oldFieldMap = {};
+    for (const f of oldFields) {
+      oldFieldMap[f.field_uri] = f;
     }
-    // 2. Delete term_fields
-    console.log("Deleting term_fields for term", id);
-    db.prepare("DELETE FROM term_fields WHERE term_id = ?").run(id);
-    // 3. Insert new term_fields and translations
+
+    // Build a map of existing translations by field_id and language
+    const oldTranslationMap = {};
+    for (const t of oldTranslations) {
+      const key = `${t.term_field_id}:${t.language}`;
+      oldTranslationMap[key] = t;
+    }
+
+    // Track which old field IDs and translation IDs are still in use
+    const usedFieldIds = new Set();
+    const usedTranslationIds = new Set();
+
+    // Process each incoming field
     const newFieldIdMap = {};
     for (const field of fields) {
       const { field_uri, field_term, original_value, translations } = field;
@@ -357,21 +365,43 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         console.log("Skipping field due to missing data", field);
         continue;
       }
-      const fieldStmt = db.prepare(
-        "INSERT INTO term_fields (term_id, field_uri, field_term, original_value) VALUES (?, ?, ?, ?)"
-      );
-      const fieldInfo = fieldStmt.run(
-        id,
-        field_uri,
-        field_term,
-        original_value
-      );
-      const fieldId = fieldInfo.lastInsertRowid;
-      console.log("Inserted term_field", { field_uri, fieldId });
+
+      let fieldId;
+      const existingField = oldFieldMap[field_uri];
+
+      if (existingField) {
+        // Update existing field if needed
+        fieldId = existingField.id;
+        usedFieldIds.add(fieldId);
+        if (
+          existingField.field_term !== field_term ||
+          existingField.original_value !== original_value
+        ) {
+          db.prepare(
+            "UPDATE term_fields SET field_term = ?, original_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+          ).run(field_term, original_value, fieldId);
+          console.log("Updated term_field", { field_uri, fieldId });
+        }
+      } else {
+        // Insert new field
+        const fieldStmt = db.prepare(
+          "INSERT INTO term_fields (term_id, field_uri, field_term, original_value) VALUES (?, ?, ?, ?)"
+        );
+        const fieldInfo = fieldStmt.run(
+          id,
+          field_uri,
+          field_term,
+          original_value
+        );
+        fieldId = fieldInfo.lastInsertRowid;
+        console.log("Inserted term_field", { field_uri, fieldId });
+      }
       newFieldIdMap[field_uri] = fieldId;
+
+      // Process translations for this field
       for (const t of translations) {
         const { language, value, status, created_by } = t;
-        console.log("Preparing to insert translation", {
+        console.log("Processing translation", {
           fieldId,
           language,
           value,
@@ -382,27 +412,92 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           console.log("Skipping translation due to missing data", t);
           continue;
         }
-        const translationResult = db
-          .prepare(
-            "INSERT INTO translations (term_field_id, language, value, status, created_by) VALUES (?, ?, ?, ?, ?)"
-          )
-          .run(fieldId, language, value, status || "draft", created_by);
-        console.log("Inserted translation", {
-          translationResult,
-          fieldId,
-          language,
-          value,
-        });
-        // User activity logging
-        // Find old translation for comparison
-        const oldField = oldFields.find((f) => f.field_uri === field_uri);
-        const oldT = oldField
-          ? oldTranslations.find(
-              (ot) =>
-                ot.term_field_id === oldField.id && ot.language === language
+
+        const translationKey = `${fieldId}:${language}`;
+        const existingTranslation = oldTranslationMap[translationKey];
+
+        if (existingTranslation) {
+          // Update existing translation - preserves the ID and any appeals referencing it
+          usedTranslationIds.add(existingTranslation.id);
+          const needsUpdate =
+            existingTranslation.value !== value ||
+            existingTranslation.status !== (status || "draft");
+
+          if (needsUpdate) {
+            db.prepare(
+              "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).run(value, status || "draft", username, existingTranslation.id);
+            console.log("Updated translation", {
+              id: existingTranslation.id,
+              fieldId,
+              language,
+              value,
+            });
+          }
+
+          // User activity logging for existing translation
+          if (existingTranslation.value !== value) {
+            console.log("Logging translation_edited activity", {
+              username,
+              field_uri,
+              language,
+              old_value: existingTranslation.value,
+              new_value: value,
+            });
+            db.prepare(
+              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+            ).run(
+              username,
+              "translation_edited",
+              id,
+              fieldId,
+              existingTranslation.id,
+              JSON.stringify({
+                field_uri,
+                language,
+                old_value: existingTranslation.value,
+                new_value: value,
+              })
+            );
+          } else if (existingTranslation.status !== (status || "draft")) {
+            console.log("Logging translation_status_changed activity", {
+              username,
+              field_uri,
+              language,
+              old_status: existingTranslation.status,
+              new_status: status || "draft",
+            });
+            db.prepare(
+              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+            ).run(
+              username,
+              "translation_status_changed",
+              id,
+              fieldId,
+              existingTranslation.id,
+              JSON.stringify({
+                field_uri,
+                language,
+                old_status: existingTranslation.status,
+                new_status: status || "draft",
+              })
+            );
+          }
+        } else {
+          // Insert new translation
+          const translationResult = db
+            .prepare(
+              "INSERT INTO translations (term_field_id, language, value, status, created_by) VALUES (?, ?, ?, ?, ?)"
             )
-          : undefined;
-        if (!oldT) {
+            .run(fieldId, language, value, status || "draft", created_by);
+          console.log("Inserted translation", {
+            translationResult,
+            fieldId,
+            language,
+            value,
+          });
+
+          // User activity logging for new translation
           console.log("Logging translation_created activity", {
             username,
             field_uri,
@@ -416,56 +511,27 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             "translation_created",
             id,
             fieldId,
-            null,
+            translationResult.lastInsertRowid,
             JSON.stringify({ field_uri, language, value })
           );
-        } else if (oldT.value !== value) {
-          console.log("Logging translation_edited activity", {
-            username,
-            field_uri,
-            language,
-            old_value: oldT.value,
-            new_value: value,
-          });
-          db.prepare(
-            "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-          ).run(
-            username,
-            "translation_edited",
-            id,
-            fieldId,
-            null,
-            JSON.stringify({
-              field_uri,
-              language,
-              old_value: oldT.value,
-              new_value: value,
-            })
-          );
-        } else if (oldT.status !== status) {
-          console.log("Logging translation_status_changed activity", {
-            username,
-            field_uri,
-            language,
-            old_status: oldT.status,
-            new_status: status,
-          });
-          db.prepare(
-            "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-          ).run(
-            username,
-            "translation_status_changed",
-            id,
-            fieldId,
-            null,
-            JSON.stringify({
-              field_uri,
-              language,
-              old_status: oldT.status,
-              new_status: status,
-            })
-          );
         }
+      }
+    }
+
+    // Delete translations that are no longer in the incoming data
+    // Note: This will cascade delete appeals for removed translations
+    for (const oldT of oldTranslations) {
+      if (!usedTranslationIds.has(oldT.id)) {
+        console.log("Deleting unused translation", oldT.id);
+        db.prepare("DELETE FROM translations WHERE id = ?").run(oldT.id);
+      }
+    }
+
+    // Delete fields that are no longer in the incoming data
+    for (const oldF of oldFields) {
+      if (!usedFieldIds.has(oldF.id)) {
+        console.log("Deleting unused term_field", oldF.id);
+        db.prepare("DELETE FROM term_fields WHERE id = ?").run(oldF.id);
       }
     }
     // 4. Update term URI if changed
