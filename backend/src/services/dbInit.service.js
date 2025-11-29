@@ -93,7 +93,14 @@ function initializeDatabase() {
  */
 function bootstrap() {
   // Sync repository first
-  gitService.syncRepo();
+  const repoSynced = gitService.syncRepo();
+
+  if (!repoSynced) {
+    console.warn(
+      "Warning: Translations repo not available. Database initialization and sync operations will be skipped."
+    );
+    return;
+  }
 
   // Initialize database if needed
   initializeDatabase();
