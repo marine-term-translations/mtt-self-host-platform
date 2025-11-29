@@ -9,6 +9,9 @@ const {
   applyFalseRejectionPenalty,
   applyReputationChange,
   getReputationTierInfo,
+  applyApprovalReward,
+  applyMergeReward,
+  applyCreationReward,
 } = require("../services/reputation.service");
 
 /**
@@ -540,10 +543,40 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               }
             }
 
-            // When status changes to 'merged', check for false rejections
-            // A false rejection is when a previously rejected translation value
-            // is now being merged (approved), meaning the rejection was wrong
+            // When status changes to 'approved', reward the translator
+            if (oldStatus !== "approved" && newStatus === "approved") {
+              const translatorUsername =
+                existingTranslation.modified_by ||
+                existingTranslation.created_by;
+              if (translatorUsername) {
+                const rewardResult = applyApprovalReward(
+                  translatorUsername,
+                  existingTranslation.id
+                );
+                console.log("Applied approval reward", {
+                  translatorUsername,
+                  rewardResult,
+                });
+              }
+            }
+
+            // When status changes to 'merged', reward the translator and check for false rejections
             if (oldStatus !== "merged" && newStatus === "merged") {
+              // Reward the translator for merged translation
+              const translatorUsername =
+                existingTranslation.modified_by ||
+                existingTranslation.created_by;
+              if (translatorUsername) {
+                const rewardResult = applyMergeReward(
+                  translatorUsername,
+                  existingTranslation.id
+                );
+                console.log("Applied merge reward", {
+                  translatorUsername,
+                  rewardResult,
+                });
+              }
+
               // Find previous rejections of translations with same value
               // that were reviewed by someone other than the current user
               const previousRejections = db
@@ -603,6 +636,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             translationResult.lastInsertRowid,
             JSON.stringify({ field_uri, language, value })
           );
+
+          // Apply creation reward for new translations
+          const creationRewardResult = applyCreationReward(
+            created_by,
+            translationResult.lastInsertRowid
+          );
+          console.log("Applied creation reward", {
+            created_by,
+            creationRewardResult,
+          });
         }
       }
     }

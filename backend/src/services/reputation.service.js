@@ -33,6 +33,15 @@ const BASE_FALSE_REJECTION_PENALTY = -10;
 const REJECTION_LOOKBACK_DAYS = 14;
 
 /**
+ * Reputation rewards for positive actions
+ */
+const REPUTATION_REWARDS = {
+  TRANSLATION_APPROVED: 5,   // Reward when translation is approved
+  TRANSLATION_MERGED: 10,    // Reward when translation is merged (final acceptance)
+  TRANSLATION_CREATED: 1,    // Small reward for creating a new translation
+};
+
+/**
  * Get a user's current reputation
  * @param {string} username - The username to look up
  * @returns {number} The user's reputation (0 if not found)
@@ -424,12 +433,90 @@ function getReputationTierInfo(username) {
   };
 }
 
+/**
+ * Generic function to apply a reputation reward
+ * @param {string} username - The user to reward
+ * @param {number} reward - The reward amount
+ * @param {string} reason - The reason for the reward
+ * @param {number} translationId - The translation ID
+ * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
+ */
+function applyReward(username, reward, reason, translationId) {
+  const result = applyReputationChange(
+    username,
+    reward,
+    reason,
+    translationId,
+    { reward }
+  );
+
+  if (!result) {
+    return {
+      applied: false,
+      reward: 0,
+      newReputation: null,
+    };
+  }
+
+  return {
+    applied: true,
+    reward,
+    newReputation: result.newReputation,
+  };
+}
+
+/**
+ * Apply reputation reward when a translation is approved
+ * @param {string} username - The translator who created the translation
+ * @param {number} translationId - The translation ID
+ * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
+ */
+function applyApprovalReward(username, translationId) {
+  return applyReward(
+    username,
+    REPUTATION_REWARDS.TRANSLATION_APPROVED,
+    "translation_approved",
+    translationId
+  );
+}
+
+/**
+ * Apply reputation reward when a translation is merged
+ * @param {string} username - The translator who created the translation
+ * @param {number} translationId - The translation ID
+ * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
+ */
+function applyMergeReward(username, translationId) {
+  return applyReward(
+    username,
+    REPUTATION_REWARDS.TRANSLATION_MERGED,
+    "translation_merged",
+    translationId
+  );
+}
+
+/**
+ * Apply reputation reward when a translation is created
+ * @param {string} username - The translator who created the translation
+ * @param {number} translationId - The translation ID
+ * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
+ */
+function applyCreationReward(username, translationId) {
+  return applyReward(
+    username,
+    REPUTATION_REWARDS.TRANSLATION_CREATED,
+    "translation_created",
+    translationId
+  );
+}
+
 module.exports = {
   // Constants
   REPUTATION_TIERS,
   BASE_REJECTION_PENALTY,
   BASE_FALSE_REJECTION_PENALTY,
   REJECTION_LOOKBACK_DAYS,
+  REPUTATION_REWARDS,
 
   // Core functions
   getUserReputation,
@@ -444,6 +531,11 @@ module.exports = {
   // High-level penalty functions
   applyRejectionPenalty,
   applyFalseRejectionPenalty,
+
+  // High-level reward functions
+  applyApprovalReward,
+  applyMergeReward,
+  applyCreationReward,
 
   // Utility functions
   isImmuneToRejectionPenalty,
