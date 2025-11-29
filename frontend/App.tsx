@@ -14,6 +14,8 @@ import History from './pages/History';
 import Reputation from './pages/Reputation';
 import Leaderboard from './pages/Leaderboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminModeration from './pages/admin/AdminModeration';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -88,6 +90,16 @@ const App: React.FC = () => {
         <Route path="/admin" element={
           <AdminRoute>
             <AdminDashboard />
+          </AdminRoute>
+        } />
+        <Route path="/admin/users" element={
+          <AdminRoute>
+            <AdminUsers />
+          </AdminRoute>
+        } />
+        <Route path="/admin/moderation" element={
+          <AdminRoute>
+            <AdminModeration />
           </AdminRoute>
         } />
 
