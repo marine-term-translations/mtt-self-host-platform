@@ -87,7 +87,9 @@ services:
     container_name: act-runner
     restart: unless-stopped
     environment:
-      - GITEA_INSTANCE_URL=http://host.docker.internal:3000
+      # Use Docker network name 'gitea' instead of 'host.docker.internal'
+      # host.docker.internal only works on Docker Desktop (Windows/macOS), not on Linux servers
+      - GITEA_INSTANCE_URL=http://gitea:3000
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
       - RUNNER_NAME=marine-runner
       - RUNNER_LABELS=linux,docker
@@ -95,8 +97,9 @@ services:
     volumes:
       - ./runner:/data
       - /var/run/docker.sock:/var/run/docker.sock
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # ← THIS IS THE MAGIC
+    depends_on:
+      gitea:
+        condition: service_healthy
 
 volumes:
   gitea-data:
