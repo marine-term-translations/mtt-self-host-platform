@@ -17,13 +17,13 @@ cache:
   enabled: true
 
 container:
-  # Network mode for job containers
-  # Use host network so containers can reach Gitea via localhost:3000
-  network: host
+  # Network mode for job containers (empty uses default bridge network)
+  network: ""
   # Privileged mode (only enable if needed for docker-in-docker)
   privileged: false
-  # Additional options for spawned containers (e.g., "--add-host=gitea:192.168.1.100")
-  options: ""
+  # Add host mapping so job containers can resolve 'gitea' hostname
+  # host-gateway is a special Docker value that resolves to the host IP
+  options: "--add-host=gitea:host-gateway"
   # Working directory parent inside containers (leave empty to use default)
   workdir_parent:
   # Force pull images
