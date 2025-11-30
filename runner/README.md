@@ -10,7 +10,7 @@ Before starting the runner for the first time, copy the config template:
 cp runner/config.yaml.template runner/config.yaml
 ```
 
-The config.yaml uses `network: host` mode so that workflow job containers can reach Gitea via the host's port mapping (localhost:3000).
+The config.yaml adds `--add-host=gitea:host-gateway` to job containers, allowing them to resolve the `gitea` hostname to the Docker host IP.
 
 ## What you can do here
 
@@ -48,8 +48,10 @@ If workflow jobs fail with errors like:
 fatal: unable to access 'http://gitea:3000/...': Could not resolve host: gitea
 ```
 
-This means the job containers cannot resolve the `gitea` hostname. Make sure you have:
+This means the job containers cannot resolve the `gitea` hostname. To fix this:
 
-1. Copied the config template: `cp runner/config.yaml.template runner/config.yaml`
-2. The config.yaml has `network: host` set (allows containers to use host networking)
-3. Restarted the runner: `docker compose restart runner`
+1. Copy the config template: `cp runner/config.yaml.template runner/config.yaml`
+2. Verify the config has `options: "--add-host=gitea:host-gateway"`
+3. Restart the runner: `docker compose restart runner`
+
+The `--add-host=gitea:host-gateway` option maps the `gitea` hostname to the Docker host IP in job containers.
