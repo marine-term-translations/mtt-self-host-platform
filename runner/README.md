@@ -2,9 +2,19 @@
 
 This folder contains configuration and data for the Gitea Actions runner.
 
+## Initial Setup
+
+Before starting the runner for the first time, copy the config template:
+
+```bash
+cp runner/config.yaml.template runner/config.yaml
+```
+
+The config.yaml uses `network: host` mode so that workflow job containers can reach Gitea via the host's port mapping (localhost:3000).
+
 ## What you can do here
 
-- Configure the runner by editing `config.yaml` (auto-generated on first start)
+- Configure the runner by editing `config.yaml`
 - Store runner-specific secrets or tokens if needed
 - View runner logs and status files
 - Reset runner state by deleting files in this folder (if troubleshooting)
@@ -29,3 +39,17 @@ This means the runner has a cached `.runner` file with an old Gitea address. To 
 3. Restart the runner: `docker compose up -d runner`
 
 The runner will re-register with Gitea using the correct URL from `GITEA_INSTANCE_URL`.
+
+### Workflow jobs cannot access Gitea
+
+If workflow jobs fail with errors like:
+
+```
+fatal: unable to access 'http://gitea:3000/...': Could not resolve host: gitea
+```
+
+This means the job containers cannot resolve the `gitea` hostname. Make sure you have:
+
+1. Copied the config template: `cp runner/config.yaml.template runner/config.yaml`
+2. The config.yaml has `network: host` set (allows containers to use host networking)
+3. Restarted the runner: `docker compose restart runner`
