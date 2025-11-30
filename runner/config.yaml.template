@@ -1,0 +1,34 @@
+# Gitea Actions Runner Configuration
+# Copy this file to config.yaml before first run:
+#   cp runner/config.yaml.template runner/config.yaml
+
+log:
+  level: info
+
+runner:
+  file: .runner
+  capacity: 1
+  timeout: 3h
+  insecure: false
+  fetch_timeout: 5s
+  fetch_interval: 2s
+
+cache:
+  enabled: true
+
+container:
+  # Network mode for job containers
+  # Use host network so containers can reach Gitea via localhost:3000
+  network: host
+  # Privileged mode (only enable if needed for docker-in-docker)
+  privileged: false
+  # Additional options for spawned containers (e.g., "--add-host=gitea:192.168.1.100")
+  options: ""
+  # Working directory parent inside containers (leave empty to use default)
+  workdir_parent:
+  # Force pull images
+  force_pull: false
+
+host:
+  # Working directory parent on host (leave empty to use default /tmp)
+  workdir_parent:
