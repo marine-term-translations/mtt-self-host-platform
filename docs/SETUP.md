@@ -253,9 +253,9 @@ preview: {
   allowedHosts: [
     'localhost',
     '127.0.0.1',
-    'your-domain.example.org',  // Add your domain here
+    'terms.yourdomain.org',  // Add your domain here
     // Or allow all subdomains:
-    // '.example.org',
+    // '.yourdomain.org',
   ],
 },
 ```
