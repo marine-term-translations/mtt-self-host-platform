@@ -2,10 +2,24 @@
 import React, { useState, useEffect } from 'react';
 import { MOCK_TERMS } from '../mock/terms';
 import TermCard from '../components/TermCard';
-import { Search, Filter, Loader2, AlertTriangle } from 'lucide-react';
+import { Search, Filter, Loader2, AlertTriangle, Globe } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, TermStats } from '../types';
 import toast from 'react-hot-toast';
+
+// Collection Map for NERC P-codes
+const COLLECTION_MAP: Record<string, string> = {
+  'P01': 'BODC Parameter Usage Vocabulary',
+  'P02': 'SeaDataNet Parameter Discovery Vocabulary',
+  'P03': 'SeaDataNet Agreed Parameter Groups',
+  'P04': 'GCMD Science Keywords',
+  'P05': 'GCMD Instruments',
+  'P06': 'BODC Data Storage Units',
+  'P07': 'CF Standard Names',
+  'L05': 'SeaDataNet Device Categories',
+  'L06': 'SeaDataNet Platform Categories',
+  'L22': 'SeaDataNet Model Types'
+};
 
 const Browse: React.FC = () => {
   const [terms, setTerms] = useState<Term[]>([]);
@@ -13,6 +27,7 @@ const Browse: React.FC = () => {
   const [usingMock, setUsingMock] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
+  const [needsTransFilter, setNeedsTransFilter] = useState('');
 
   // Fetch Terms Logic
   useEffect(() => {
@@ -34,6 +49,12 @@ const Browse: React.FC = () => {
             es: null,
             fr: null,
             nl: null,
+            de: null,
+            it: null,
+            pt: null,
+            ru: null,
+            zh: null,
+            ja: null
           };
 
           const stats: TermStats = {
@@ -55,7 +76,6 @@ const Browse: React.FC = () => {
 
                 // Aggregate Stats
                 if (t.status) {
-                  // Normalize status key just in case, though API is typed
                   const statusKey = t.status as keyof TermStats;
                   if (stats[statusKey] !== undefined) {
                     stats[statusKey]++;
@@ -68,7 +88,10 @@ const Browse: React.FC = () => {
           // Extract collection from URI (e.g. .../collection/P02/current/...)
           // Default to 'General' if not found
           const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
-          const collectionName = collectionMatch ? collectionMatch[1] : 'General';
+          const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
+          const collectionName = COLLECTION_MAP[collectionCode] 
+             ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
+             : collectionCode;
 
           // Use URI or fallback to a string ID
           return {
@@ -77,7 +100,7 @@ const Browse: React.FC = () => {
             definition: definitionField?.original_value || 'No definition available.',
             category: collectionName, 
             translations: translations,
-            contributors: [], // API doesn't provide this yet
+            contributors: [], 
             stats: stats
           };
         });
@@ -98,13 +121,31 @@ const Browse: React.FC = () => {
   }, []);
 
   const categories = ['All', ...Array.from(new Set(terms.map(t => t.category)))];
+  const languages = [
+      { code: 'es', name: 'Spanish' },
+      { code: 'fr', name: 'French' },
+      { code: 'de', name: 'German' },
+      { code: 'it', name: 'Italian' },
+      { code: 'nl', name: 'Dutch' },
+      { code: 'pt', name: 'Portuguese' },
+      { code: 'ru', name: 'Russian' },
+      { code: 'zh', name: 'Chinese' },
+      { code: 'ja', name: 'Japanese' },
+  ];
 
   const filteredTerms = terms.filter(term => {
     const matchesSearch = term.prefLabel.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           term.definition.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'All' || term.category === filterCategory;
     
-    return matchesSearch && matchesCategory;
+    let matchesNeedsTrans = true;
+    if (needsTransFilter) {
+        // Check if translation for this language is missing or empty
+        const trans = term.translations[needsTransFilter];
+        matchesNeedsTrans = !trans || trans.trim() === '';
+    }
+    
+    return matchesSearch && matchesCategory && matchesNeedsTrans;
   });
 
   return (
@@ -137,6 +178,7 @@ const Browse: React.FC = () => {
           />
         </div>
         
+        {/* Collection Filter */}
         <div className="relative min-w-[200px]">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Filter className="h-5 w-5 text-slate-400" />
@@ -148,6 +190,23 @@ const Browse: React.FC = () => {
           >
             {categories.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Language Needs Filter */}
+        <div className="relative min-w-[200px]">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Globe className="h-5 w-5 text-slate-400" />
+          </div>
+          <select
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-marine-500 focus:border-marine-500 sm:text-sm"
+            value={needsTransFilter}
+            onChange={(e) => setNeedsTransFilter(e.target.value)}
+          >
+            <option value="">Any Language Status</option>
+            {languages.map(lang => (
+              <option key={lang.code} value={lang.code}>Needs {lang.name}</option>
             ))}
           </select>
         </div>

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage } from '../types';
@@ -54,17 +53,23 @@ const TermDetail: React.FC = () => {
   const [displayDef, setDisplayDef] = useState('Loading...');
   const [displayCategory, setDisplayCategory] = useState('General');
 
+  // Helper to normalize URIs for comparison (remove trailing slashes)
+  const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
+
   const fetchTermData = async () => {
     setLoading(true);
-    const decodedId = decodeURIComponent(id || '');
+    // Decode and normalize the ID from URL
+    const rawId = decodeURIComponent(id || '');
+    const decodedId = normalizeUri(rawId);
+    
     console.log("Searching for term with URI:", decodedId);
 
     try {
       // 1. Fetch all terms from API
       const apiTerms = await backendApi.getTerms();
       
-      // 2. Find matching term
-      const foundApiTerm = apiTerms.find((t: ApiTerm) => t.uri === decodedId);
+      // 2. Find matching term by URI (checking both normalized versions)
+      const foundApiTerm = apiTerms.find((t: ApiTerm) => normalizeUri(t.uri) === decodedId);
       
       if (!foundApiTerm) {
         console.error(`Term with URI "${decodedId}" not found in API response.`);
@@ -83,17 +88,11 @@ const TermDetail: React.FC = () => {
         console.warn("Could not fetch term history", err);
       }
 
-      // 4. Fetch Appeals for all translations in this term
-      // We collect all translation IDs first to efficiently fetch (or fetch all and filter)
+      // 4. Fetch Appeals
       try {
-        // Fetch all appeals (assuming endpoint returns a list we can filter, 
-        // or loop through translations if API requires specific ID)
-        // For efficiency in this demo, we'll fetch all appeals and filter client side
-        // In prod, use ?translation_id=...
         const allAppeals = await backendApi.getAppeals(); 
         const appealsMap: Record<number, ApiAppeal[]> = {};
         
-        // Enrich appeals with their messages
         for (const appeal of allAppeals) {
             try {
                 const messages = await backendApi.getAppealMessages(appeal.id);
@@ -240,7 +239,6 @@ const TermDetail: React.FC = () => {
   };
 
   const handleStatusChange = async (fieldId: number, newStatus: 'draft' | 'review' | 'approved' | 'rejected' | 'merged', translationId?: number) => {
-    // Intercept rejection to show modal
     if (newStatus === 'rejected') {
       if (!translationId) {
         toast.error("Cannot reject a translation without a valid ID.");
@@ -263,7 +261,6 @@ const TermDetail: React.FC = () => {
     
     setIsSubmitting(true);
     try {
-      // 1. Create Appeal/Rejection Record
       await backendApi.createAppeal({
         translation_id: rejectionModal.translationId,
         opened_by: user.username,
@@ -271,11 +268,9 @@ const TermDetail: React.FC = () => {
         token: user.token
       });
 
-      // 2. Update Status to Rejected
       await submitUpdate(rejectionModal.fieldId, 'rejected');
 
       setRejectionModal(prev => ({ ...prev, isOpen: false, reason: '' }));
-      // Toast is handled in submitUpdate
     } catch (error) {
       console.error("Rejection failed", error);
       toast.error("Failed to submit rejection appeal.");
@@ -283,7 +278,6 @@ const TermDetail: React.FC = () => {
     }
   };
 
-  // Appeal Actions
   const handleReplyAppeal = async (appealId: number) => {
     if (!user || !newMessage.trim()) return;
     try {
@@ -294,7 +288,7 @@ const TermDetail: React.FC = () => {
         });
         setNewMessage('');
         toast.success("Reply sent");
-        await fetchTermData(); // Refresh to show new message
+        await fetchTermData(); 
     } catch (error) {
         toast.error("Failed to send reply");
     }
@@ -332,7 +326,7 @@ const TermDetail: React.FC = () => {
 
 
   const toggleHistory = (fieldId: number) => {
-    setOpenAppealFieldId(null); // Close appeal if opening history
+    setOpenAppealFieldId(null); 
     if (openHistoryFieldId === fieldId) {
         setOpenHistoryFieldId(null);
         setSelectedHistoryEventId(null);
@@ -343,7 +337,7 @@ const TermDetail: React.FC = () => {
   };
 
   const toggleAppeal = (fieldId: number) => {
-    setOpenHistoryFieldId(null); // Close history if opening appeal
+    setOpenHistoryFieldId(null); 
     if (openAppealFieldId === fieldId) {
         setOpenAppealFieldId(null);
     } else {
@@ -500,7 +494,6 @@ const TermDetail: React.FC = () => {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        
         {/* Context Column */}
         <div className="lg:col-span-1">
           <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-xl border border-slate-200 dark:border-slate-700 sticky top-24">
@@ -546,12 +539,10 @@ const TermDetail: React.FC = () => {
               const isHistoryOpen = openHistoryFieldId === field.id;
               const isAppealOpen = openAppealFieldId === field.id;
 
-              // Check for appeals on this translation
               const fieldAppeals = translationId ? (appeals[translationId] || []) : [];
               const activeAppeals = fieldAppeals.filter(a => a.status !== 'closed');
               const hasActiveAppeal = activeAppeals.length > 0;
 
-              // Filter history for this field AND this language
               const fieldHistoryRaw = history
                   .map(h => ({ ...h, parsedExtra: parseExtra(h.extra) }))
                   .filter(h => 
@@ -560,7 +551,6 @@ const TermDetail: React.FC = () => {
                   )
                   .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-              // Determine view mode
               const useHorizontalTimeline = fieldHistoryRaw.length > 3;
               const selectedEvent = selectedHistoryEventId 
                   ? fieldHistoryRaw.find(h => h.id === selectedHistoryEventId) 
@@ -568,7 +558,6 @@ const TermDetail: React.FC = () => {
 
               return (
                 <div key={field.id} className={`bg-white dark:bg-slate-800 rounded-xl border overflow-hidden shadow-sm transition-colors ${hasActiveAppeal ? 'border-red-300 dark:border-red-900' : 'border-slate-200 dark:border-slate-700'}`}>
-                   
                    {/* Field Header */}
                    <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                       <div className="flex items-center gap-2">
@@ -715,7 +704,6 @@ const TermDetail: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    {/* Actions */}
                                                     {appeal.status === 'open' && (
                                                         <button 
                                                             onClick={() => handleResolveAppeal(appeal.id)}
@@ -735,7 +723,6 @@ const TermDetail: React.FC = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Thread */}
                                             <div className="mt-3 pl-3 border-l-2 border-slate-200 dark:border-slate-700 space-y-2">
                                                 {appeal.messages?.map(msg => (
                                                     <div key={msg.id} className="text-sm">
@@ -748,7 +735,6 @@ const TermDetail: React.FC = () => {
                                                 ))}
                                             </div>
 
-                                            {/* Reply Input */}
                                             {appeal.status !== 'closed' && (
                                                 <div className="mt-3 flex gap-2">
                                                     <input 

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -13,6 +14,7 @@ import Profile from './pages/Profile';
 import History from './pages/History';
 import Reputation from './pages/Reputation';
 import Leaderboard from './pages/Leaderboard';
+import Documentation from './pages/Documentation';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
@@ -48,6 +50,8 @@ const App: React.FC = () => {
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/documentation" element={<Documentation />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
         
         {/* Protected Routes */}
         <Route path="/dashboard" element={
@@ -78,11 +82,6 @@ const App: React.FC = () => {
          <Route path="/reputation" element={
           <ProtectedRoute>
             <Reputation />
-          </ProtectedRoute>
-        } />
-         <Route path="/leaderboard" element={
-          <ProtectedRoute>
-            <Leaderboard />
           </ProtectedRoute>
         } />
 
