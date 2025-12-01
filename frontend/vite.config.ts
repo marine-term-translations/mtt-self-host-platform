@@ -9,6 +9,20 @@ export default defineConfig(({ mode }) => {
         port: 3001,
         host: '0.0.0.0',
       },
+      // This is the important part for `vite preview`
+      preview: {
+        port: 4173, // default preview port, change if you use --port
+        host: '0.0.0.0', // expose to network
+        allowedHosts: [
+          'localhost',
+          '127.0.0.1',
+          'emobon-kb.web.vliz.be',     // your custom domain
+          // add more subdomains/hosts if needed, e.g.:
+          // '.vliz.be',              // allows all subdomains (Vite 5.4+)
+        ],
+        // Or simply allow everything (quick & dirty for testing):
+        // allowedHosts: 'all',
+      },
       plugins: [react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
