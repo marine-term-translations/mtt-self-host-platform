@@ -1,23 +1,102 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Globe, Share2, Anchor, Users, Award } from 'lucide-react';
-import { MOCK_TERMS } from '../mock/terms';
+import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2 } from 'lucide-react';
 import TermCard from '../components/TermCard';
-
-const CONTRIBUTORS = [
-  { name: "Maria Garcia", avatar: "https://ui-avatars.com/api/?name=Maria+Garcia&background=0ea5e9&color=fff", contributions: 156, role: "Top Contributor" },
-  { name: "John Smith", avatar: "https://ui-avatars.com/api/?name=John+Smith&background=14b8a6&color=fff", contributions: 132, role: "Editor" },
-  { name: "Wei Chen", avatar: "https://ui-avatars.com/api/?name=Wei+Chen&background=8b5cf6&color=fff", contributions: 110, role: "Translator" },
-  { name: "Sophie Martin", avatar: "https://ui-avatars.com/api/?name=Sophie+Martin&background=f59e0b&color=fff", contributions: 98, role: "Translator" },
-  { name: "Lars Jensen", avatar: "https://ui-avatars.com/api/?name=Lars+Jensen&background=ef4444&color=fff", contributions: 85, role: "Reviewer" },
-  { name: "Yuki Tanaka", avatar: "https://ui-avatars.com/api/?name=Yuki+Tanaka&background=ec4899&color=fff", contributions: 74, role: "Translator" },
-  { name: "Ahmed Hassan", avatar: "https://ui-avatars.com/api/?name=Ahmed+Hassan&background=84cc16&color=fff", contributions: 62, role: "Contributor" },
-  { name: "Sarah Wilson", avatar: "https://ui-avatars.com/api/?name=Sarah+Wilson&background=6366f1&color=fff", contributions: 45, role: "Contributor" },
-];
+import { backendApi } from '../services/api';
+import { Term, ApiTerm, ApiPublicUser } from '../types';
 
 const Landing: React.FC = () => {
-  const featuredTerms = MOCK_TERMS.slice(0, 3);
+  const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
+  const [contributors, setContributors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [apiTerms, apiUsers] = await Promise.all([
+          backendApi.getTerms(),
+          backendApi.getUsers()
+        ]);
+
+        // --- 1. Process Recent Terms ---
+        // Sort by updated_at (descending)
+        const sortedTerms = [...apiTerms].sort((a, b) => {
+            const dateA = new Date(a.updated_at || a.created_at).getTime();
+            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            return dateB - dateA;
+        }).slice(0, 3);
+
+        const mappedTerms: Term[] = sortedTerms.map((apiTerm: ApiTerm) => {
+            const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+            const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
+            
+            // Extract Translations just for display text
+            const translations: Record<string, string | null> = {
+                en_plain: null, es: null, fr: null, nl: null
+            };
+            
+            apiTerm.fields.forEach(field => {
+                if (field.field_term === 'skos:definition' && field.translations) {
+                    field.translations.forEach(t => {
+                        if (t.language) translations[t.language] = t.value;
+                    });
+                }
+            });
+
+            const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
+            const collectionName = collectionMatch ? collectionMatch[1] : 'General';
+
+            return {
+                id: apiTerm.uri,
+                prefLabel: prefLabelField?.original_value || 'Unknown Term',
+                definition: definitionField?.original_value || 'No definition available.',
+                category: collectionName,
+                translations: translations,
+                contributors: [],
+                stats: undefined // Explicitly undefined to hide status bar as requested
+            };
+        });
+        setFeaturedTerms(mappedTerms);
+
+        // --- 2. Process Contributors ---
+        // Count activities (translations) per user
+        const contributionsMap: Record<string, number> = {};
+        apiTerms.forEach(t => {
+            t.fields.forEach(f => {
+                if (f.translations) {
+                    f.translations.forEach(tr => {
+                        const user = tr.created_by || 'unknown';
+                        contributionsMap[user] = (contributionsMap[user] || 0) + 1;
+                    });
+                }
+            });
+        });
+
+        // Map and sort users by reputation (taking top 8)
+        const mappedUsers = apiUsers
+            .map((u: ApiPublicUser) => ({
+                name: u.username, 
+                username: u.username,
+                avatar: `https://ui-avatars.com/api/?name=${u.username}&background=0ea5e9&color=fff`,
+                contributions: contributionsMap[u.username] || 0,
+                reputation: u.reputation,
+                role: u.reputation >= 500 ? "Trusted Contributor" : "Contributor"
+            }))
+            .sort((a, b) => b.reputation - a.reputation)
+            .slice(0, 8);
+
+        setContributors(mappedUsers);
+
+      } catch (error) {
+        console.error("Landing page fetch failed", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="flex flex-col">
@@ -126,11 +205,21 @@ const Landing: React.FC = () => {
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {featuredTerms.map(term => (
-              <TermCard key={term.id} term={term} />
-            ))}
-          </div>
+          {loading ? (
+             <div className="flex justify-center items-center py-12">
+                 <Loader2 size={32} className="animate-spin text-marine-500" />
+             </div>
+          ) : featuredTerms.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {featuredTerms.map(term => (
+                <TermCard key={term.id} term={term} />
+                ))}
+            </div>
+          ) : (
+             <div className="text-center text-slate-500 italic py-8">
+                 No contributions found yet.
+             </div>
+          )}
 
           <div className="mt-12 text-center">
             <Link to="/browse" className="inline-flex items-center text-marine-600 dark:text-marine-400 font-semibold hover:underline">
@@ -153,28 +242,38 @@ const Landing: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-            {CONTRIBUTORS.map((contributor, index) => (
-              <div key={index} className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all">
-                <img 
-                  src={contributor.avatar} 
-                  alt={contributor.name} 
-                  className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700 shadow-sm mr-4"
-                />
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{contributor.name}</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{contributor.role}</p>
-                  <div className="flex items-center text-xs font-medium text-marine-600 dark:text-marine-400">
-                    <Award size={12} className="mr-1" /> {contributor.contributions} edits
-                  </div>
+          {loading ? (
+             <div className="flex justify-center items-center py-12">
+                 <Loader2 size={32} className="animate-spin text-marine-500" />
+             </div>
+          ) : contributors.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+                {contributors.map((contributor, index) => (
+                <div key={index} className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all">
+                    <img 
+                    src={contributor.avatar} 
+                    alt={contributor.name} 
+                    className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700 shadow-sm mr-4"
+                    />
+                    <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{contributor.name}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{contributor.role}</p>
+                    <div className="flex items-center text-xs font-medium text-marine-600 dark:text-marine-400">
+                        <Award size={12} className="mr-1" /> {contributor.contributions} edits
+                    </div>
+                    </div>
                 </div>
-              </div>
-            ))}
-          </div>
+                ))}
+            </div>
+          ) : (
+             <div className="text-center text-slate-500 italic">
+                 No active contributors yet. Be the first!
+             </div>
+          )}
           
           <div className="mt-12 text-center">
              <Link to="/leaderboard" className="text-sm font-medium text-slate-500 hover:text-marine-600 dark:hover:text-marine-400 transition-colors">
-                View full leaderboard
+                View all contributors
              </Link>
           </div>
         </div>
