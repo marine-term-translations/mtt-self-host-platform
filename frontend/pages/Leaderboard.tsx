@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Trophy, Users, Globe, BarChart3, CheckCircle, Clock, FileText, XCircle, GitMerge, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Globe, BarChart3, CheckCircle, Clock, FileText, XCircle, GitMerge, Loader2, Book } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiPublicUser, ApiTerm } from '../types';
@@ -137,18 +137,21 @@ const Leaderboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <Link to="/dashboard" className="inline-flex items-center text-slate-500 hover:text-marine-600 mb-6 transition-colors">
-        <ArrowLeft size={16} className="mr-1" /> Back to Dashboard
-      </Link>
-
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-lg">
-          <BarChart3 size={24} />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div className="flex items-center gap-3">
+            <Link to="/dashboard" className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-marine-600 transition-colors">
+                <ArrowLeft size={18} />
+            </Link>
+            <div>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="text-indigo-500" /> Community Leaderboard
+                </h1>
+                <p className="text-slate-600 dark:text-slate-400 mt-1">Celebrating our top contributors and team progress.</p>
+            </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Community Leaderboard</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Celebrating our top contributors and team progress.</p>
-        </div>
+        <Link to="/documentation" className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-marine-500 hover:text-marine-600 transition-colors shadow-sm">
+            <Book size={16} /> Documentation
+        </Link>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">

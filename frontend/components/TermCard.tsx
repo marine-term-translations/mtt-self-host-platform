@@ -18,14 +18,14 @@ const TermCard: React.FC<TermCardProps> = ({ term }) => {
       to={`/term/${encodedId}`}
       className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-lg hover:border-marine-300 dark:hover:border-marine-700 transition-all duration-200 group h-full flex flex-col"
     >
-      <div className="flex justify-between items-start mb-3">
-        <span className="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+      <div className="flex justify-between items-start mb-3 gap-2">
+        <span className="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 truncate max-w-[85%]" title={term.category}>
           {term.category}
         </span>
         {hasPlainEnglish ? (
-          <CheckCircle className="text-teal-500 w-5 h-5" />
+          <CheckCircle className="text-teal-500 w-5 h-5 flex-shrink-0" />
         ) : (
-          <AlertCircle className="text-amber-400 w-5 h-5" />
+          <AlertCircle className="text-amber-400 w-5 h-5 flex-shrink-0" />
         )}
       </div>
       

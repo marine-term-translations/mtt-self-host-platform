@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Database, Share2, Globe, ShieldCheck, Layers, GitBranch, Cpu, FileJson } from 'lucide-react';
+import { Database, Share2, Globe, ShieldCheck, Layers, GitBranch, Cpu, FileJson, Users, Eye } from 'lucide-react';
 
 const About: React.FC = () => {
   return (
@@ -17,15 +18,16 @@ const About: React.FC = () => {
       <div className="prose prose-slate dark:prose-invert lg:prose-lg mx-auto mb-16">
         <p>
           <strong>Marine Term Translations</strong> is a specialized platform designed to bridge the gap between technical marine science vocabulary and global understanding. 
-          It operates on top of the <strong>NERC Vocabulary Server</strong>, allowing domain experts and contributors to provide translations that are scientifically accurate yet accessible.
+          It operates on top of the <a href="https://vocab.nerc.ac.uk/" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:underline">NERC Vocabulary Server</a>, 
+          allowing domain experts and contributors to provide translations that are scientifically accurate yet accessible.
         </p>
         <p>
-          This project supports the <a href="https://marine-term-translations.github.io/" className="text-marine-600 hover:underline">marine-term-translations</a> initiative, 
-          leveraging modern CI/CD practices to automate the maintenance of thesauri content.
+          This project is part of the <a href="https://marine-term-translations.github.io/" className="text-marine-600 hover:underline">marine-term-translations</a> initiative, 
+          leveraging modern software management practices to automate the maintenance of thesauri content.
         </p>
       </div>
 
-      {/* Workflow Section (Based on #gh_action) */}
+      {/* Workflow Section */}
       <div className="mb-16">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 text-center flex items-center justify-center gap-2">
             <Cpu className="text-marine-500" /> The Automated Workflow
@@ -42,7 +44,7 @@ const About: React.FC = () => {
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">1. Contribution</h3>
                         <p className="text-slate-600 dark:text-slate-400">
                             Users submit translations via this web interface or directly as Git commits. 
-                            Simple structured files (CSV/JSON) act as the source of truth.
+                            These translations are added to our database and are the "source of truth" for all subsequent steps.
                         </p>
                     </div>
                     <div className="bg-marine-100 dark:bg-marine-900 p-4 rounded-full border-4 border-white dark:border-slate-900 shadow-sm z-10">
@@ -58,10 +60,10 @@ const About: React.FC = () => {
                         <Cpu size={24} className="text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="md:w-1/2">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">2. GitHub/Gitea Action</h3>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">2. GitHub Action</h3>
                         <p className="text-slate-600 dark:text-slate-400">
-                            Upon every commit, a CI pipeline (GitHub Action) is triggered. 
-                            It validates the input data against the NERC schema and processes the translations.
+                            Upon every commit, a pipeline (a GitHub Action) is triggered. 
+                            This validates the input data against the NERC schema and processes the translations.
                         </p>
                     </div>
                 </div>
@@ -90,10 +92,24 @@ const About: React.FC = () => {
                     <div className="md:w-1/2">
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">4. Publication</h3>
                         <p className="text-slate-600 dark:text-slate-400">
-                            The resulting RDF (SKOS/Turtle) and JSON-LD files are automatically published to the repository pages.
-                            They are instantly harvestable by other machines.
+                            This LDES is published on a webpage sitting on our GitHub space. They are instantly harvestable by other machines.
                         </p>
                     </div>
+                </div>
+
+                {/* Step 5 */}
+                <div className="flex flex-col md:flex-row gap-8 items-center">
+                    <div className="md:w-1/2 md:text-right">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">5. Crowdsourcing</h3>
+                        <p className="text-slate-600 dark:text-slate-400">
+                             All terms that need translations, already have translations, or need translations checked, are browsable from this platform. 
+                             Translations are created and curated only by our crowdsourced community of contributors.
+                        </p>
+                    </div>
+                    <div className="bg-indigo-100 dark:bg-indigo-900 p-4 rounded-full border-4 border-white dark:border-slate-900 shadow-sm z-10">
+                        <Users size={24} className="text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div className="md:w-1/2 md:opacity-0"></div>
                 </div>
             </div>
         </div>
@@ -116,7 +132,7 @@ const About: React.FC = () => {
           
           <p className="text-lg text-slate-700 dark:text-slate-300 leading-relaxed mb-6 max-w-2xl">
             The ultimate output of the translation workflow is not just a static webpage, but a dynamic <strong>Linked Data Event Stream</strong>. 
-            This technical translation process ensures that the data is FAIR (Findable, Accessible, Interoperable, Reusable).
+            With this, anyone can automatically harvest the information into their own websites, workflows, vocabularies.
           </p>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -130,14 +146,31 @@ const About: React.FC = () => {
               </div>
               <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
                   <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
-                      <ShieldCheck size={16} className="text-marine-500" /> Reliability
+                      <ShieldCheck size={16} className="text-marine-500" /> Reliability and Reusability
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                       Immutable event streams provide a complete audit trail of all changes and contributions.
                   </p>
               </div>
+              <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                  <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+                      <Eye size={16} className="text-marine-500" /> Accessibility
+                  </h4>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                      LDES ensures data is accessible over time, even as systems evolve (AIR of FAIR), providing a sustainable way to publish dynamic datasets.
+                  </p>
+              </div>
           </div>
         </div>
+      </div>
+
+      {/* NVS Info Box */}
+      <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl p-8 mb-16 text-center">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">NERC Vocabulary Server</h2>
+          <p className="text-slate-600 dark:text-slate-300 mb-4 max-w-3xl mx-auto">
+              The NVS is a service that provides access to a huge number of curated collections of controlled vocabularies in the oceanographic and related earth-science domains. 
+              It is managed by the <strong>British Oceanographic Data Centre (BODC)</strong> and funded by the UK's <strong>Natural Environment Research Council (NERC)</strong>.
+          </p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-8 text-center border-t border-slate-200 dark:border-slate-800 pt-12">

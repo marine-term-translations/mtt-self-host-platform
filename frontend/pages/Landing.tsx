@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2 } from 'lucide-react';
+import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database } from 'lucide-react';
 import TermCard from '../components/TermCard';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, ApiPublicUser } from '../types';
@@ -10,6 +10,20 @@ const Landing: React.FC = () => {
   const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
   const [contributors, setContributors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Helper to map P-codes to names (simplified version for Landing)
+  const getCollectionName = (code: string) => {
+    const map: Record<string, string> = {
+      'P01': 'BODC Parameter Usage',
+      'P02': 'SeaDataNet Parameter Discovery',
+      'P03': 'SeaDataNet Agreed Parameter Groups',
+      'P04': 'GCMD Science Keywords',
+      'P05': 'GCMD Instruments',
+      'P06': 'BODC Data Storage Units',
+      'P07': 'CF Standard Names',
+    };
+    return map[code] ? `${code}: ${map[code]}` : code;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,7 +59,8 @@ const Landing: React.FC = () => {
             });
 
             const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
-            const collectionName = collectionMatch ? collectionMatch[1] : 'General';
+            const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
+            const collectionName = getCollectionName(collectionCode);
 
             return {
                 id: apiTerm.uri,
@@ -150,7 +165,7 @@ const Landing: React.FC = () => {
                     Sign up to Contribute <ArrowRight size={20} />
                   </Link>
                 <Link to="/about" className="px-8 py-4 bg-marine-800/50 border border-marine-600/50 text-white rounded-xl font-semibold hover:bg-marine-800 transition-colors backdrop-blur-sm">
-                  Why LDES?
+                  What and Why
                 </Link>
               </div>
             </div>
