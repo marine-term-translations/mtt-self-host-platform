@@ -7,9 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen, 
   CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle, ChevronRight, 
-  Edit3, MessageSquare, AlertTriangle, CheckSquare, MessageCircle 
+  Edit3, MessageSquare, AlertTriangle, CheckSquare, MessageCircle, Sparkles, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CONFIG } from '../config';
 
 const TermDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,9 @@ const TermDetail: React.FC = () => {
   const [allowedLanguages, setAllowedLanguages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // AI State
+  const [aiLoading, setAiLoading] = useState<Record<number, boolean>>({});
+
   const [openHistoryFieldId, setOpenHistoryFieldId] = useState<number | null>(null);
   const [openAppealFieldId, setOpenAppealFieldId] = useState<number | null>(null);
   const [selectedHistoryEventId, setSelectedHistoryEventId] = useState<number | null>(null);
@@ -164,6 +168,64 @@ const TermDetail: React.FC = () => {
 
   const handleInputChange = (fieldId: number, value: string) => {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
+  };
+
+  const handleAiSuggest = async (field: ApiField) => {
+    if (!selectedLang) {
+      toast.error("Please select a target language first");
+      return;
+    }
+    
+    setAiLoading(prev => ({ ...prev, [field.id]: true }));
+
+    try {
+      const type = field.field_term.includes('definition') ? 'definition' : 'term';
+      const prompt = `You are a professional marine scientist and translator. 
+Translate the following ${type} into ${selectedLang}.
+Keep the translation scientific, accurate, and natural. 
+Do not add explanations, only provide the translation.
+
+Original Text (${field.field_term}): "${field.original_value}"`;
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "arcee-ai/trinity-mini:free",
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("AI Service unavailable");
+      }
+
+      const data = await response.json();
+      const suggestion = data.choices?.[0]?.message?.content?.trim();
+
+      if (suggestion) {
+        // Simple cleanup: remove surrounding quotes if present
+        const cleanSuggestion = suggestion.replace(/^["']|["']$/g, '');
+        handleInputChange(field.id, cleanSuggestion);
+        toast.success("AI suggestion generated");
+      } else {
+        toast.error("No suggestion returned");
+      }
+
+    } catch (error) {
+      console.error("AI Suggestion failed", error);
+      toast.error("Failed to generate AI suggestion");
+    } finally {
+      setAiLoading(prev => ({ ...prev, [field.id]: false }));
+    }
   };
 
   const submitUpdate = async (targetFieldId?: number, targetStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
@@ -583,15 +645,30 @@ const TermDetail: React.FC = () => {
 
                       {/* Input Area */}
                       <div className="mb-4">
-                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between">
+                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between items-center">
                             <span>{selectedLang} Translation</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full capitalize
-                               ${status === 'approved' ? 'bg-green-100 text-green-700' : 
-                                 status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                                 status === 'review' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}
-                            `}>
-                               Status: {status}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                {canTranslate && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAiSuggest(field)}
+                                        disabled={aiLoading[field.id]}
+                                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
+                                        title="Generate AI Suggestion"
+                                    >
+                                        {aiLoading[field.id] ? <Loader2 size={10} className="animate-spin"/> : <Sparkles size={10} />}
+                                        AI Suggest
+                                    </button>
+                                )}
+                                <span className={`text-xs px-2 py-0.5 rounded-full capitalize
+                                    ${status === 'approved' ? 'bg-green-100 text-green-700' : 
+                                      status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                                      status === 'review' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}
+                                    `}
+                                >
+                                    Status: {status}
+                                </span>
+                            </div>
                          </label>
                          
                          {isTextArea ? (
