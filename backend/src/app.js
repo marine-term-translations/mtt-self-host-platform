@@ -14,7 +14,14 @@ const appealsRoutes = require("./routes/appeals.routes");
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://mtt.vliz.be",   // ← only allow your real frontend
+    credentials: true,              // ← important if you send cookies or Authorization headers
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 // Swagger documentation
