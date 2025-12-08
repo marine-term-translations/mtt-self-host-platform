@@ -71,9 +71,28 @@ Ensure your backend is configured to handle requests at `https://mtt.vliz.be/api
 NODE_ENV=production
 BASE_URL=https://mtt.vliz.be
 FRONTEND_URL=https://mtt.vliz.be
+SQLITE_DB_PATH=/app/backend/data/translations.db
 ```
 
-### Step 2: ORCID OAuth Configuration
+### Step 2: Database Persistence
+
+The backend uses a local SQLite database that is automatically created on first startup. To persist the database across container restarts, the `docker-compose.yml` includes a volume mount:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - ./backend/data:/app/backend/data
+```
+
+This mounts the local `./backend/data` directory to `/app/backend/data` inside the container, ensuring:
+- ✅ Database persists across container restarts
+- ✅ Data is stored on the host machine
+- ✅ Easy backup and restore from host
+
+**Important:** Ensure the `./backend/data` directory on your host has proper permissions for the container to write to it.
+
+### Step 3: ORCID OAuth Configuration
 
 Register your OAuth app at https://orcid.org/developer-tools with:
 
@@ -81,7 +100,7 @@ Register your OAuth app at https://orcid.org/developer-tools with:
 
 This must match exactly (including the `/api` prefix).
 
-### Step 3: Reverse Proxy Configuration
+### Step 4: Reverse Proxy Configuration
 
 Your reverse proxy (nginx, Traefik, Caddy, etc.) should route:
 
