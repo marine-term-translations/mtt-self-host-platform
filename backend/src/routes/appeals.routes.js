@@ -32,49 +32,36 @@ const { gitPull, gitCommitAndPush } = require("../db/gitOps");
  *               type: object
  */
 router.post("/appeals", (req, res) => {
-  const { translation_id, opened_by, resolution, token } = req.body;
-  if (!translation_id || !opened_by || !token) {
+  const { translation_id, opened_by, resolution } = req.body;
+  if (!translation_id || !opened_by) {
     return res
       .status(400)
-      .json({ error: "Missing translation_id, opened_by, or token" });
+      .json({ error: "Missing translation_id or opened_by" });
   }
-  const { checkAdminStatus } = require("../services/gitea.service");
-  checkAdminStatus(token)
-    .then((userInfo) => {
-      if (!userInfo || userInfo.username !== opened_by) {
-        return res.status(403).json({ error: "Invalid token for username" });
-      }
-      try {
-        const db = getDatabase();
-        const stmt = db.prepare(
-          "INSERT INTO appeals (translation_id, opened_by, resolution) VALUES (?, ?, ?)"
-        );
-        const info = stmt.run(translation_id, opened_by, resolution || null);
-        // Git commit and push after appeal creation
-        try {
-          gitCommitAndPush(
-            `Appeal ${info.lastInsertRowid} created by ${opened_by}`,
-            opened_by
-          );
-        } catch (gitErr) {
-          console.error(
-            "Git push failed after appeal creation:",
-            gitErr.message
-          );
-        }
-        res.status(201).json({
-          id: info.lastInsertRowid,
-          translation_id,
-          opened_by,
-          resolution,
-        });
-      } catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    })
-    .catch((err) => {
-      res.status(500).json({ error: err.message });
-    });
+  
+  // Admin check removed - now using ORCID session auth
+  // Verify user is authenticated via session
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  // Verify the user making the request matches the opened_by field
+  if (req.session.user.orcid !== opened_by && req.session.user.name !== opened_by) {
+    return res.status(403).json({ error: "User mismatch" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const stmt = db.prepare(
+      "INSERT INTO appeals (translation_id, opened_by, resolution) VALUES (?, ?, ?)"
+    );
+    const info = stmt.run(translation_id, opened_by, resolution || null);
+    // Git commit and push removed - Gitea integration removed
+    res.status(201).json({ id: info.lastInsertRowid, translation_id, opened_by, resolution });
+  } catch (err) {
+    console.error("Error creating appeal:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 /**
@@ -134,35 +121,36 @@ router.get("/appeals", (req, res) => {
  */
 router.patch("/appeals/:id", (req, res) => {
   const { id } = req.params;
-  const { status, resolution, username, token } = req.body;
-  if ((!status && !resolution) || !username || !token) {
+  const { status, resolution, username } = req.body;
+  if ((!status && !resolution) || !username) {
     return res
       .status(400)
-      .json({ error: "Missing status, resolution, username, or token" });
+      .json({ error: "Missing status, resolution, or username" });
   }
-  const { checkAdminStatus } = require("../services/gitea.service");
-  checkAdminStatus(token)
-    .then((userInfo) => {
-      if (!userInfo || userInfo.username !== username) {
-        return res.status(403).json({ error: "Invalid token for username" });
-      }
-      try {
-        const db = getDatabase();
-        const stmt = db.prepare(
-          "UPDATE appeals SET status = COALESCE(?, status), resolution = COALESCE(?, resolution), closed_at = CASE WHEN ? = 'closed' OR ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE closed_at END WHERE id = ?"
-        );
-        stmt.run(status, resolution, status, status, id);
-        const updated = db
-          .prepare("SELECT * FROM appeals WHERE id = ?")
-          .get(id);
-        res.json(updated);
-      } catch (err) {
-        res.status(500).json({ error: err.message });
-      }
-    })
-    .catch((err) => {
-      res.status(500).json({ error: err.message });
-    });
+  
+  // Admin check removed - now using ORCID session auth
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  // Verify the user making the request matches the username field
+  if (req.session.user.orcid !== username && req.session.user.name !== username) {
+    return res.status(403).json({ error: "User mismatch" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const stmt = db.prepare(
+      "UPDATE appeals SET status = COALESCE(?, status), resolution = COALESCE(?, resolution), closed_at = CASE WHEN ? = 'closed' OR ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE closed_at END WHERE id = ?"
+    );
+    stmt.run(status, resolution, status, status, id);
+    const updated = db
+      .prepare("SELECT * FROM appeals WHERE id = ?")
+      .get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -1,49 +1,4 @@
 services:
-  gitea:
-    image: gitea/gitea:1.25
-    container_name: gitea
-    restart: unless-stopped
-    environment:
-      - USER_UID=1000
-      - USER_GID=1000
-      - GITEA__actions__ENABLED=true
-      - GITEA__database__DB_TYPE=postgres
-      - GITEA__database__HOST=db:5432
-      - GITEA__database__NAME=gitea
-      - GITEA__database__USER=gitea
-      - GITEA__database__PASSWD=${GITEA_DB_PASS}
-      # These two lines auto-detect localhost vs production
-      - GITEA__server__DOMAIN=${DOMAIN:-localhost}
-      - GITEA__server__ROOT_URL=${ROOT_URL:-http://localhost:3000/}
-      - GITEA__security__INSTALL_LOCK=true
-      - GITEA__security__REGISTER_EMAIL_CONFIRM=false
-      - GITEA__security__INSTALL_LOCK=true
-      - GITEA__service__DISABLE_REGISTRATION=false
-      - GITEA__service__SHOW_REGISTRATION_BUTTON=true
-    volumes:
-      - ./gitea/data:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    ports:
-      - "3000:3000"    # ← only exposed locally
-    depends_on:
-      - db
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=gitea
-      - POSTGRES_PASSWORD=${GITEA_DB_PASS}
-      - POSTGRES_DB=gitea
-    volumes:
-      - ./gitea/postgres:/var/lib/postgresql/data
-
   backend:
     build: ./backend
     container_name: marine-backend
@@ -52,58 +7,23 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - GITEA_URL=http://gitea:3000
-      - GITEA_TOKEN=${GITEA_ADMIN_TOKEN}
       - TRANSLATIONS_REPO=translations-data
       - TRANSLATIONS_REPO_PATH=/app/translations-data
       - SQLITE_DB_PATH=/app/translations-data/translations.db
     ports:
-      - "5000:5000"    # ← handy locally
-    depends_on:
-      gitea:
-        condition: service_healthy
+      - "5000:5000"
 
   frontend:
     build: 
       context: ./frontend
       args:
         - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
-        - VITE_GITEA_URL=${VITE_GITEA_URL:-http://localhost:3000}
         - VITE_DOMAIN=${DOMAIN:-localhost}
-        - VITE_ROOT_URL=${ROOT_URL:-http://localhost:3000/}
     container_name: marine-frontend
     restart: unless-stopped
     environment:
-      # Auto-switches between localhost and production
       - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
-      - VITE_GITEA_URL=${VITE_GITEA_URL:-http://localhost:3000}
     ports:
-      - "4173:4173"    # Vite dev server
+      - "4173:4173"
     depends_on:
       - backend
-
-  runner:
-    image: gitea/act_runner:latest
-    container_name: act-runner
-    restart: unless-stopped
-    environment:
-      # Use Docker network name 'gitea' for runner-to-Gitea communication
-      - GITEA_INSTANCE_URL=http://gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_TOKEN}
-      - RUNNER_NAME=marine-runner
-      - RUNNER_LABELS=linux,docker
-      - CONFIG_FILE=/data/config.yaml
-    volumes:
-      - ./runner:/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    extra_hosts:
-      # Maps 'gitea' to host IP so the runner container can reach Gitea
-      # even when Docker internal DNS resolution fails
-      - "gitea:host-gateway"
-    depends_on:
-      gitea:
-        condition: service_healthy
-
-volumes:
-  gitea-data:
-  postgres-data:
