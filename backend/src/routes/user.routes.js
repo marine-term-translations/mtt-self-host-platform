@@ -45,7 +45,7 @@ const requireAuth = (req, res, next) => {
  *       401:
  *         description: Not authenticated
  */
-router.get("/api/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
+router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
     const orcid = req.session.user.orcid;
@@ -97,7 +97,7 @@ router.get("/api/user/preferences", userPreferencesLimiter, requireAuth, (req, r
  *       401:
  *         description: Not authenticated
  */
-router.post("/api/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
+router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
     const orcid = req.session.user.orcid;
