@@ -88,7 +88,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: true, // Always true in production with HTTPS
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
     },
@@ -97,7 +97,11 @@ app.use(
 ```
 
 #### HTTPS
-Ensure your production environment uses HTTPS. The `secure` cookie flag is automatically enabled in production mode.
+Ensure your production environment uses HTTPS. The `secure` cookie flag is automatically enabled when:
+- `NODE_ENV=production` AND
+- `BASE_URL` starts with `https://`
+
+This prevents browsers from rejecting secure cookies over HTTP.
 
 ### 4. Deploy Changes
 
@@ -172,22 +176,30 @@ This occurs when the OAuth state parameter doesn't match between the initial req
    - `[ORCID Callback] Returned state from ORCID:` - State from callback
    - `[ORCID Callback] Expected state from session:` - State stored in session
    - `[Session Debug]` - Session persistence across requests
+   - Compare Session IDs - they should be identical
 
 3. **Common causes and fixes:**
    
-   **A. Session not persisting (most common)**
-   - Symptom: Session ID differs between auth start and callback
-   - Fix: Ensure cookies are enabled and `credentials: 'include'` is set on fetch calls
-   - Production fix: Use Redis instead of MemoryStore (see below)
+   **A. Secure cookie over HTTP (most common)**
+   - **Symptom:** Different Session IDs between auth start and callback, `secure: true` in logs but using HTTP
+   - **Cause:** Browser rejects secure cookies over HTTP, creates new session on callback
+   - **Fix:** Set `NODE_ENV=development` in `.env` for local development
+   - **Verification:** Check logs for `[Session Debug] Cookie secure: false` when using HTTP
    
-   **B. CORS/Cookie issues**
-   - Symptom: No session cookie set
-   - Fix: Verify `config.frontendUrl` matches actual frontend origin
-   - Fix: In development, ensure `NODE_ENV=development` (not `production`)
+   **B. Session not persisting**
+   - **Symptom:** Session ID differs between auth start and callback
+   - **Fix:** Ensure cookies are enabled and `credentials: 'include'` is set on fetch calls
+   - **Production fix:** Use Redis instead of MemoryStore (see below)
    
-   **C. Redirect URI mismatch**
-   - Symptom: ORCID returns error before state check
-   - Fix: Verify ORCID app settings match `${BASE_URL}/api/auth/orcid/callback`
+   **C. CORS/Cookie issues**
+   - **Symptom:** No session cookie set
+   - **Fix:** Verify `BASE_URL` and `FRONTEND_URL` in `.env` match actual URLs
+   - **Fix:** Ensure `NODE_ENV` is correctly set for your environment
+   
+   **D. Redirect URI mismatch**
+   - **Symptom:** ORCID returns error before state check
+   - **Fix:** Verify ORCID app settings match `${BASE_URL}/api/auth/orcid/callback`
+   - **Example:** `http://localhost:5000/api/auth/orcid/callback` for development
 
 ### Using Redis for Production Sessions
 

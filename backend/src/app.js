@@ -16,6 +16,13 @@ const appealsRoutes = require("./routes/appeals.routes");
 
 const app = express();
 
+// Trust proxy when behind reverse proxy (Traefik, Nginx, etc.)
+app.set('trust proxy', 1);
+
+// Determine if we should use secure cookies
+// Only use secure cookies in production AND when baseUrl uses HTTPS
+const useSecureCookies = config.isProd && config.baseUrl.startsWith('https://');
+
 // Session middleware
 app.use(
   session({
@@ -26,10 +33,11 @@ app.use(
     store: new MemoryStore({ checkPeriod: 86400000 }), // 24h prune
     cookie: {
       httpOnly: true,
-      secure: config.isProd,
+      secure: useSecureCookies,
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
       path: '/',
+      domain: undefined, // Let browser auto-set
     },
   })
 );
@@ -41,6 +49,8 @@ if (!config.isProd) {
     console.log('[Session Debug] Session ID:', req.sessionID);
     console.log('[Session Debug] Session exists:', !!req.session);
     console.log('[Session Debug] Session state:', req.session?.state);
+    console.log('[Session Debug] Cookie secure:', useSecureCookies);
+    console.log('[Session Debug] Base URL:', config.baseUrl);
     next();
   });
 }
