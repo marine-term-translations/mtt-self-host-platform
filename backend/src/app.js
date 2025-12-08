@@ -2,7 +2,10 @@
 
 const express = require("express");
 const cors = require("cors");
+const session = require("express-session");
+const MemoryStore = require("memorystore")(session);
 const swaggerUi = require("swagger-ui-express");
+const config = require("./config");
 
 const swaggerSpec = require("./docs/swagger");
 const authRoutes = require("./routes/auth.routes");
@@ -13,11 +16,27 @@ const appealsRoutes = require("./routes/appeals.routes");
 
 const app = express();
 
-// Middleware
+// Session middleware
+app.use(
+  session({
+    secret: config.session.secret,
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStore({ checkPeriod: 86400000 }), // 24h prune
+    cookie: {
+      httpOnly: true,
+      secure: config.isProd,
+      sameSite: config.isProd ? 'lax' : 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+    },
+  })
+);
+
+// CORS middleware
 app.use(
   cors({
-    origin: "https://mtt.vliz.be",   // ← only allow your real frontend
-    credentials: true,              // ← important if you send cookies or Authorization headers
+    origin: config.frontendUrl,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
