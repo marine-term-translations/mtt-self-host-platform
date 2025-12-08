@@ -12,6 +12,7 @@ const authRoutes = require("./routes/auth.routes");
 const termsRoutes = require("./routes/terms.routes");
 const teamsRoutes = require("./routes/teams.routes");
 const appealsRoutes = require("./routes/appeals.routes");
+const userRoutes = require("./routes/user.routes");
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount routes
 app.use("/", authRoutes);
+app.use("/", userRoutes);
 app.use("/", termsRoutes);
 app.use("/", teamsRoutes);
 app.use("/", appealsRoutes);
