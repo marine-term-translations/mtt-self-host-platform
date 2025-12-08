@@ -21,9 +21,7 @@ const config = {
     })(),
   },
   translations: {
-    repoName: process.env.TRANSLATIONS_REPO,
-    repoPath: process.env.TRANSLATIONS_REPO_PATH,
-    dbPath: process.env.SQLITE_DB_PATH,
+    dbPath: process.env.SQLITE_DB_PATH || 'backend/data/translations.db',
   },
 };
 
