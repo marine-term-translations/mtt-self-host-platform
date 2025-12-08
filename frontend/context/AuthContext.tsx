@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { backendApi } from '../services/api';
+import { CONFIG } from '../config';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +21,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       try {
         // Check if user is authenticated via session
-        const response = await fetch('/api/me', { credentials: 'include' });
+        const apiUrl = `${CONFIG.API_URL}/me`;
+        const response = await fetch(apiUrl, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           if (!data.error) {
@@ -46,13 +48,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = () => {
-    // Redirect to ORCID OAuth flow
-    window.location.href = '/api/auth/orcid';
+    // Redirect to ORCID OAuth flow using full backend URL
+    const authUrl = `${CONFIG.API_URL}/auth/orcid`;
+    window.location.href = authUrl;
   };
 
   const logout = async () => {
     try {
-      await fetch('/api/logout', { 
+      const logoutUrl = `${CONFIG.API_URL}/logout`;
+      await fetch(logoutUrl, { 
         method: 'POST', 
         credentials: 'include' 
       });
