@@ -3,6 +3,15 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
+const rateLimit = require("express-rate-limit");
+
+// Set up rate limiter for user preferences endpoints (max 100 per 15 minutes per IP)
+const userPreferencesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the RateLimit-* headers
+  legacyHeaders: false, // Disable the X-RateLimit-* headers
+});
 
 /**
  * Middleware to check if user is authenticated
@@ -36,7 +45,7 @@ const requireAuth = (req, res, next) => {
  *       401:
  *         description: Not authenticated
  */
-router.get("/api/user/preferences", requireAuth, (req, res) => {
+router.get("/api/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
     const orcid = req.session.user.orcid;
@@ -88,7 +97,7 @@ router.get("/api/user/preferences", requireAuth, (req, res) => {
  *       401:
  *         description: Not authenticated
  */
-router.post("/api/user/preferences", requireAuth, (req, res) => {
+router.post("/api/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
     const orcid = req.session.user.orcid;
