@@ -31,36 +31,4 @@ router.get("/users", (req, res) => {
   }
 });
 
-/**
- * @openapi
- * /api/user-teams:
- *   get:
- *     summary: Get teams for a user (DEPRECATED - Gitea removed)
- *     parameters:
- *       - in: query
- *         name: username
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: org
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: List of teams the user is in
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- */
-router.get("/user-teams", async (req, res) => {
-  // Team management via Gitea has been removed
-  // Return empty array for backward compatibility
-  res.json([]);
-});
-
 module.exports = router;
