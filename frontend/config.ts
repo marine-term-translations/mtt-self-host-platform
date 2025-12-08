@@ -15,7 +15,6 @@ const getEnv = (key: string, defaultValue: string): string => {
 
 export const CONFIG = {
   API_URL: getEnv('VITE_API_URL', 'http://localhost:5000/api'),
-  GITEA_URL: getEnv('VITE_GITEA_URL', 'http://localhost:3000'),
   DOMAIN: getEnv('VITE_DOMAIN', 'localhost'),
   ROOT_URL: getEnv('VITE_ROOT_URL', 'http://localhost'),
   OPENROUTER_API_KEY: getEnv('OPENROUTER_API_KEY', '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'),

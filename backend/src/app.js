@@ -9,7 +9,6 @@ const config = require("./config");
 
 const swaggerSpec = require("./docs/swagger");
 const authRoutes = require("./routes/auth.routes");
-const giteaRoutes = require("./routes/gitea.routes");
 const termsRoutes = require("./routes/terms.routes");
 const teamsRoutes = require("./routes/teams.routes");
 const appealsRoutes = require("./routes/appeals.routes");
@@ -71,7 +70,6 @@ app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount routes
 app.use("/api", authRoutes);
-app.use("/api", giteaRoutes);
 app.use("/api", termsRoutes);
 app.use("/api", teamsRoutes);
 app.use("/api", appealsRoutes);
