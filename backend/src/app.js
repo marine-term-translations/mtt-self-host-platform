@@ -66,12 +66,12 @@ app.use(
 app.use(express.json());
 
 // Swagger documentation
-app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount routes
-app.use("/api", authRoutes);
-app.use("/api", termsRoutes);
-app.use("/api", teamsRoutes);
-app.use("/api", appealsRoutes);
+app.use("/", authRoutes);
+app.use("/", termsRoutes);
+app.use("/", teamsRoutes);
+app.use("/", appealsRoutes);
 
 module.exports = app;
