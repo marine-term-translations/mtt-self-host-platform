@@ -10,7 +10,7 @@ const NotFound: React.FC = () => {
       {/* Background Illustration - Puffer Fish */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none opacity-5 dark:opacity-10 mix-blend-multiply dark:mix-blend-overlay">
          <img 
-            src="" 
+            src="https://raw.githubusercontent.com/marine-term-translations/mtt-self-host-platform/refs/heads/main/frontend/public/puffer.png" 
             alt="Puffer fish background" 
             className="w-[600px] md:w-[800px] h-auto max-w-none grayscale"
          />
