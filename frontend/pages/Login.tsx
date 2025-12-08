@@ -1,39 +1,30 @@
-import React, { useState } from 'react';
-import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, useLocation, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, User, Lock, AlertCircle } from 'lucide-react';
+import { Waves, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Login: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.username || !form.password) {
-      toast.error("Please enter both username and password");
-      return;
+  useEffect(() => {
+    // Check for error in query params (from OAuth callback)
+    const error = searchParams.get('error');
+    if (error) {
+      if (error === 'invalid_state') {
+        toast.error('Invalid authentication state. Please try again.');
+      } else if (error === 'orcid_failed') {
+        toast.error('ORCID authentication failed. Please try again.');
+      }
     }
+  }, [searchParams]);
 
-    setLoading(true);
-    try {
-      await login(form.username, form.password);
-      toast.success("Successfully signed in!");
-      navigate(from, { replace: true });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Invalid credentials or login failed.");
-    } finally {
-      setLoading(false);
-    }
+  const handleLogin = () => {
+    login(); // This will redirect to ORCID OAuth
   };
 
   if (isAuthenticated) {
@@ -51,67 +42,51 @@ const Login: React.FC = () => {
           <p className="mt-2 text-slate-600 dark:text-slate-400">Sign in to contribute to Marine Term Translations</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Username
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User size={18} className="text-slate-400" />
-              </div>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                value={form.username}
-                onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-marine-500 focus:border-marine-500 sm:text-sm transition-colors"
-                placeholder="Gitea username"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock size={18} className="text-slate-400" />
-              </div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={form.password}
-                onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-marine-500 focus:border-marine-500 sm:text-sm transition-colors"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
+        <div className="space-y-4">
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center py-3 px-4 bg-[#609926] hover:bg-[#508020] text-white rounded-lg font-semibold transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center py-3 px-4 bg-[#609926] hover:bg-[#508020] text-white rounded-lg font-semibold transition-all shadow-sm hover:shadow active:scale-95"
           >
-            {loading ? (
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
-            ) : null}
-            Sign In
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 256 256" fill="currentColor">
+              <path d="M256,128 C256,198.7 198.7,256 128,256 C57.3,256 0,198.7 0,128 C0,57.3 57.3,0 128,0 C198.7,0 256,57.3 256,128 Z M76.9,108.4 C76.9,96.3 86.8,86.3 98.9,86.3 C111,86.3 120.9,96.3 120.9,108.4 C120.9,120.5 111,130.4 98.9,130.4 C86.8,130.4 76.9,120.5 76.9,108.4 Z M135.1,108.4 C135.1,96.3 145,86.3 157.1,86.3 C169.2,86.3 179.1,96.3 179.1,108.4 C179.1,120.5 169.2,130.4 157.1,130.4 C145,130.4 135.1,120.5 135.1,108.4 Z M128,180 C154.5,180 176.2,158.3 176.2,131.8 L79.8,131.8 C79.8,158.3 101.5,180 128,180 Z"/>
+            </svg>
+            Sign in with ORCID
           </button>
-        </form>
+          
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-300 dark:border-slate-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-slate-800 text-slate-500">
+                Secure authentication via ORCID iD
+              </span>
+            </div>
+          </div>
+
+          <div className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+            <div className="flex items-start">
+              <AlertCircle size={16} className="mt-0.5 mr-2 flex-shrink-0 text-marine-600" />
+              <p>ORCID provides a persistent identifier for researchers worldwide.</p>
+            </div>
+            <div className="flex items-start">
+              <AlertCircle size={16} className="mt-0.5 mr-2 flex-shrink-0 text-marine-600" />
+              <p>Your credentials are never shared with this application.</p>
+            </div>
+          </div>
+        </div>
         
         <div className="pt-2 text-center">
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-medium text-marine-600 hover:text-marine-500">
-              Register here
-            </Link>
+            Don't have an ORCID iD?{' '}
+            <a 
+              href="https://orcid.org/register" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="font-medium text-marine-600 hover:text-marine-500"
+            >
+              Register for free
+            </a>
           </p>
         </div>
       </div>

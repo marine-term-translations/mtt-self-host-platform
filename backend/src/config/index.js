@@ -4,6 +4,16 @@ require("dotenv").config();
 
 const config = {
   port: process.env.PORT || 5000,
+  isProd: process.env.NODE_ENV === 'production',
+  baseUrl: process.env.BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://mtt.vliz.be' : 'http://localhost:5000'),
+  frontendUrl: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://mtt.vliz.be' : 'http://localhost:5173'),
+  orcid: {
+    clientId: process.env.ORCID_CLIENT_ID,
+    clientSecret: process.env.ORCID_CLIENT_SECRET,
+  },
+  session: {
+    secret: process.env.SESSION_SECRET || 'change-me-in-production',
+  },
   gitea: {
     url: process.env.GITEA_URL,
     token: process.env.GITEA_TOKEN,
