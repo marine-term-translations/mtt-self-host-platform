@@ -19,6 +19,7 @@ const app = express();
 // Session middleware
 app.use(
   session({
+    name: 'mtt.sid', // Custom session cookie name
     secret: config.session.secret,
     resave: false,
     saveUninitialized: false,
@@ -28,9 +29,21 @@ app.use(
       secure: config.isProd,
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+      path: '/',
     },
   })
 );
+
+// Add session debugging middleware (development only)
+if (!config.isProd) {
+  app.use((req, res, next) => {
+    console.log('[Session Debug] Path:', req.path);
+    console.log('[Session Debug] Session ID:', req.sessionID);
+    console.log('[Session Debug] Session exists:', !!req.session);
+    console.log('[Session Debug] Session state:', req.session?.state);
+    next();
+  });
+}
 
 // CORS middleware
 app.use(

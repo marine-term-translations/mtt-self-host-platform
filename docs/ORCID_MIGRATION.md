@@ -158,20 +158,79 @@ The following endpoints are deprecated but remain for backward compatibility:
 ## Troubleshooting
 
 ### Issue: "Invalid state" error
-- **Cause:** State parameter mismatch or session expired during OAuth flow
-- **Solution:** Try logging in again. Ensure cookies are enabled in browser.
 
-### Issue: "ORCID authentication failed"
-- **Cause:** OAuth token exchange failed
-- **Solution:** Check ORCID_CLIENT_ID and ORCID_CLIENT_SECRET in .env file
+This occurs when the OAuth state parameter doesn't match between the initial request and callback.
 
-### Issue: "Not authenticated" after login
-- **Cause:** Session not being stored or retrieved
-- **Solution:** Check session store configuration. In production, ensure Redis is running.
+**Debug steps:**
+1. Check backend logs for session debugging output:
+   ```bash
+   docker logs marine-backend -f
+   ```
+   
+2. Look for these log entries:
+   - `[ORCID Auth] Generated state:` - Initial state value
+   - `[ORCID Callback] Returned state from ORCID:` - State from callback
+   - `[ORCID Callback] Expected state from session:` - State stored in session
+   - `[Session Debug]` - Session persistence across requests
 
-### Issue: CORS errors
-- **Cause:** Frontend URL mismatch
-- **Solution:** Ensure FRONTEND_URL in backend .env matches your actual frontend URL
+3. **Common causes and fixes:**
+   
+   **A. Session not persisting (most common)**
+   - Symptom: Session ID differs between auth start and callback
+   - Fix: Ensure cookies are enabled and `credentials: 'include'` is set on fetch calls
+   - Production fix: Use Redis instead of MemoryStore (see below)
+   
+   **B. CORS/Cookie issues**
+   - Symptom: No session cookie set
+   - Fix: Verify `config.frontendUrl` matches actual frontend origin
+   - Fix: In development, ensure `NODE_ENV=development` (not `production`)
+   
+   **C. Redirect URI mismatch**
+   - Symptom: ORCID returns error before state check
+   - Fix: Verify ORCID app settings match `${BASE_URL}/api/auth/orcid/callback`
+
+### Using Redis for Production Sessions
+
+For production deployments, replace MemoryStore with Redis for session persistence:
+
+1. Add Redis service to docker-compose.yml:
+   ```yaml
+   redis:
+     image: redis:alpine
+     restart: unless-stopped
+     volumes:
+       - redis-data:/data
+   
+   volumes:
+     redis-data:
+   ```
+
+2. Install Redis client:
+   ```bash
+   npm install connect-redis redis
+   ```
+
+3. Update backend/src/app.js:
+   ```javascript
+   const RedisStore = require('connect-redis').default;
+   const { createClient } = require('redis');
+   
+   const redisClient = createClient({
+     url: process.env.REDIS_URL || 'redis://redis:6379'
+   });
+   redisClient.connect().catch(console.error);
+   
+   app.use(
+     session({
+       store: new RedisStore({ client: redisClient }),
+       // ... rest of session config
+     })
+   );
+   ```
+
+### Disabling Debug Logs
+
+The logging added for debugging is automatically disabled in production (`NODE_ENV=production`). To disable in development, comment out the session debugging middleware in `backend/src/app.js`.
 
 ## Migration Checklist
 
