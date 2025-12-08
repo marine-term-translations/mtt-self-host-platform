@@ -18,7 +18,7 @@ const { authLimiter } = require("../middleware/rateLimit");
  *         description: Redirects to ORCID authorization page
  */
 router.get("/auth/orcid", (req, res) => {
-  const state = crypto.randomBytes(16).toString('hex');
+  const state = crypto.randomBytes(32).toString('hex');
   req.session.state = state;
 
   const authUrl = `https://orcid.org/oauth/authorize?` +

@@ -12,7 +12,13 @@ const config = {
     clientSecret: process.env.ORCID_CLIENT_SECRET,
   },
   session: {
-    secret: process.env.SESSION_SECRET || 'change-me-in-production',
+    secret: (() => {
+      const secret = process.env.SESSION_SECRET;
+      if (!secret && process.env.NODE_ENV === 'production') {
+        throw new Error('SESSION_SECRET must be set in production environment');
+      }
+      return secret || 'INSECURE-DEFAULT-CHANGE-ME-IN-PRODUCTION';
+    })(),
   },
   gitea: {
     url: process.env.GITEA_URL,
