@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const router = express.Router();
 const config = require("../config");
 const { authLimiter } = require("../middleware/rateLimit");
+const { getDatabase } = require("../db/database");
 
 /**
  * @openapi
@@ -87,24 +88,76 @@ router.get("/auth/orcid/callback", async (req, res) => {
     const { orcid, name, access_token, refresh_token, expires_in } = tokenResponse.data;
     console.log('[ORCID Callback] Token exchange successful, ORCID:', orcid);
 
-    // Store user info in session
-    req.session.user = { 
-      orcid, 
-      name, 
-      access_token, 
-      refresh_token, 
-      expires_at: Date.now() + expires_in * 1000 
-    };
-
-    // Save session before redirect
-    req.session.save((err) => {
-      if (err) {
-        console.error('[ORCID Callback] Session save error:', err);
-        return res.redirect(`${config.frontendUrl}/login?error=session_failed`);
+    // Check if user exists in database and handle registration
+    const db = getDatabase();
+    
+    try {
+      // Check if this is the first user in the database
+      const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
+      const isFirstUser = userCount.count === 0;
+      
+      // Check if user already exists
+      const existingUser = db.prepare('SELECT * FROM users WHERE username = ?').get(orcid);
+      const isNewUser = !existingUser;
+      
+      if (isNewUser) {
+        console.log('[ORCID Callback] New user detected, creating user record');
+        console.log('[ORCID Callback] Is first user (admin):', isFirstUser);
+        
+        // Create user in database
+        const extra = JSON.stringify({
+          name: name,
+          orcid: orcid,
+          is_admin: isFirstUser,
+          registered_at: new Date().toISOString()
+        });
+        
+        db.prepare('INSERT INTO users (username, reputation, extra) VALUES (?, ?, ?)').run(
+          orcid,
+          0,
+          extra
+        );
+        
+        console.log('[ORCID Callback] User created successfully');
+      } else {
+        console.log('[ORCID Callback] Existing user found:', orcid);
       }
-      console.log('[ORCID Callback] Session saved, redirecting to dashboard');
-      res.redirect(`${config.frontendUrl}/dashboard`);
-    });
+      
+      // Store user info in session with admin flag
+      const userExtra = isNewUser 
+        ? { name, orcid, is_admin: isFirstUser, registered_at: new Date().toISOString() }
+        : JSON.parse(existingUser.extra || '{}');
+      
+      req.session.user = { 
+        orcid, 
+        name: name || userExtra.name, 
+        access_token, 
+        refresh_token, 
+        expires_at: Date.now() + expires_in * 1000,
+        is_admin: userExtra.is_admin || false,
+        reputation: existingUser ? existingUser.reputation : 0
+      };
+
+      // Save session before redirect
+      req.session.save((err) => {
+        if (err) {
+          console.error('[ORCID Callback] Session save error:', err);
+          return res.redirect(`${config.frontendUrl}/login?error=session_failed`);
+        }
+        
+        // Redirect based on whether user is new
+        if (isNewUser) {
+          console.log('[ORCID Callback] Session saved, redirecting new user to user-profile');
+          res.redirect(`${config.frontendUrl}/user-profile`);
+        } else {
+          console.log('[ORCID Callback] Session saved, redirecting existing user to dashboard');
+          res.redirect(`${config.frontendUrl}/dashboard`);
+        }
+      });
+    } catch (dbError) {
+      console.error('[ORCID Callback] Database error:', dbError);
+      return res.redirect(`${config.frontendUrl}/login?error=database_failed`);
+    }
   } catch (err) {
     console.error('[ORCID Callback] OAuth error:', err.response?.data || err.message);
     if (err.response) {
