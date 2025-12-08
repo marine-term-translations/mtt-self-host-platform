@@ -3,8 +3,6 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
-const { gitPull, gitCommitAndPush } = require("../db/gitOps");
-
 /**
  * @openapi
  * /api/appeals:
