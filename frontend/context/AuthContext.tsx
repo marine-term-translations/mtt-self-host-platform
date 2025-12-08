@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               name: data.name || data.orcid,
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || data.orcid)}&background=0ea5e9&color=fff`,
               token: data.access_token, // For compatibility with existing code
-              isAdmin: false // ORCID users are not admins by default
+              isAdmin: data.is_admin || false // Use is_admin from backend session
             };
             setUser(userData);
           }
