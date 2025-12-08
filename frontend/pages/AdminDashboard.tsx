@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart } from 'lucide-react';
 import { backendApi } from '../services/api';
@@ -47,7 +48,8 @@ const AdminDashboard: React.FC = () => {
         });
 
         // 3. Prepare Time Series Data (Mocking buckets based on available timestamps)
-        const sortedTimestamps = timestamps.sort((a,b) => a - b);
+        const sortedTimestamps = timestamps.sort((a, b) => a - b);
+        
         const buckets: Record<string, number> = {};
         
         // If no data, use empty
