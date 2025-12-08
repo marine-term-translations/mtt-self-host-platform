@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Waves, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -7,7 +7,6 @@ import toast from 'react-hot-toast';
 const Login: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 

@@ -2,6 +2,7 @@
 
 const express = require("express");
 const axios = require("axios");
+const crypto = require("crypto");
 const router = express.Router();
 const config = require("../config");
 const giteaService = require("../services/gitea.service");
@@ -17,7 +18,7 @@ const { authLimiter } = require("../middleware/rateLimit");
  *         description: Redirects to ORCID authorization page
  */
 router.get("/auth/orcid", (req, res) => {
-  const state = Math.random().toString(36).substring(2);
+  const state = crypto.randomBytes(16).toString('hex');
   req.session.state = state;
 
   const authUrl = `https://orcid.org/oauth/authorize?` +
@@ -127,7 +128,11 @@ router.get("/me", (req, res) => {
  *         description: Successfully logged out
  */
 router.post("/logout", (req, res) => {
-  req.session.destroy(() => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Session destruction error:', err);
+      return res.status(500).json({ error: 'Failed to logout' });
+    }
     res.clearCookie('connect.sid');
     res.json({ ok: true });
   });
