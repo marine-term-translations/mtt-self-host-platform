@@ -9,7 +9,9 @@ services:
       - NODE_ENV=production
       - TRANSLATIONS_REPO=translations-data
       - TRANSLATIONS_REPO_PATH=/app/translations-data
-      - SQLITE_DB_PATH=/app/translations-data/translations.db
+      - SQLITE_DB_PATH=/app/backend/data/translations.db
+    volumes:
+      - ./backend/data:/app/backend/data
     ports:
       - "5000:5000"
 
