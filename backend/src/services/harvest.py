@@ -44,12 +44,35 @@ def validate_collection_uri(uri):
         raise ValueError(
             f"Invalid collection URI: {uri}. Must start with http:// or https://"
         )
+    
+    # Prevent SPARQL injection by disallowing angle brackets and special characters
+    if re.search(r"[<>\"'{}|\\^`\[\]]", uri):
+        raise ValueError(
+            f"Invalid collection URI: {uri}. Contains prohibited characters."
+        )
 
     # Additional validation: should contain vocab.nerc.ac.uk for this specific endpoint
     if "vocab.nerc.ac.uk" not in uri:
         print(f"Warning: Collection URI does not contain 'vocab.nerc.ac.uk': {uri}")
 
     return True
+
+
+def escape_sparql_uri(uri):
+    """
+    Escape a URI for safe use in SPARQL queries.
+    
+    Args:
+        uri: URI to escape
+        
+    Returns:
+        str: Escaped URI safe for SPARQL
+    """
+    # Validate first to ensure it's a proper URI
+    validate_collection_uri(uri)
+    # The URI should be safe after validation, but we still return it
+    # The angle brackets in the query protect against injection
+    return uri
 
 
 def create_sparql_query(collection_uri, limit=None, offset=None):
@@ -64,8 +87,8 @@ def create_sparql_query(collection_uri, limit=None, offset=None):
     Returns:
         SPARQL query string
     """
-    # Validate URI before using in query
-    validate_collection_uri(collection_uri)
+    # Validate and escape URI before using in query
+    safe_uri = escape_sparql_uri(collection_uri)
 
     query = f"""
     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -74,7 +97,7 @@ def create_sparql_query(collection_uri, limit=None, offset=None):
     
     SELECT DISTINCT ?concept ?prefLabel ?altLabel ?definition 
     WHERE {{
-        <{collection_uri}> skos:member ?concept .
+        <{safe_uri}> skos:member ?concept .
         OPTIONAL {{ ?concept skos:prefLabel ?prefLabel }}
         OPTIONAL {{ ?concept skos:altLabel ?altLabel }}
         OPTIONAL {{ ?concept skos:definition ?definition }}
@@ -92,12 +115,12 @@ def get_member_count(collection_uri):
     """
     Query SPARQL endpoint to get the count of members in the collection.
     """
-    validate_collection_uri(collection_uri)
+    safe_uri = escape_sparql_uri(collection_uri)
     query = f"""
     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
     SELECT (COUNT(DISTINCT ?concept) AS ?count)
     WHERE {{
-        <{collection_uri}> skos:member ?concept .
+        <{safe_uri}> skos:member ?concept .
     }}
     """
     sparql = SPARQLWrapper(SPARQL_ENDPOINT)
