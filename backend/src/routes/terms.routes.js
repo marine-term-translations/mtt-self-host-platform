@@ -673,7 +673,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     }
     // 5. Commit and push after DB update
     console.log("Committing and pushing changes", { id, username });
-    gitCommitAndPush(`Term ${id} updated by ${username}`, username);
     console.log("PUT /terms/:id success", { id, uri });
     res.json({ id, uri });
   } catch (err) {

@@ -181,6 +181,16 @@ class ApiService {
       credentials: 'include' 
     });
   }
+
+  public async harvestCollectionStream(collectionUri: string, token?: string): Promise<Response> {
+    const url = `${this.baseUrl}/harvest/stream`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(token),
+      body: JSON.stringify({ collectionUri }),
+      credentials: 'include'
+    });
+  }
 }
 
 // Export pre-configured instances
