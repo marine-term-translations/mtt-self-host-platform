@@ -13,12 +13,13 @@ This feature was adapted from the [setup-harvest-action](https://github.com/mari
 - **Retry Logic**: Exponential backoff for transient network errors
 - **Data Preservation**: Updates existing terms without affecting translations or user data
 - **REST API**: Simple HTTP endpoint for triggering harvests
+- **Real-time Progress**: Streaming endpoint provides live updates during harvest
 
-## API Endpoint
+## API Endpoints
 
 ### POST /api/harvest
 
-Triggers a harvest operation for a SKOS collection.
+Triggers a harvest operation for a SKOS collection. Returns a single response after completion.
 
 **Request:**
 ```json
@@ -50,9 +51,56 @@ Triggers a harvest operation for a SKOS collection.
 
 **Rate Limiting:** Subject to write rate limits.
 
+### POST /api/harvest/stream
+
+Triggers a harvest operation with **real-time progress updates** using Server-Sent Events (SSE). This is recommended for large collections where you want to show progress to users.
+
+**Request:**
+```json
+{
+  "collectionUri": "http://vocab.nerc.ac.uk/collection/P01/current/"
+}
+```
+
+**Response:** Server-Sent Events stream with progress updates
+
+**Event Types:**
+- `connected` - Initial connection established
+- `info` - Informational message (e.g., "Starting harvest")
+- `progress` - Progress update from the harvest script
+- `warning` - Warning message
+- `complete` - Harvest step completed
+- `done` - Entire harvest completed successfully with final statistics
+- `error` - Error occurred during harvest
+
+**Example SSE Messages:**
+```
+data: {"type":"connected","message":"Connected to harvest stream"}
+
+data: {"type":"info","message":"Starting harvest for collection: http://vocab.nerc.ac.uk/collection/P01/current/"}
+
+data: {"type":"progress","message":"Querying for member count..."}
+
+data: {"type":"progress","message":"Total members in collection: 200"}
+
+data: {"type":"progress","message":"Fetching batch: OFFSET=0 LIMIT=1000"}
+
+data: {"type":"progress","message":"Processing 200 results..."}
+
+data: {"type":"complete","message":"Harvest completed: 42 terms inserted, 158 terms updated, 623 fields inserted","data":{"termsInserted":42,"termsUpdated":158,"fieldsInserted":623}}
+
+data: {"type":"done","message":"Harvest completed successfully","data":{"success":true,"termsInserted":42,"termsUpdated":158,"fieldsInserted":623}}
+```
+
+**Authentication:** Requires an authenticated session (ORCID login).
+
+**Rate Limiting:** Subject to write rate limits.
+
 ## Usage Examples
 
-### Using cURL
+### Standard Harvest (Wait for completion)
+
+#### Using cURL
 
 ```bash
 curl -X POST http://localhost:5000/api/harvest \
@@ -63,7 +111,7 @@ curl -X POST http://localhost:5000/api/harvest \
   }'
 ```
 
-### Using JavaScript (Frontend)
+#### Using JavaScript (Frontend)
 
 ```javascript
 const response = await fetch('/api/harvest', {
@@ -78,6 +126,153 @@ const response = await fetch('/api/harvest', {
 });
 
 const result = await response.json();
+console.log(`Harvested ${result.termsInserted} new terms`);
+```
+
+### Streaming Harvest (Real-time updates)
+
+#### Using JavaScript with EventSource
+
+```javascript
+// Note: EventSource doesn't support POST, so we need to use fetch with streaming
+async function harvestWithProgress(collectionUri) {
+  const response = await fetch('/api/harvest/stream', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ collectionUri })
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = JSON.parse(line.slice(6));
+        
+        switch (data.type) {
+          case 'connected':
+            console.log('✓ Connected to harvest stream');
+            break;
+          case 'info':
+          case 'progress':
+            console.log(`⏳ ${data.message}`);
+            // Update UI with progress message
+            updateProgressUI(data.message);
+            break;
+          case 'complete':
+            console.log(`✓ ${data.message}`);
+            break;
+          case 'done':
+            console.log(`✅ Harvest completed!`);
+            console.log(`  - Terms inserted: ${data.data.termsInserted}`);
+            console.log(`  - Terms updated: ${data.data.termsUpdated}`);
+            console.log(`  - Fields inserted: ${data.data.fieldsInserted}`);
+            // Update UI with final results
+            showCompletionUI(data.data);
+            break;
+          case 'error':
+            console.error(`❌ Error: ${data.message}`);
+            // Show error UI
+            showErrorUI(data.message);
+            break;
+          case 'warning':
+            console.warn(`⚠️ Warning: ${data.message}`);
+            break;
+        }
+      }
+    }
+  }
+}
+
+// Usage
+harvestWithProgress('http://vocab.nerc.ac.uk/collection/P01/current/');
+```
+
+#### Using React with useState
+
+```javascript
+function HarvestComponent() {
+  const [status, setStatus] = useState('idle');
+  const [progress, setProgress] = useState([]);
+  const [results, setResults] = useState(null);
+
+  async function startHarvest(collectionUri) {
+    setStatus('running');
+    setProgress([]);
+
+    const response = await fetch('/api/harvest/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ collectionUri })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.slice(6));
+          
+          if (data.type === 'progress' || data.type === 'info') {
+            setProgress(prev => [...prev, data.message]);
+          } else if (data.type === 'done') {
+            setStatus('completed');
+            setResults(data.data);
+          } else if (data.type === 'error') {
+            setStatus('error');
+            setProgress(prev => [...prev, `Error: ${data.message}`]);
+          }
+        }
+      }
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={() => startHarvest('http://vocab.nerc.ac.uk/collection/P01/current/')}>
+        Start Harvest
+      </button>
+      
+      {status === 'running' && (
+        <div className="progress-container">
+          <h3>Harvest in Progress...</h3>
+          <ul>
+            {progress.map((msg, i) => (
+              <li key={i}>{msg}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      
+      {status === 'completed' && results && (
+        <div className="results">
+          <h3>Harvest Completed!</h3>
+          <p>Terms inserted: {results.termsInserted}</p>
+          <p>Terms updated: {results.termsUpdated}</p>
+          <p>Fields inserted: {results.fieldsInserted}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 console.log(`Harvested ${result.termsInserted} new terms`);
 ```
 
