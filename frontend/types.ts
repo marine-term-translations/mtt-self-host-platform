@@ -83,6 +83,7 @@ export interface ApiUserActivity {
 
 export interface ApiPublicUser {
   username: string;
+  name?: string;
   reputation: number;
   joined_at: string;
   extra: string | null;
