@@ -801,10 +801,12 @@ router.post("/harvest/stream", writeLimiter, async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  // Disable nginx buffering for real-time streaming (not needed in all environments)
+  res.setHeader('X-Accel-Buffering', 'no');
   
-  // CORS headers for streaming (if needed for cross-origin requests)
-  // Note: CORS is already handled by the app-level middleware, but SSE needs explicit headers
+  // CORS headers for SSE streaming
+  // SSE requires explicit CORS headers on the response, even when app-level CORS middleware
+  // is configured, because the streaming response is sent progressively over time
   if (req.headers.origin) {
     res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
