@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -18,6 +19,7 @@ import Documentation from './pages/Documentation';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
+import AdminHarvest from './pages/admin/AdminHarvest';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -104,6 +106,11 @@ const App: React.FC = () => {
         <Route path="/admin/moderation" element={
           <AdminRoute>
             <AdminModeration />
+          </AdminRoute>
+        } />
+        <Route path="/admin/harvest" element={
+          <AdminRoute>
+            <AdminHarvest />
           </AdminRoute>
         } />
 

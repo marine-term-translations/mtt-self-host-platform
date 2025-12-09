@@ -1,6 +1,7 @@
 
+
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart } from 'lucide-react';
+import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -211,14 +212,16 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">System Health</p>
-                    <h3 className="text-3xl font-bold text-green-500 mt-1">Good</h3>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Vocabulary</p>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                        Harvest Data
+                    </h3>
                 </div>
-                <div className="p-2 bg-teal-100 dark:bg-teal-900/30 text-teal-600 rounded-lg">
-                    <Activity size={20} />
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-lg">
+                    <DownloadCloud size={20} />
                 </div>
             </div>
-            <p className="text-xs text-slate-400">Uptime: 99.9%</p>
+            <Link to="/admin/harvest" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Import Collections &rarr;</Link>
         </div>
       </div>
 
