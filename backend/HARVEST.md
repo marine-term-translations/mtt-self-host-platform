@@ -273,7 +273,6 @@ function HarvestComponent() {
     </div>
   );
 }
-console.log(`Harvested ${result.termsInserted} new terms`);
 ```
 
 ## How It Works
