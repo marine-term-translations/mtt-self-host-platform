@@ -131,10 +131,11 @@ console.log(`Harvested ${result.termsInserted} new terms`);
 
 ### Streaming Harvest (Real-time updates)
 
-#### Using JavaScript with EventSource
+#### Using JavaScript with Fetch API
 
 ```javascript
-// Note: EventSource doesn't support POST, so we need to use fetch with streaming
+// Note: EventSource only supports GET requests, but our endpoint requires POST
+// with authentication, so we use fetch with streaming instead
 async function harvestWithProgress(collectionUri) {
   const response = await fetch('/api/harvest/stream', {
     method: 'POST',
