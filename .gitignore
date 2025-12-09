@@ -19,6 +19,12 @@ gitea/data/
 gitea/postgres/
 runner/config.yaml
 
+# Database files (SQLite)
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+
 # Backups
 backups/
 

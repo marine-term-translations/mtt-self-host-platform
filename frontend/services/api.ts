@@ -173,4 +173,4 @@ class ApiService {
 
 // Export pre-configured instances
 export const backendApi = new ApiService(CONFIG.API_URL);
-export const giteaApi = new ApiService(CONFIG.GITEA_URL);
+// Note: giteaApi removed - Gitea integration has been removed

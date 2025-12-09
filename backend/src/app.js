@@ -2,22 +2,64 @@
 
 const express = require("express");
 const cors = require("cors");
+const session = require("express-session");
+const MemoryStore = require("memorystore")(session);
 const swaggerUi = require("swagger-ui-express");
+const config = require("./config");
 
 const swaggerSpec = require("./docs/swagger");
 const authRoutes = require("./routes/auth.routes");
-const giteaRoutes = require("./routes/gitea.routes");
 const termsRoutes = require("./routes/terms.routes");
 const teamsRoutes = require("./routes/teams.routes");
 const appealsRoutes = require("./routes/appeals.routes");
+const userRoutes = require("./routes/user.routes");
 
 const app = express();
 
-// Middleware
+// Trust proxy when behind reverse proxy (Traefik, Nginx, etc.)
+app.set('trust proxy', 1);
+
+// Determine if we should use secure cookies
+// Only use secure cookies in production AND when baseUrl uses HTTPS
+const useSecureCookies = config.isProd && config.baseUrl.startsWith('https://');
+
+// Session middleware
+app.use(
+  session({
+    name: 'mtt.sid', // Custom session cookie name
+    secret: config.session.secret,
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStore({ checkPeriod: 86400000 }), // 24h prune
+    cookie: {
+      httpOnly: true,
+      secure: useSecureCookies,
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
+      path: '/',
+      domain: undefined, // Let browser auto-set
+    },
+  })
+);
+
+// Add session debugging middleware (development only)
+if (!config.isProd) {
+  app.use((req, res, next) => {
+    console.log('[Session Debug] Path:', req.path);
+    console.log('[Session Debug] Session ID:', req.sessionID);
+    console.log('[Session Debug] Session exists:', !!req.session);
+    console.log('[Session Debug] Session state:', req.session?.state);
+    console.log('[Session Debug] Cookie secure:', useSecureCookies);
+    console.log('[Session Debug] Base URL:', config.baseUrl);
+    next();
+  });
+}
+
+// CORS middleware
 app.use(
   cors({
-    origin: "https://mtt.vliz.be",   // ← only allow your real frontend
-    credentials: true,              // ← important if you send cookies or Authorization headers
+    origin: config.frontendUrl,
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -25,13 +67,13 @@ app.use(
 app.use(express.json());
 
 // Swagger documentation
-app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount routes
-app.use("/api", authRoutes);
-app.use("/api", giteaRoutes);
-app.use("/api", termsRoutes);
-app.use("/api", teamsRoutes);
-app.use("/api", appealsRoutes);
+app.use("/", authRoutes);
+app.use("/", userRoutes);
+app.use("/", termsRoutes);
+app.use("/", teamsRoutes);
+app.use("/", appealsRoutes);
 
 module.exports = app;

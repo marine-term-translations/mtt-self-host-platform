@@ -22,6 +22,7 @@ Production-ready self-hosting platform for marine term translations, featuring a
 This platform enables organizations to self-host their own marine terminology translation system with:
 
 - **Full data sovereignty** - All data stored in your infrastructure
+- **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
 - **Git-based versioning** - Complete translation history via Gitea
 - **AI-powered suggestions** - Optional Gemini API integration
 - **Automated workflows** - CI/CD via Gitea Actions Runner
@@ -300,6 +301,7 @@ mtt-self-host-platform/
 | Document | Description |
 |----------|-------------|
 | [docs/SETUP.md](docs/SETUP.md) | Complete self-hosting guide with step-by-step instructions |
+| [docs/ORCID_MIGRATION.md](docs/ORCID_MIGRATION.md) | ORCID OAuth migration and configuration guide |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
 | [runner/README.md](runner/README.md) | Actions runner configuration and troubleshooting |
 
