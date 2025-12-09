@@ -132,6 +132,126 @@ function parseHarvestOutput(output) {
   return result;
 }
 
+/**
+ * Execute the Python harvest script with streaming progress updates
+ * 
+ * @param {string} collectionUri - URI of the SKOS collection to harvest
+ * @param {Function} onProgress - Callback function called with progress updates
+ * @returns {Promise<{success: boolean, termsInserted: number, termsUpdated: number, fieldsInserted: number, output: string}>}
+ */
+async function harvestCollectionWithProgress(collectionUri, onProgress) {
+  return new Promise((resolve, reject) => {
+    // Validate URI before passing to subprocess
+    try {
+      validateCollectionUri(collectionUri);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    
+    const pythonScript = path.join(__dirname, "harvest.py");
+    const dbPath = config.translations.dbPath;
+
+    console.log(`[Harvest] Starting harvest for collection: ${collectionUri}`);
+    console.log(`[Harvest] Database path: ${dbPath}`);
+    console.log(`[Harvest] Python script: ${pythonScript}`);
+
+    // Spawn Python process
+    const pythonProcess = spawn("python3", [pythonScript, collectionUri, dbPath]);
+
+    let output = "";
+    let errorOutput = "";
+
+    // Send initial progress
+    if (onProgress) {
+      onProgress({
+        type: 'info',
+        message: `Starting harvest for collection: ${collectionUri}`
+      });
+    }
+
+    // Capture stdout and stream progress
+    pythonProcess.stdout.on("data", (data) => {
+      const chunk = data.toString();
+      output += chunk;
+      
+      // Send each line as a progress update
+      const lines = chunk.split('\n').filter(line => line.trim());
+      lines.forEach(line => {
+        console.log(`[Harvest] ${line}`);
+        if (onProgress) {
+          onProgress({
+            type: 'progress',
+            message: line
+          });
+        }
+      });
+    });
+
+    // Capture stderr
+    pythonProcess.stderr.on("data", (data) => {
+      const chunk = data.toString();
+      errorOutput += chunk;
+      console.error(`[Harvest Error] ${chunk.trim()}`);
+      
+      if (onProgress) {
+        onProgress({
+          type: 'warning',
+          message: chunk.trim()
+        });
+      }
+    });
+
+    // Handle process completion
+    pythonProcess.on("close", (code) => {
+      if (code !== 0) {
+        console.error(`[Harvest] Process exited with code ${code}`);
+        const error = new Error(`Harvest failed: ${errorOutput || output}`);
+        
+        if (onProgress) {
+          onProgress({
+            type: 'error',
+            message: error.message
+          });
+        }
+        
+        reject(error);
+        return;
+      }
+
+      // Parse the harvest summary from output
+      const result = parseHarvestOutput(output);
+      console.log(`[Harvest] Completed successfully`, result);
+      
+      if (onProgress) {
+        onProgress({
+          type: 'complete',
+          message: `Harvest completed: ${result.termsInserted} terms inserted, ${result.termsUpdated} terms updated, ${result.fieldsInserted} fields inserted`,
+          data: result
+        });
+      }
+      
+      resolve(result);
+    });
+
+    // Handle process errors
+    pythonProcess.on("error", (error) => {
+      console.error(`[Harvest] Failed to start process:`, error);
+      const err = new Error(`Failed to start harvest process: ${error.message}`);
+      
+      if (onProgress) {
+        onProgress({
+          type: 'error',
+          message: err.message
+        });
+      }
+      
+      reject(err);
+    });
+  });
+}
+
 module.exports = {
   harvestCollection,
+  harvestCollectionWithProgress,
 };
