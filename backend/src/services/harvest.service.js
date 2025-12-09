@@ -5,6 +5,31 @@ const path = require("path");
 const config = require("../config");
 
 /**
+ * Validate and sanitize collection URI
+ * 
+ * @param {string} uri - URI to validate
+ * @returns {boolean} True if valid
+ * @throws {Error} If URI is invalid
+ */
+function validateCollectionUri(uri) {
+  if (!uri || typeof uri !== 'string') {
+    throw new Error('Collection URI must be a non-empty string');
+  }
+  
+  // Must be a valid HTTP/HTTPS URL
+  if (!uri.match(/^https?:\/\//)) {
+    throw new Error('Collection URI must start with http:// or https://');
+  }
+  
+  // Prevent command injection by checking for suspicious characters
+  if (uri.match(/[;&|`$()]/)) {
+    throw new Error('Collection URI contains invalid characters');
+  }
+  
+  return true;
+}
+
+/**
  * Execute the Python harvest script to fetch terms from a SKOS collection
  * 
  * @param {string} collectionUri - URI of the SKOS collection to harvest
@@ -12,6 +37,14 @@ const config = require("../config");
  */
 async function harvestCollection(collectionUri) {
   return new Promise((resolve, reject) => {
+    // Validate URI before passing to subprocess
+    try {
+      validateCollectionUri(collectionUri);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    
     const pythonScript = path.join(__dirname, "harvest.py");
     const dbPath = config.translations.dbPath;
 
