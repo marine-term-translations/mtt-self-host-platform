@@ -63,7 +63,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center space-x-8">
-              <Link to="/" className={isActive('/')}>Home</Link>
               <Link to="/about" className={isActive('/about')}>About</Link>
               <Link to="/leaderboard" className={isActive('/leaderboard')}>Community</Link>
               <Link to="/documentation" className={isActive('/documentation')}>Documentation</Link>
@@ -121,7 +120,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {isMenuOpen && (
           <div className="md:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 absolute w-full shadow-lg">
             <div className="px-4 py-4 space-y-3">
-              <Link to="/" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Home</Link>
               <Link to="/about" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>About</Link>
               <Link to="/leaderboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Community</Link>
               <Link to="/documentation" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Documentation</Link>
