@@ -46,7 +46,7 @@ def validate_collection_uri(uri):
         )
     
     # Prevent SPARQL injection by disallowing angle brackets and special characters
-    if re.search(r"[<>\"'{}|\\^`\[\]]", uri):
+    if re.search(r"[<>\"'{}|\\^`\[\\\]]", uri):
         raise ValueError(
             f"Invalid collection URI: {uri}. Contains prohibited characters."
         )
@@ -292,7 +292,7 @@ def main():
         
         # Validate database exists and has required schema
         if not os.path.exists(output_path):
-            raise Exception(f"Database file does not exist: {output_path}")
+            raise FileNotFoundError(f"Database file does not exist: {output_path}")
         
         # Connect to database (must already exist and have schema)
         conn = sqlite3.connect(output_path)
@@ -304,7 +304,8 @@ def main():
         # Verify required tables exist
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='terms'")
         if not cursor.fetchone():
-            raise Exception(f"Database schema not initialized. Missing 'terms' table in {output_path}")
+            conn.close()
+            raise sqlite3.DatabaseError(f"Database schema not initialized. Missing 'terms' table in {output_path}")
 
         # Get member count
         print("Querying for member count...")
@@ -328,6 +329,12 @@ def main():
 
     except ValueError as e:
         print(f"Invalid input: {e}")
+        sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"Database file error: {e}")
+        sys.exit(1)
+    except sqlite3.DatabaseError as e:
+        print(f"Database schema error: {e}")
         sys.exit(1)
     except sqlite3.Error as e:
         print(f"Database error during harvest: {e}")

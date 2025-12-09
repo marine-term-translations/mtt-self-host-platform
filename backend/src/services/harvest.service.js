@@ -23,7 +23,7 @@ function validateCollectionUri(uri) {
   
   // Prevent command injection by checking for suspicious characters
   // Block shell metacharacters: ; & | ` $ ( ) [ ] \ < > ' "
-  if (uri.match(/[;&|`$()[\]\\<>'"]/)) {
+  if (uri.match(/[;&|`$()[\\\]\\<>'"]/)) {
     throw new Error('Collection URI contains invalid characters');
   }
   
