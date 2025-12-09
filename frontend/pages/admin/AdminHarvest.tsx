@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { backendApi } from '../../services/api';
 import { ArrowLeft, Loader2, Database, AlertCircle, CheckCircle, DownloadCloud, Terminal } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -20,6 +20,11 @@ const AdminHarvest: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<HarvestResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   const handleHarvest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,14 +35,71 @@ const AdminHarvest: React.FC = () => {
 
     setLoading(true);
     setResult(null);
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Starting harvest request for ${collectionUri}...`]);
+    setLogs([]); // Clear previous logs
+    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Connecting to harvest stream...`]);
 
     try {
-      const response = await backendApi.harvestCollection(collectionUri, user?.token);
-      
-      setResult(response);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Success: ${response.message}`]);
-      toast.success("Harvest completed successfully");
+      const response = await backendApi.harvestCollectionStream(collectionUri, user?.token);
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.message || errJson.error || response.statusText);
+      }
+
+      if (!response.body) throw new Error("No response body received");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.trim().startsWith('data: ')) {
+                try {
+                    const dataStr = line.trim().slice(6);
+                    const data = JSON.parse(dataStr);
+                    const timestamp = new Date().toLocaleTimeString();
+
+                    switch (data.type) {
+                        case 'connected':
+                            setLogs(prev => [...prev, `[${timestamp}] ✓ Connected`]);
+                            break;
+                        case 'info':
+                            setLogs(prev => [...prev, `[${timestamp}] ℹ️ ${data.message}`]);
+                            break;
+                        case 'progress':
+                            setLogs(prev => [...prev, `[${timestamp}] ⏳ ${data.message}`]);
+                            break;
+                        case 'warning':
+                            setLogs(prev => [...prev, `[${timestamp}] ⚠️ ${data.message}`]);
+                            break;
+                        case 'error':
+                            setLogs(prev => [...prev, `[${timestamp}] ❌ ${data.message}`]);
+                            toast.error(data.message);
+                            break;
+                        case 'complete':
+                            setLogs(prev => [...prev, `[${timestamp}] ✓ Step complete: ${data.message}`]);
+                            break;
+                        case 'done':
+                            setLogs(prev => [...prev, `[${timestamp}] ✅ ${data.message}`]);
+                            setResult(data.data);
+                            toast.success("Harvest completed successfully");
+                            break;
+                    }
+                } catch (e) {
+                    console.error('Error parsing SSE', e);
+                }
+            }
+        }
+      }
     } catch (error: any) {
       console.error("Harvest failed", error);
       const errorMsg = error.message || "Unknown error occurred";
@@ -131,11 +193,12 @@ const AdminHarvest: React.FC = () => {
                     <div className="text-slate-600 italic">Waiting for input...</div>
                 ) : (
                     logs.map((log, i) => (
-                        <div key={i} className="text-slate-300 border-l-2 border-slate-700 pl-2">
+                        <div key={i} className="text-slate-300 border-l-2 border-slate-700 pl-2 break-all">
                             {log}
                         </div>
                     ))
                 )}
+                <div ref={logsEndRef} />
             </div>
 
             {/* Results Summary Box */}

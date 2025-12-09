@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage } from '../types';
+import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser } from '../types';
 import { backendApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -128,15 +128,28 @@ const TermDetail: React.FC = () => {
       // 6. Fetch Permissions
       if (user?.username) {
           try {
-              const teams = await backendApi.getUserTeams(user.username, 'marine-org');
-              const userLangs = teams.map((t: any) => t.name || t);
+              const users = await backendApi.getUsers();
+              const currentUser = users.find((u: ApiPublicUser) => u.username === user.username);
+              let userLangs: string[] = [];
+
+              if (currentUser?.extra) {
+                  try {
+                      const extra = JSON.parse(currentUser.extra);
+                      if (extra.translationLanguages && Array.isArray(extra.translationLanguages)) {
+                          userLangs = extra.translationLanguages;
+                      }
+                  } catch (e) {
+                      console.warn("Failed to parse user extra data", e);
+                  }
+              }
+
               setAllowedLanguages(userLangs);
               
               if (userLangs.length > 0) {
-                  setSelectedLang(prev => prev || userLangs[0]);
+                  setSelectedLang(prev => (userLangs.includes(prev) ? prev : userLangs[0]));
               }
-          } catch (teamError) {
-              console.error("Failed to fetch user teams:", teamError);
+          } catch (error) {
+              console.error("Failed to fetch user permissions:", error);
               toast.error("Could not verify your translation permissions.");
           }
       }
