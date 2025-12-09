@@ -802,21 +802,52 @@ router.post("/harvest/stream", writeLimiter, async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  // CORS headers for streaming (if needed for cross-origin requests)
+  // Note: CORS is already handled by the app-level middleware, but SSE needs explicit headers
+  if (req.headers.origin) {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  /**
+   * Helper function to safely send SSE messages with error handling
+   */
+  const sendSSE = (data) => {
+    try {
+      const jsonData = JSON.stringify(data);
+      res.write(`data: ${jsonData}\n\n`);
+      return true;
+    } catch (err) {
+      console.error('[Harvest Stream API] Failed to serialize SSE data:', err);
+      try {
+        // Send a simplified error message
+        res.write(`data: ${JSON.stringify({ 
+          type: 'error', 
+          message: 'Failed to serialize progress data' 
+        })}\n\n`);
+      } catch (e) {
+        // If even the error message fails, just log it
+        console.error('[Harvest Stream API] Failed to send error message:', e);
+      }
+      return false;
+    }
+  };
 
   // Send initial connection message
-  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to harvest stream' })}\n\n`);
+  sendSSE({ type: 'connected', message: 'Connected to harvest stream' });
 
   try {
     console.log(`[Harvest Stream API] Starting harvest for: ${collectionUri}`);
     
     // Execute harvest with progress callback
     const result = await harvestCollectionWithProgress(collectionUri, (progress) => {
-      // Send progress update via SSE
-      res.write(`data: ${JSON.stringify(progress)}\n\n`);
+      // Send progress update via SSE with error handling
+      sendSSE(progress);
     });
     
     // Send final completion message
-    res.write(`data: ${JSON.stringify({ 
+    sendSSE({ 
       type: 'done', 
       message: 'Harvest completed successfully',
       data: {
@@ -825,17 +856,17 @@ router.post("/harvest/stream", writeLimiter, async (req, res) => {
         termsUpdated: result.termsUpdated,
         fieldsInserted: result.fieldsInserted
       }
-    })}\n\n`);
+    });
     
     res.end();
   } catch (err) {
     console.error(`[Harvest Stream API] Error:`, err);
     
     // Send error via SSE
-    res.write(`data: ${JSON.stringify({ 
+    sendSSE({ 
       type: 'error', 
-      message: err.message 
-    })}\n\n`);
+      message: err.message || 'Unknown error occurred' 
+    });
     
     res.end();
   }

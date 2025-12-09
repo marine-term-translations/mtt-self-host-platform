@@ -161,6 +161,7 @@ async function harvestCollectionWithProgress(collectionUri, onProgress) {
 
     let output = "";
     let errorOutput = "";
+    let partialLine = ""; // Buffer for incomplete lines
 
     // Send initial progress
     if (onProgress) {
@@ -175,15 +176,25 @@ async function harvestCollectionWithProgress(collectionUri, onProgress) {
       const chunk = data.toString();
       output += chunk;
       
-      // Send each line as a progress update
-      const lines = chunk.split('\n').filter(line => line.trim());
+      // Add chunk to partial line buffer
+      partialLine += chunk;
+      
+      // Split by newlines and process complete lines
+      const lines = partialLine.split('\n');
+      
+      // Keep the last incomplete line in the buffer
+      partialLine = lines.pop() || "";
+      
+      // Process complete lines
       lines.forEach(line => {
-        console.log(`[Harvest] ${line}`);
-        if (onProgress) {
-          onProgress({
-            type: 'progress',
-            message: line
-          });
+        if (line.trim()) {
+          console.log(`[Harvest] ${line}`);
+          if (onProgress) {
+            onProgress({
+              type: 'progress',
+              message: line
+            });
+          }
         }
       });
     });
