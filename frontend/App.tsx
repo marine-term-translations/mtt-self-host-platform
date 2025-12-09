@@ -74,6 +74,11 @@ const App: React.FC = () => {
             <Profile />
           </ProtectedRoute>
         } />
+         <Route path="/user-profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
          <Route path="/history" element={
           <ProtectedRoute>
             <History />

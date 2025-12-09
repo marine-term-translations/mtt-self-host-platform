@@ -318,34 +318,33 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *       500:
  *         description: Server error
  */
-// PATCH: Ensure correct deletion and insertion order for term_fields and translations
 router.put("/terms/:id", writeLimiter, async (req, res) => {
   const { id } = req.params;
-  const { uri, fields, token, username } = req.body;
-  console.log("PUT /terms/:id called", { id, uri, fields, token, username });
-  if (!uri || !Array.isArray(fields) || !token || !username) {
-    console.log("400: Missing uri, fields, token, or username", {
+  const { uri, fields, username } = req.body;
+  console.log("PUT /terms/:id called", { id, uri, fields, username });
+  if (!uri || !Array.isArray(fields) || !username) {
+    console.log("400: Missing uri, fields, or username", {
       uri,
       fields,
-      token,
       username,
     });
     return res
       .status(400)
-      .json({ error: "Missing uri, fields, token, or username" });
+      .json({ error: "Missing uri, fields, or username" });
   }
-  const { checkAdminStatus } = require("../services/gitea.service");
-  const { gitPull, gitCommitAndPush } = require("../db/gitOps");
+  
+  // Admin check removed - now using ORCID session auth
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  // Verify the user making the request matches the username field
+  if (req.session.user.orcid !== username && req.session.user.name !== username) {
+    console.log("403: User mismatch", { sessionUser: req.session.user, username });
+    return res.status(403).json({ error: "User mismatch" });
+  }
+  
   try {
-    console.log("Calling gitPull()");
-    //gitPull();
-    console.log("Checking admin status for token", token);
-    const userInfo = await checkAdminStatus(token);
-    console.log("Admin status result", userInfo);
-    if (!userInfo || userInfo.username !== username) {
-      console.log("403: Invalid token for username", { userInfo, username });
-      return res.status(403).json({ error: "Invalid token for username" });
-    }
     const db = getDatabase();
     // Fetch current term, fields, translations
     const oldTerm = db.prepare("SELECT * FROM terms WHERE id = ?").get(id);

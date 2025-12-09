@@ -1,116 +1,81 @@
-// Database initialization service - handles one-time bootstrap (harvest.yml + initial commit)
+// Database initialization service - handles database creation on startup
 
 const fs = require("fs");
 const path = require("path");
 const config = require("../config");
-const { isDatabaseInitialized, applySchema } = require("../db/database");
-const gitService = require("./git.service");
+const { isDatabaseInitialized, applySchema, getDatabase } = require("../db/database");
 
 /**
- * Create the harvest.yml workflow file
- * @returns {string} Path to the created file
+ * Ensure the database directory exists
  */
-function createHarvestWorkflow() {
-  const workflowsDir = path.join(
-    config.translations.repoPath,
-    ".gitea",
-    "workflows"
-  );
-  const harvestYmlPath = path.join(workflowsDir, "harvest.yml");
-
-  const harvestYmlContent = `
-name: Harvest NERC
-
-on:
-  workflow_dispatch:
-    inputs:
-      collection-url:
-        description: 'NERC collection URI to harvest'
-        required: true
-        default: 'http://vocab.nerc.ac.uk/collection/P02/current/'
-        type: string
-
-jobs:
-  harvest:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: \${{ secrets.GITEA_TOKEN }}
-
-      - uses: marine-term-translations/setup-harvest-action@main
-        with:
-          collection-url: \${{ inputs.collection-url || 'http://vocab.nerc.ac.uk/collection/P02/current/' }}
-          token: \${{ secrets.GITEA_TOKEN }}
-  `;
-
-  if (!fs.existsSync(workflowsDir)) {
-    fs.mkdirSync(workflowsDir, { recursive: true });
+function ensureDatabaseDirectory() {
+  if (!config.translations.dbPath) {
+    throw new Error('SQLITE_DB_PATH environment variable is not set');
   }
-  fs.writeFileSync(harvestYmlPath, harvestYmlContent, "utf8");
-  console.log("harvest.yml workflow created in translations repo.");
 
-  return harvestYmlPath;
+  const dbDir = path.dirname(config.translations.dbPath);
+  
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`[DB Init] Created database directory: ${dbDir}`);
+  }
 }
 
 /**
- * Perform initial database setup and commit
+ * Check if database file exists
+ * @returns {boolean} True if database file exists
+ */
+function databaseFileExists() {
+  return fs.existsSync(config.translations.dbPath);
+}
+
+/**
+ * Initialize the database with schema if it doesn't exist or is uninitialized
  */
 function initializeDatabase() {
-  if (isDatabaseInitialized()) {
-    console.log("SQLite DB loaded from repo.");
+  ensureDatabaseDirectory();
+
+  const dbExists = databaseFileExists();
+  
+  if (!dbExists) {
+    console.log(`[DB Init] Database file not found at ${config.translations.dbPath}`);
+    console.log('[DB Init] Creating new database...');
+  }
+
+  // Get database instance (creates file if doesn't exist)
+  getDatabase();
+
+  // Check if schema has been applied
+  if (!isDatabaseInitialized()) {
+    console.log('[DB Init] Database schema not initialized');
+    console.log('[DB Init] Applying schema from migrations/schema.sql...');
+    applySchema();
+    console.log('[DB Init] ✓ Database schema applied successfully');
+    return true;
+  } else {
+    console.log('[DB Init] ✓ Database already initialized');
     return false;
   }
-
-  console.log("Initializing SQLite DB with schema...");
-  applySchema();
-
-  // Create harvest workflow
-  const harvestYmlPath = createHarvestWorkflow();
-
-  // Commit and push the initialized DB to the repo
-  try {
-    gitService.configureGitUser();
-    gitService.addFiles(`${config.translations.dbPath} ${harvestYmlPath}`);
-
-    const { execSync } = require("child_process");
-    execSync(
-      `git -C ${config.translations.repoPath} commit -m "chore: initialize translations database and workflow" --author="${config.gitea.adminUser} <${config.gitea.adminEmail}>"`
-    );
-    gitService.push();
-    console.log("Initial DB committed and pushed to repo.");
-  } catch (err) {
-    console.error("Failed to commit/push initial DB:", err.message);
-  }
-
-  return true;
 }
 
 /**
- * Run full bootstrap process
+ * Run bootstrap process on app startup
  */
 function bootstrap() {
-  // Sync repository first
-  const repoSynced = gitService.syncRepo();
-
-  if (!repoSynced) {
-    console.warn(
-      "Warning: Translations repo not available. Database initialization and sync operations will be skipped."
-    );
-    return;
+  try {
+    console.log('[DB Init] Starting database initialization...');
+    initializeDatabase();
+    console.log('[DB Init] Database ready');
+  } catch (err) {
+    console.error('[DB Init] ERROR: Failed to initialize database:', err.message);
+    console.error('[DB Init] Stack trace:', err.stack);
+    throw new Error(`Database initialization failed: ${err.message}`);
   }
-
-  // Initialize database if needed
-  initializeDatabase();
-
-  // Push any pending changes
-  gitService.commitAndPush("chore: update translations repo");
 }
 
 module.exports = {
-  createHarvestWorkflow,
   initializeDatabase,
   bootstrap,
+  ensureDatabaseDirectory,
+  databaseFileExists,
 };
