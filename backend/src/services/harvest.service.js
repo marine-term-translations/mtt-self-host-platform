@@ -33,6 +33,10 @@ function validateCollectionUri(uri) {
 /**
  * Execute the Python harvest script to fetch terms from a SKOS collection
  * 
+ * Note: We use Promise wrapper here because child_process.spawn is callback-based
+ * and doesn't natively support async/await. This is the standard pattern for
+ * promisifying callback-based Node.js APIs.
+ * 
  * @param {string} collectionUri - URI of the SKOS collection to harvest
  * @returns {Promise<{success: boolean, termsInserted: number, termsUpdated: number, fieldsInserted: number, output: string}>}
  */
