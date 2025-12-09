@@ -13,6 +13,7 @@ const {
   applyMergeReward,
   applyCreationReward,
 } = require("../services/reputation.service");
+const { harvestCollection } = require("../services/harvest.service");
 
 /**
  * @openapi
@@ -678,5 +679,79 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
   } catch (err) {
     console.error("PUT /terms/:id error", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/harvest:
+ *   post:
+ *     summary: Harvest terms from a SKOS collection URI
+ *     description: Fetches terms from a SPARQL endpoint and populates the translations database
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               collectionUri:
+ *                 type: string
+ *                 description: URI of the SKOS collection to harvest
+ *                 example: 'http://vocab.nerc.ac.uk/collection/P01/current/'
+ *     responses:
+ *       200:
+ *         description: Harvest completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 termsInserted:
+ *                   type: integer
+ *                 termsUpdated:
+ *                   type: integer
+ *                 fieldsInserted:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid request - missing collection URI
+ *       401:
+ *         description: Not authenticated
+ *       500:
+ *         description: Harvest failed
+ */
+router.post("/harvest", writeLimiter, async (req, res) => {
+  const { collectionUri } = req.body;
+  
+  if (!collectionUri) {
+    return res.status(400).json({ error: "Missing collectionUri" });
+  }
+  
+  // Require authentication for harvest operations
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  try {
+    console.log(`[Harvest API] Starting harvest for: ${collectionUri}`);
+    const result = await harvestCollection(collectionUri);
+    
+    res.json({
+      success: result.success,
+      termsInserted: result.termsInserted,
+      termsUpdated: result.termsUpdated,
+      fieldsInserted: result.fieldsInserted,
+      message: `Harvest completed: ${result.termsInserted} terms inserted, ${result.termsUpdated} terms updated, ${result.fieldsInserted} fields inserted`,
+    });
+  } catch (err) {
+    console.error(`[Harvest API] Error:`, err);
+    res.status(500).json({ 
+      error: "Harvest failed", 
+      details: err.message 
+    });
   }
 });
