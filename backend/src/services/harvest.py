@@ -266,19 +266,28 @@ def main():
     try:
         # Validate collection URI
         validate_collection_uri(collection_uri)
-
-        # Get member count
-        print("Querying for member count...")
-        member_count = get_member_count(collection_uri)
-        print(f"Total members in collection: {member_count}")
-        batch_size = 1000
-
+        
+        # Validate database exists and has required schema
+        if not os.path.exists(output_path):
+            raise Exception(f"Database file does not exist: {output_path}")
+        
         # Connect to database (must already exist and have schema)
         conn = sqlite3.connect(output_path)
         
         # Enable foreign keys
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON")
+        
+        # Verify required tables exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='terms'")
+        if not cursor.fetchone():
+            raise Exception(f"Database schema not initialized. Missing 'terms' table in {output_path}")
+
+        # Get member count
+        print("Querying for member count...")
+        member_count = get_member_count(collection_uri)
+        print(f"Total members in collection: {member_count}")
+        batch_size = 1000
 
         # Loop to fetch and insert results in batches
         for offset in range(0, member_count, batch_size):
