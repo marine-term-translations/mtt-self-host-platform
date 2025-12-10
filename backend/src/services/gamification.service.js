@@ -29,7 +29,7 @@ function getUserStats(userId) {
 }
 
 /**
- * Award reputation points to a user (merged system - reputation = points)
+ * Award reputation points to a user (unified system - no separate points tracking)
  * @param {string} userId - Username/ORCID
  * @param {number} points - Reputation points to award
  * @param {string} reason - Reason for points
@@ -42,11 +42,7 @@ function awardPoints(userId, points, reason = "general") {
     return;
   }
   
-  // Update both user_stats.points (for gamification tracking) and users.reputation (main system)
-  db.prepare(
-    "UPDATE user_stats SET points = points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
-  ).run(points, userId);
-  
+  // Only update users.reputation (no separate points tracking)
   try {
     db.prepare(
       "UPDATE users SET reputation = reputation + ? WHERE username = ?"

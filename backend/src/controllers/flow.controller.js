@@ -94,47 +94,6 @@ async function submitReview(req, res) {
 }
 
 /**
- * Submit a new translation
- */
-async function submitTranslation(req, res) {
-  try {
-    if (!req.session || !req.session.user) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
-    
-    const userId = req.session.user.orcid;
-    const { termFieldId, language, value, sessionId } = req.body;
-    
-    if (!termFieldId || !language || !value) {
-      return res.status(400).json({ 
-        error: "Missing required fields: termFieldId, language, value" 
-      });
-    }
-    
-    const result = flowService.submitTranslation({
-      userId,
-      termFieldId,
-      language,
-      value,
-      sessionId,
-    });
-    
-    // Update session stats if provided
-    if (sessionId) {
-      gamificationService.updateFlowSession(sessionId, {
-        translations_completed: 1,
-        points_earned: result.points,
-      });
-    }
-    
-    res.json(result);
-  } catch (error) {
-    console.error("[Flow] Submit translation error:", error);
-    res.status(500).json({ error: error.message || "Failed to submit translation" });
-  }
-}
-
-/**
  * Get user stats
  */
 async function getStats(req, res) {
@@ -216,7 +175,6 @@ module.exports = {
   startFlow,
   getNextTask,
   submitReview,
-  submitTranslation,
   getStats,
   getLanguages,
   endSession,
