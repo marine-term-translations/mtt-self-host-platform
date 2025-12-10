@@ -19,14 +19,14 @@ const History: React.FC = () => {
       try {
         setLoading(true);
         // Fetch user history and all terms to resolve names
-        const [historyData, termsData] = await Promise.all([
+        const [historyData, termsResponse] = await Promise.all([
           backendApi.getUserHistory(user.username),
-          backendApi.getTerms()
+          backendApi.getTerms() // Will use defaults
         ]);
 
         // Create a map of term ID -> prefLabel
         const tMap: Record<number, string> = {};
-        termsData.forEach((t: ApiTerm) => {
+        termsResponse.terms.forEach((t: ApiTerm) => {
           const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
           tMap[t.id] = prefLabel;
         });

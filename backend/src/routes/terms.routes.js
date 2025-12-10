@@ -54,22 +54,59 @@ router.post("/terms", writeLimiter, (req, res) => {
  * @openapi
  * /api/terms:
  *   get:
- *     summary: List all SKOS/RDF terms
+ *     summary: List SKOS/RDF terms with pagination
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of terms to return (default 50, max 100)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of terms to skip (default 0)
  *     responses:
  *       200:
- *         description: Returns all terms
+ *         description: Returns paginated terms with metadata
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 type: object
+ *               type: object
+ *               properties:
+ *                 terms:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                   description: Total number of terms
+ *                 limit:
+ *                   type: integer
+ *                 offset:
+ *                   type: integer
  */
 router.get("/terms", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
-    // Get all terms
-    const terms = db.prepare("SELECT * FROM terms").all();
+    
+    // Parse pagination parameters
+    let limit = parseInt(req.query.limit) || 50;
+    let offset = parseInt(req.query.offset) || 0;
+    
+    // Validate and cap limit
+    if (limit < 1) limit = 50;
+    if (limit > 100) limit = 100;
+    if (offset < 0) offset = 0;
+    
+    // Get total count
+    const totalCount = db.prepare("SELECT COUNT(*) as count FROM terms").get().count;
+    
+    // Get paginated terms
+    const terms = db.prepare("SELECT * FROM terms LIMIT ? OFFSET ?").all(limit, offset);
+    
     // For each term, get its fields and translations
     const termDetails = terms.map((term) => {
       // Get fields for this term
@@ -85,7 +122,13 @@ router.get("/terms", apiLimiter, (req, res) => {
       });
       return { ...term, fields: fieldsWithTranslations };
     });
-    res.json(termDetails);
+    
+    res.json({
+      terms: termDetails,
+      total: totalCount,
+      limit: limit,
+      offset: offset
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

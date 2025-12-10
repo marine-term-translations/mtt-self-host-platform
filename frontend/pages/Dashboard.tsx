@@ -28,8 +28,8 @@ const Dashboard: React.FC = () => {
         setLoading(true);
 
         // Fetch data in parallel
-        const [terms, history, users] = await Promise.all([
-          backendApi.getTerms(),
+        const [termsResponse, history, users] = await Promise.all([
+          backendApi.getTerms(100, 0), // Limit to 100 terms for dashboard stats
           backendApi.getUserHistory(user.username),
           backendApi.getUsers()
         ]);
@@ -37,7 +37,7 @@ const Dashboard: React.FC = () => {
         // 1. Process Terms for quick stats
         const termIdToLabel: Record<number, string> = {};
         let needsTrans = 0;
-        terms.forEach((t: ApiTerm) => {
+        termsResponse.terms.forEach((t: ApiTerm) => {
           // Map ID to Label for activity feed lookup
           const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
           termIdToLabel[t.id] = prefLabel;

@@ -13,7 +13,7 @@ const AdminModeration: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [appealsData, termsData] = await Promise.all([
+        const [appealsData, termsResponse] = await Promise.all([
             backendApi.getAppeals(),
             backendApi.getTerms()
         ]);
@@ -23,7 +23,7 @@ const AdminModeration: React.FC = () => {
 
         // Build Translation ID -> Term URI map
         const mapping: Record<number, string> = {};
-        termsData.forEach((term: ApiTerm) => {
+        termsResponse.terms.forEach((term: ApiTerm) => {
             term.fields.forEach(field => {
                 if(field.translations) {
                     field.translations.forEach(t => {
