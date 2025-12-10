@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -69,6 +69,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAuthenticated && (
                 <>
                   <Link to="/browse" className={isActive('/browse')}>Browse</Link>
+                  <Link to="/flow" className={`${isActive('/flow')} flex items-center gap-1`}>
+                    <Zap size={16} /> Flow
+                  </Link>
                   <Link to="/dashboard" className={isActive('/dashboard')}>Dashboard</Link>
                   {user?.isAdmin && (
                     <Link to="/admin" className={`${isActive('/admin')} flex items-center gap-1`}>
@@ -126,6 +129,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAuthenticated && (
                 <>
                   <Link to="/browse" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Browse Terms</Link>
+                  <Link to="/flow" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600 flex items-center gap-1" onClick={() => setIsMenuOpen(false)}>
+                    <Zap size={16} /> Translation Flow
+                  </Link>
                   <Link to="/dashboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
                   <Link to="/profile" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>My Profile</Link>
                    {user?.isAdmin && (
