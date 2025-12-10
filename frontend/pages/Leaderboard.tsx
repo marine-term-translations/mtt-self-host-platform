@@ -80,12 +80,28 @@ const Leaderboard: React.FC = () => {
         });
 
         // Map users with real contribution counts
-        const mappedUsers = apiUsers.map((u: ApiPublicUser) => ({
-            ...u,
-            contributions: usercontribCounts[u.username] || 0,
-            // Fallback avatar if not provided
-            avatar: `https://ui-avatars.com/api/?name=${u.username}&background=0ea5e9&color=fff`
-        })).sort((a: any, b: any) => b.reputation - a.reputation);
+        const mappedUsers = apiUsers.map((u: ApiPublicUser) => {
+            let displayName = u.name;
+            if (!displayName && u.extra) {
+                try {
+                    const extraData = JSON.parse(u.extra);
+                    if (extraData.name) {
+                        displayName = extraData.name;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+            const nameToUse = displayName || u.username;
+
+            return {
+                ...u,
+                name: nameToUse,
+                contributions: usercontribCounts[u.username] || 0,
+                // Fallback avatar if not provided
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=0ea5e9&color=fff`
+            };
+        }).sort((a: any, b: any) => b.reputation - a.reputation);
 
         // Transform Lang Stats to Array
         const mappedLangStats = Object.keys(lStats).map(code => ({

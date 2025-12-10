@@ -75,6 +75,7 @@ class ApiService {
           const errorBody = await response.json();
           if (errorBody.message) errorMessage = errorBody.message;
           else if (errorBody.error) errorMessage = errorBody.error;
+          else if (errorBody.details) errorMessage = errorBody.details;
         } catch (e) {
           // Response wasn't JSON
         }
@@ -169,8 +170,28 @@ class ApiService {
   public async getAppealMessages(appealId: number): Promise<any[]> {
     return this.get<any[]>(`/appeals/${appealId}/messages`);
   }
+
+  // --- Harvesting ---
+
+  public async harvestCollection(collectionUri: string, token?: string): Promise<any> {
+    return this.request<any>('/harvest', { 
+      method: 'POST', 
+      body: JSON.stringify({ collectionUri }), 
+      token,
+      credentials: 'include' 
+    });
+  }
+
+  public async harvestCollectionStream(collectionUri: string, token?: string): Promise<Response> {
+    const url = `${this.baseUrl}/harvest/stream`;
+    return fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(token),
+      body: JSON.stringify({ collectionUri }),
+      credentials: 'include'
+    });
+  }
 }
 
 // Export pre-configured instances
 export const backendApi = new ApiService(CONFIG.API_URL);
-// Note: giteaApi removed - Gitea integration has been removed
