@@ -30,6 +30,63 @@ function databaseFileExists() {
 }
 
 /**
+ * Apply all migrations that haven't been applied yet
+ */
+function applyMigrations() {
+  const db = getDatabase();
+  const migrationsDir = path.join(__dirname, '../db/migrations');
+  
+  // Create migrations_applied table if it doesn't exist
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS migrations_applied (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      migration_name TEXT NOT NULL UNIQUE,
+      applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
+  // Get list of migration files (excluding schema.sql)
+  const migrationFiles = fs.readdirSync(migrationsDir)
+    .filter(f => f.endsWith('.sql') && f !== 'schema.sql')
+    .sort();
+  
+  console.log(`[DB Init] Found ${migrationFiles.length} migration file(s)`);
+  
+  // Apply each migration
+  migrationFiles.forEach(filename => {
+    const migrationName = filename.replace('.sql', '');
+    
+    // Check if migration has been applied
+    const applied = db.prepare(
+      "SELECT migration_name FROM migrations_applied WHERE migration_name = ?"
+    ).get(migrationName);
+    
+    if (applied) {
+      console.log(`[DB Init] Migration ${filename} already applied, skipping`);
+      return;
+    }
+    
+    console.log(`[DB Init] Applying migration: ${filename}`);
+    const migrationPath = path.join(migrationsDir, filename);
+    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+    
+    try {
+      db.exec(migrationSQL);
+      
+      // Record that this migration has been applied
+      db.prepare(
+        "INSERT INTO migrations_applied (migration_name) VALUES (?)"
+      ).run(migrationName);
+      
+      console.log(`[DB Init] ✓ Migration ${filename} applied successfully`);
+    } catch (err) {
+      console.error(`[DB Init] ERROR applying migration ${filename}:`, err.message);
+      throw err;
+    }
+  });
+}
+
+/**
  * Initialize the database with schema if it doesn't exist or is uninitialized
  */
 function initializeDatabase() {
@@ -51,11 +108,15 @@ function initializeDatabase() {
     console.log('[DB Init] Applying schema from migrations/schema.sql...');
     applySchema();
     console.log('[DB Init] ✓ Database schema applied successfully');
-    return true;
   } else {
     console.log('[DB Init] ✓ Database already initialized');
-    return false;
   }
+  
+  // Apply any pending migrations
+  console.log('[DB Init] Checking for migrations...');
+  applyMigrations();
+  
+  return true;
 }
 
 /**
