@@ -167,11 +167,18 @@ router.get("/terms", apiLimiter, (req, res) => {
  */
 router.get("/terms/:id", apiLimiter, (req, res) => {
   const { id } = req.params;
+  
+  // Validate that id is a valid integer
+  const termId = parseInt(id, 10);
+  if (isNaN(termId) || termId < 1) {
+    return res.status(400).json({ error: "Invalid term ID" });
+  }
+  
   try {
     const db = getDatabase();
     
     // Get the term
-    const term = db.prepare("SELECT * FROM terms WHERE id = ?").get(id);
+    const term = db.prepare("SELECT * FROM terms WHERE id = ?").get(termId);
     
     if (!term) {
       return res.status(404).json({ error: "Term not found" });
@@ -182,13 +189,31 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       .prepare("SELECT * FROM term_fields WHERE term_id = ?")
       .all(term.id);
     
-    // For each field, get translations
-    const fieldsWithTranslations = fields.map((field) => {
-      const translations = db
-        .prepare("SELECT * FROM translations WHERE term_field_id = ?")
-        .all(field.id);
-      return { ...field, translations };
-    });
+    // Get all translations for all fields in a single query to avoid N+1 problem
+    const fieldIds = fields.map(f => f.id);
+    let allTranslations = [];
+    
+    if (fieldIds.length > 0) {
+      const placeholders = fieldIds.map(() => '?').join(',');
+      allTranslations = db
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders})`)
+        .all(...fieldIds);
+    }
+    
+    // Group translations by field_id
+    const translationsByField = {};
+    for (const trans of allTranslations) {
+      if (!translationsByField[trans.term_field_id]) {
+        translationsByField[trans.term_field_id] = [];
+      }
+      translationsByField[trans.term_field_id].push(trans);
+    }
+    
+    // Attach translations to fields
+    const fieldsWithTranslations = fields.map((field) => ({
+      ...field,
+      translations: translationsByField[field.id] || []
+    }));
     
     res.json({ ...term, fields: fieldsWithTranslations });
   } catch (err) {
