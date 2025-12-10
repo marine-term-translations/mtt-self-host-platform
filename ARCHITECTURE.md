@@ -32,40 +32,27 @@ graph TB
             Swagger[Swagger Docs<br/>/api/docs]
         end
 
-        subgraph "Git Service"
-            Gitea[Gitea<br/>:3000]
-        end
-
-        subgraph "Database Layer"
-            PG[(PostgreSQL<br/>Gitea DB)]
+        subgraph "Data Layer"
             SQLite[(SQLite<br/>Translations DB)]
-        end
-
-        subgraph "CI/CD"
-            Runner[Act Runner]
         end
     end
 
     subgraph "External Services"
-        Gemini[Google Gemini API]
+        ORCID[ORCID OAuth]
+        OpenRouter[OpenRouter API]
         EMODnet[EMODnet APIs]
     end
 
     Browser --> FE
     Browser --> BE
-    Browser --> Gitea
     FE --> BE
-    BE --> Gitea
     BE --> SQLite
-    Gitea --> PG
-    Runner --> Gitea
-    FE -.-> Gemini
+    BE --> ORCID
+    FE -.-> OpenRouter
     BE -.-> EMODnet
 
     style FE fill:#61dafb,stroke:#333
     style BE fill:#68a063,stroke:#333
-    style Gitea fill:#609926,stroke:#333
-    style PG fill:#336791,stroke:#333
     style SQLite fill:#003b57,stroke:#333
 ```
 
@@ -84,13 +71,12 @@ graph TB
 
 **Key Features:**
 - Translation browsing and editing interface
-- User authentication via Gitea OAuth
+- User authentication via ORCID OAuth
 - Real-time translation status updates
-- Gemini AI integration for translation suggestions
+- OpenRouter AI integration for translation suggestions
 
 **Configuration:**
 - `VITE_API_URL`: Backend API endpoint
-- `VITE_GITEA_URL`: Gitea instance URL
 - `VITE_DOMAIN`: Domain for the platform
 
 ### Backend (Express.js)
@@ -103,53 +89,22 @@ graph TB
 | **Purpose** | REST API for translation operations |
 
 **API Routes:**
-- `/api/auth/*` - Authentication endpoints
+- `/api/auth/*` - ORCID authentication endpoints
 - `/api/terms/*` - Term management
-- `/api/teams/*` - Team management
+- `/api/teams/*` - Team management (returns empty for now)
 - `/api/appeals/*` - Appeal handling
 - `/api/docs` - Swagger documentation
 
 **Key Services:**
 - `dbInit.service.js` - Database initialization
-- `git.service.js` - Git operations
-- `gitea.service.js` - Gitea API integration
 - `reputation.service.js` - User reputation system
-
-### Gitea (Git Service)
-
-| Attribute | Value |
-|-----------|-------|
-| **Technology** | Gitea 1.25 |
-| **Port** | 3000 |
-| **Container** | `gitea` |
-| **Purpose** | Source-of-truth repository hosting |
-
-**Responsibilities:**
-- User authentication and authorization
-- Repository hosting for translations
-- Actions runner coordination
-- Organization and team management
-
-### PostgreSQL Database
-
-| Attribute | Value |
-|-----------|-------|
-| **Technology** | PostgreSQL 16 Alpine |
-| **Port** | 5432 (internal only) |
-| **Container** | `db` |
-| **Purpose** | Gitea metadata storage |
-
-**Stores:**
-- User accounts and sessions
-- Repository metadata
-- Organization and team data
-- Actions workflow state
+- `harvest.service.js` - EMODnet data harvesting
 
 ### SQLite Database
 
 | Attribute | Value |
 |-----------|-------|
-| **Location** | `translations-data/translations.db` |
+| **Location** | `backend/data/translations.db` |
 | **Purpose** | Translation data storage |
 
 **Schema Tables:**
@@ -157,22 +112,15 @@ graph TB
 - `term_fields` - Term field definitions
 - `translations` - Translation content
 - `appeals` - Translation appeals
-- `users` - User profiles
+- `appeal_messages` - Appeal discussion messages
+- `users` - User profiles and reputation
 - `reputation_events` - Reputation tracking
 - `user_activity` - Activity logging
 
-### Act Runner
-
-| Attribute | Value |
-|-----------|-------|
-| **Technology** | Gitea Act Runner |
-| **Container** | `act-runner` |
-| **Purpose** | CI/CD workflow execution |
-
-**Capabilities:**
-- LDES fragment actions
-- Automated testing
-- Translation validation workflows
+**Features:**
+- Automatic initialization on first startup
+- Schema migrations via `migrations/schema.sql`
+- Volume-mounted for data persistence
 
 ---
 
@@ -186,22 +134,13 @@ sequenceDiagram
     participant FE as Frontend
     participant BE as Backend
     participant DB as SQLite
-    participant G as Gitea
-    participant R as Runner
 
     U->>FE: View/Edit Translation
     FE->>BE: API Request
     BE->>DB: Query/Update
     DB-->>BE: Result
-    BE->>G: Sync Changes
-    G-->>BE: Confirmation
     BE-->>FE: Response
     FE-->>U: Display Result
-
-    Note over G,R: Automated Workflows
-    G->>R: Trigger Action
-    R->>G: Execute Workflow
-    R->>BE: Update Status
 ```
 
 ### Authentication Flow
@@ -211,16 +150,17 @@ sequenceDiagram
     participant U as User
     participant FE as Frontend
     participant BE as Backend
-    participant G as Gitea
+    participant ORCID as ORCID
 
     U->>FE: Login Request
-    FE->>G: OAuth Redirect
-    G->>U: Authorization Page
-    U->>G: Approve
-    G->>FE: Auth Code
-    FE->>BE: Exchange Token
-    BE->>G: Validate Token
-    G-->>BE: User Info
+    FE->>BE: Initiate OAuth
+    BE->>ORCID: OAuth Redirect
+    ORCID->>U: Authorization Page
+    U->>ORCID: Approve
+    ORCID->>BE: Auth Code
+    BE->>ORCID: Exchange for Token
+    ORCID-->>BE: Access Token + User Info
+    BE->>DB: Store/Update User
     BE-->>FE: Session Created
     FE-->>U: Logged In
 ```
@@ -266,36 +206,51 @@ http://localhost:5000/api/docs
 
 ## Authentication Flow
 
-### Gitea OAuth Integration
+### ORCID OAuth Integration
 
-The platform uses Gitea as the identity provider:
+The platform uses ORCID as the identity provider:
 
-1. **User Authentication**: Users log in via Gitea
-2. **Token Generation**: Gitea issues access tokens
-3. **API Authorization**: Backend validates tokens with Gitea
-4. **Session Management**: Frontend maintains user session
+1. **User Authentication**: Users log in via ORCID iD
+2. **Token Generation**: ORCID issues access tokens
+3. **User Info Retrieval**: Backend fetches user profile from ORCID
+4. **Session Management**: Backend creates session with HttpOnly cookies
 
-### Admin Token Usage
+### Session Flow
 
 ```mermaid
 graph LR
-    Admin[Admin User] -->|Creates| Token[API Token]
-    Token -->|Stored in| Env[.env File]
-    Env -->|Loaded by| BE[Backend]
-    BE -->|Uses for| Gitea[Gitea API]
+    User[User] -->|1. Clicks Login| FE[Frontend]
+    FE -->|2. Redirect| BE[Backend /auth/orcid]
+    BE -->|3. OAuth Request| ORCID[ORCID]
+    ORCID -->|4. User Approves| BE
+    BE -->|5. Create Session| Session[Session Store]
+    Session -->|6. Set Cookie| User
 ```
 
 ---
 
 ## External Services
 
-### Google Gemini API
+### ORCID
+
+| Aspect | Details |
+|--------|---------|
+| **Purpose** | User authentication and identity |
+| **Integration Point** | Backend OAuth flow |
+| **Configuration** | `ORCID_CLIENT_ID`, `ORCID_CLIENT_SECRET` |
+
+**Usage:**
+- Single sign-on authentication
+- User profile information
+- Persistent user identification
+
+### OpenRouter API
 
 | Aspect | Details |
 |--------|---------|
 | **Purpose** | AI-powered translation suggestions |
 | **Integration Point** | Frontend (client-side) |
-| **Configuration** | `GEMINI_API_KEY` in environment |
+| **Configuration** | `OPENROUTER_API_KEY` in environment |
 
 **Usage:**
 - Translation assistance
@@ -326,9 +281,6 @@ graph TB
     subgraph "Docker Bridge Network"
         FE[frontend<br/>:4173]
         BE[backend<br/>:5000]
-        G[gitea<br/>:3000]
-        DB[(db<br/>:5432)]
-        R[runner]
     end
 
     subgraph "Host Network"
@@ -340,12 +292,7 @@ graph TB
     end
 
     FE ---|Internal| BE
-    BE ---|Internal| G
-    G ---|Internal| DB
-    R ---|Internal| G
-    R -.->|host-gateway| H
 
-    H -->|3000| G
     H -->|4173| FE
     H -->|5000| BE
     I -->|80/443| H
@@ -355,17 +302,13 @@ graph TB
 
 | Service | Container Port | Host Port | Purpose |
 |---------|---------------|-----------|---------|
-| Gitea | 3000 | 3000 | Git service web UI |
 | Backend | 5000 | 5000 | REST API |
 | Frontend | 4173 | 4173 | Web application |
-| PostgreSQL | 5432 | - | Database (internal) |
 
 ### Container-to-Container Communication
 
 Services communicate using Docker DNS:
-- `http://gitea:3000` - Gitea from backend
-- `http://backend:5000` - Backend from within containers
-- `http://db:5432` - PostgreSQL from Gitea
+- `http://backend:5000` - Backend from frontend container (if needed)
 
 ### Reverse Proxy Integration
 
@@ -375,8 +318,7 @@ For production, add a reverse proxy layer:
 graph LR
     Internet -->|443| RP[Reverse Proxy<br/>Traefik/Caddy/nginx]
     RP -->|/api/*| BE[Backend:5000]
-    RP -->|/app/*| FE[Frontend:4173]
-    RP -->|/*| G[Gitea:3000]
+    RP -->|/*| FE[Frontend:4173]
 ```
 
 ---
@@ -387,18 +329,13 @@ graph LR
 
 | Volume | Path | Purpose |
 |--------|------|---------|
-| Gitea Data | `./gitea/data:/data` | Repositories, configuration |
-| PostgreSQL | `./gitea/postgres:/var/lib/postgresql/data` | Database files |
-| Runner | `./runner:/data` | Runner configuration |
-| Translations | `./backend/translations-data` | SQLite database |
+| Backend Data | `./backend/data:/app/backend/data` | SQLite database |
 
-### Read-Only Mounts
+### Benefits
 
-| Mount | Purpose |
-|-------|---------|
-| `/etc/timezone` | Container timezone |
-| `/etc/localtime` | Local time synchronization |
-| `/var/run/docker.sock` | Runner Docker access |
+- ✅ Database persists across container restarts
+- ✅ Easy backup and restore
+- ✅ Direct access to database file from host
 
 ---
 
@@ -408,18 +345,18 @@ graph LR
 
 - **Environment Variables**: Store sensitive data in `.env`
 - **Git Ignore**: `.env` excluded from version control
-- **Token Rotation**: Regularly rotate API tokens
+- **Session Secrets**: Strong random SESSION_SECRET required
 
 ### Network Security
 
-- **Internal Network**: Database not exposed externally
-- **Health Checks**: Services verified before accepting traffic
+- **HTTPS Required**: Production must use HTTPS for ORCID OAuth
 - **CORS**: Configured for allowed origins
+- **Cookies**: HttpOnly, Secure cookies for sessions
 
 ### Container Security
 
 - **Non-root Users**: Services run as non-root where possible
-- **Read-only Mounts**: System files mounted read-only
+- **Minimal Images**: Alpine-based images where available
 - **Resource Limits**: Consider adding in production
 
 ---
@@ -430,14 +367,18 @@ graph LR
 
 The architecture supports scaling through:
 - Multiple frontend instances behind a load balancer
-- Backend API replication with shared database
-- Gitea clustering (enterprise)
+- Backend API replication with shared database (consider PostgreSQL migration)
 
 ### Performance Optimization
 
-- **SQLite**: Consider PostgreSQL for high-write workloads
+- **SQLite**: Consider PostgreSQL for high-write workloads or multiple backend instances
 - **Caching**: Add Redis for session/API caching
 - **CDN**: Serve frontend assets via CDN
+
+**SQLite Limitations:**
+- ✅ Suitable for single-server deployments
+- ✅ Moderate traffic (< 10,000 requests/day)
+- ⚠️ Not recommended for multi-server setups (use PostgreSQL instead)
 
 ---
 
@@ -447,9 +388,9 @@ The architecture supports scaling through:
 
 ```bash
 # Frontend development server
-cd frontend && npm run dev  # :3001
+cd frontend && npm run dev  # :5173
 
-# Backend with hot reload
+# Backend with hot reload (if configured)
 cd backend && npm run dev  # :5000
 
 # Full stack with Docker

@@ -1,6 +1,6 @@
 # Marine Term Translations Platform
 
-Production-ready self-hosting platform for marine term translations, featuring a React frontend, Express.js backend, Gitea for source-of-truth version control, and automated CI/CD workflows.
+Self-hosting platform for marine term translations, featuring a React frontend and Express.js backend with ORCID authentication.
 
 > **📚 Documentation**: See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions and [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture.
 
@@ -23,15 +23,14 @@ This platform enables organizations to self-host their own marine terminology tr
 
 - **Full data sovereignty** - All data stored in your infrastructure
 - **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
-- **Git-based versioning** - Complete translation history via Gitea
-- **AI-powered suggestions** - Optional Gemini API integration
-- **Automated workflows** - CI/CD via Gitea Actions Runner
+- **SQLite database** - Lightweight, embedded database with automatic initialization
+- **AI-powered suggestions** - Optional OpenRouter API integration for translation assistance
 
 ---
 
 ## Services
 
-The platform consists of five Docker services defined in `docker-compose.yml`:
+The platform consists of two Docker services defined in `docker-compose.yml`:
 
 ### Frontend (Vite + React)
 
@@ -46,9 +45,7 @@ The platform consists of five Docker services defined in `docker-compose.yml`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_API_URL` | Backend API URL (browser-accessible) | `http://localhost:5000/api` |
-| `VITE_GITEA_URL` | Gitea URL (browser-accessible) | `http://localhost:3000` |
 | `VITE_DOMAIN` | Domain name | `localhost` |
-| `VITE_ROOT_URL` | Full root URL | `http://localhost:3000/` |
 
 **Volume Mounts:** None (stateless)
 
@@ -63,103 +60,27 @@ The platform consists of five Docker services defined in `docker-compose.yml`:
 | **Container** | `marine-backend` |
 | **Port** | `5000` |
 | **Technology** | Node.js 20, Express.js, SQLite |
-| **Purpose** | REST API for translations, users, and Gitea integration |
+| **Purpose** | REST API for translations, users, and ORCID authentication |
 
 **Environment Variables:**
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode | `production` |
-| `GITEA_URL` | Internal Gitea URL | `http://gitea:3000` |
-| `GITEA_TOKEN` | Admin API token | Set after setup |
-| `TRANSLATIONS_REPO` | Repository name | `translations-data` |
-| `TRANSLATIONS_REPO_PATH` | Local repo path | `/app/translations-data` |
-| `SQLITE_DB_PATH` | SQLite database path | `/app/translations-data/translations.db` |
-
-**Local Access:** 
-- API: http://localhost:5000/api
-- Swagger Docs: http://localhost:5000/api/docs
-
----
-
-### Gitea (Git Service)
-
-| Property | Value |
-|----------|-------|
-| **Container** | `gitea` |
-| **Port** | `3000` |
-| **Technology** | Gitea 1.25 |
-| **Purpose** | Version control, user auth, repository hosting |
-
-**Environment Variables:**
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `GITEA__database__DB_TYPE` | Database type | `postgres` |
-| `GITEA__database__HOST` | Database host | `db:5432` |
-| `GITEA__database__NAME` | Database name | `gitea` |
-| `GITEA__database__USER` | Database user | `gitea` |
-| `GITEA__database__PASSWD` | Database password | From `GITEA_DB_PASS` |
-| `GITEA__server__DOMAIN` | Server domain | From `DOMAIN` |
-| `GITEA__server__ROOT_URL` | Root URL | From `ROOT_URL` |
-| `GITEA__actions__ENABLED` | Enable Actions | `true` |
+| `BASE_URL` | Backend base URL | `http://localhost:5000` |
+| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
+| `ORCID_CLIENT_ID` | ORCID OAuth client ID | Required |
+| `ORCID_CLIENT_SECRET` | ORCID OAuth client secret | Required |
+| `SESSION_SECRET` | Session encryption secret | Required |
+| `SQLITE_DB_PATH` | SQLite database path | `/app/backend/data/translations.db` |
 
 **Volume Mounts:**
 | Container Path | Host Path | Purpose |
 |----------------|-----------|---------|
-| `/data` | `./gitea/data` | Repositories and config |
-| `/etc/timezone` | `/etc/timezone` | Timezone (read-only) |
-| `/etc/localtime` | `/etc/localtime` | Local time (read-only) |
+| `/app/backend/data` | `./backend/data` | SQLite database persistence |
 
-**Local Access:** http://localhost:3000
-
----
-
-### PostgreSQL Database
-
-| Property | Value |
-|----------|-------|
-| **Container** | `db` |
-| **Port** | `5432` (internal only) |
-| **Technology** | PostgreSQL 16 Alpine |
-| **Purpose** | Gitea metadata storage |
-
-**Environment Variables:**
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_USER` | `gitea` |
-| `POSTGRES_PASSWORD` | From `GITEA_DB_PASS` |
-| `POSTGRES_DB` | `gitea` |
-
-**Volume Mounts:**
-| Container Path | Host Path |
-|----------------|-----------|
-| `/var/lib/postgresql/data` | `./gitea/postgres` |
-
-**Note:** Not exposed externally for security.
-
----
-
-### Actions Runner
-
-| Property | Value |
-|----------|-------|
-| **Container** | `act-runner` |
-| **Technology** | Gitea Act Runner |
-| **Purpose** | CI/CD workflow execution |
-
-**Environment Variables:**
-| Variable | Description |
-|----------|-------------|
-| `GITEA_INSTANCE_URL` | `http://gitea:3000` |
-| `GITEA_RUNNER_REGISTRATION_TOKEN` | From `RUNNER_TOKEN` |
-| `RUNNER_NAME` | `marine-runner` |
-| `RUNNER_LABELS` | `linux,docker` |
-| `CONFIG_FILE` | `/data/config.yaml` |
-
-**Volume Mounts:**
-| Container Path | Host Path |
-|----------------|-----------|
-| `/data` | `./runner` |
-| `/var/run/docker.sock` | `/var/run/docker.sock` |
+**Local Access:** 
+- API: http://localhost:5000/api
+- Swagger Docs: http://localhost:5000/api/docs
 
 ---
 
@@ -172,61 +93,37 @@ cd mtt-self-host-platform
 
 # 2. Copy and configure environment
 cp .env.example .env
-# Edit .env with your settings (see docs/SETUP.md for full reference)
+# Edit .env with your ORCID credentials (see docs/SETUP.md for full reference)
 
-# 3. Copy runner configuration
-cp runner/config.yaml.template runner/config.yaml
-
-# 4. Deploy
+# 3. Deploy
 docker compose up -d --build
 
-# 5. Verify all services are running
+# 4. Verify all services are running
 docker compose ps
 ```
+
+The database will be automatically initialized on first startup.
 
 ---
 
 ## Post-Deployment Setup
 
-After initial deployment, complete the following steps:
+After initial deployment, you can:
 
-### 1. Create Admin Account
+### Access the Application
 
-1. Navigate to http://localhost:3000 (or your domain)
-2. Register using credentials from `.env`:
-   - **Username:** `GITEA_ADMIN_USER`
-   - **Password:** `GITEA_ADMIN_PASS`
-   - **Email:** `GITEA_ADMIN_EMAIL`
+1. Navigate to http://localhost:4173 (or your configured domain)
+2. Click "Sign in with ORCID"
+3. Authenticate with your ORCID iD
 
-### 2. Generate Admin API Token
+### Register ORCID OAuth Application
 
-1. Log in to Gitea as admin
-2. Go to **Settings** → **Applications** → **Generate New Token**
-3. Name it (e.g., `admin-api-token`) and copy the value
-4. Add to `.env`: `GITEA_ADMIN_TOKEN=<your-token>`
+Before using the platform, you must register an OAuth application with ORCID:
 
-### 3. Restart Services
-
-```bash
-docker compose restart
-```
-
-### 4. Initialize Gitea Organization
-
-```bash
-sh ./infra/setup-gitea.sh
-```
-
-### 5. Register the Actions Runner
-
-1. In Gitea, navigate to the translations repository
-2. Go to **Settings** → **Actions** → **Runners** → **Create New Runner**
-3. Copy the registration token
-4. Add to `.env`: `RUNNER_TOKEN=<your-token>`
-5. Rebuild services:
-   ```bash
-   sh infra/rebuild.sh
-   ```
+1. Go to https://orcid.org/developer-tools
+2. Register a new application with redirect URI: `http://localhost:5000/api/auth/orcid/callback`
+3. Copy the Client ID and Client Secret to your `.env` file
+4. Restart services: `docker compose restart`
 
 ---
 
@@ -236,10 +133,9 @@ After deployment, access these endpoints:
 
 | Service | Local URL | Production URL |
 |---------|-----------|----------------|
-| Gitea (Web UI) | http://localhost:3000 | https://your-domain.org |
+| Frontend App | http://localhost:4173 | https://your-domain.org |
 | Backend API | http://localhost:5000/api | https://your-domain.org/api |
 | API Documentation | http://localhost:5000/api/docs | https://your-domain.org/api/docs |
-| Frontend App | http://localhost:4173 | https://your-domain.org/app |
 
 ---
 
@@ -256,6 +152,7 @@ mtt-self-host-platform/
 ├── backend/                     # Express.js API
 │   ├── Dockerfile
 │   ├── package.json
+│   ├── data/                   # SQLite database (created at runtime)
 │   └── src/
 │       ├── app.js              # Express app setup
 │       ├── server.js           # Entry point
@@ -264,6 +161,7 @@ mtt-self-host-platform/
 │       ├── routes/             # API routes
 │       ├── services/           # Business logic
 │       ├── middleware/         # Express middleware
+│       ├── db/                 # Database utilities and migrations
 │       └── docs/               # Swagger specs
 │
 ├── frontend/                    # React/Vite application
@@ -271,23 +169,20 @@ mtt-self-host-platform/
 │   ├── package.json
 │   ├── vite.config.ts          # Vite configuration
 │   ├── index.html
-│   └── pages/                  # React components
+│   ├── pages/                  # React components/pages
+│   ├── components/             # Reusable components
+│   └── services/               # API services
 │
 ├── docs/                        # Documentation
-│   └── SETUP.md                # Detailed setup guide
+│   ├── SETUP.md                # Detailed setup guide
+│   ├── PRODUCTION_DEPLOYMENT.md # Production deployment
+│   ├── DATABASE_INITIALIZATION.md # Database setup
+│   ├── ORCID_MIGRATION.md      # ORCID OAuth guide
+│   └── GITEA_REMOVAL.md        # Historical: Gitea removal notes
 │
-├── gitea/                       # Gitea data (created at runtime)
-│   ├── data/                   # Repositories and config
-│   └── postgres/               # PostgreSQL data
-│
-├── runner/                      # Gitea Actions runner
-│   ├── config.yaml.template    # Runner configuration template
-│   └── README.md               # Runner documentation
-│
-├── infra/                       # Infrastructure scripts
-│   ├── setup-gitea.sh          # Gitea initialization
-│   ├── rebuild.sh              # Rebuild containers
+├── infra/                       # Infrastructure scripts (legacy)
 │   ├── backup.sh               # Backup script
+│   ├── rebuild.sh              # Rebuild containers
 │   └── restore.sh              # Restore script
 │
 └── templates/                   # Template files
@@ -301,9 +196,11 @@ mtt-self-host-platform/
 | Document | Description |
 |----------|-------------|
 | [docs/SETUP.md](docs/SETUP.md) | Complete self-hosting guide with step-by-step instructions |
-| [docs/ORCID_MIGRATION.md](docs/ORCID_MIGRATION.md) | ORCID OAuth migration and configuration guide |
+| [docs/ORCID_MIGRATION.md](docs/ORCID_MIGRATION.md) | ORCID OAuth configuration guide |
+| [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | Production deployment guide |
+| [docs/DATABASE_INITIALIZATION.md](docs/DATABASE_INITIALIZATION.md) | Database initialization and management |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
-| [runner/README.md](runner/README.md) | Actions runner configuration and troubleshooting |
+| [docs/GITEA_REMOVAL.md](docs/GITEA_REMOVAL.md) | Historical notes on Gitea removal (for reference) |
 
 ---
 
