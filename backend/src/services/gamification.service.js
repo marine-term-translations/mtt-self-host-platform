@@ -29,7 +29,7 @@ function getUserStats(userId) {
 }
 
 /**
- * Award points to a user
+ * Award points to a user and update reputation
  * @param {string} userId - Username/ORCID
  * @param {number} points - Points to award
  * @param {string} reason - Reason for points
@@ -38,15 +38,29 @@ function awardPoints(userId, points, reason = "general") {
   const db = getDatabase();
   ensureUserStats(userId);
   
+  // Update gamification points
   db.prepare(
     "UPDATE user_stats SET points = points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(points, userId);
+  
+  // Also update reputation in the users table to link with existing reputation system
+  // Award partial reputation points (e.g., 1/4 of gamification points)
+  const reputationDelta = Math.floor(points / 4);
+  if (reputationDelta > 0) {
+    try {
+      db.prepare(
+        "UPDATE users SET reputation = reputation + ? WHERE username = ?"
+      ).run(reputationDelta, userId);
+    } catch (err) {
+      console.log("Could not update user reputation:", err.message);
+    }
+  }
   
   // Log in reputation_events if it exists
   try {
     db.prepare(
       "INSERT INTO reputation_events (user, delta, reason) VALUES (?, ?, ?)"
-    ).run(userId, points, reason);
+    ).run(userId, reputationDelta, reason);
   } catch (err) {
     // Table might not exist in all deployments
     console.log("Could not log reputation event:", err.message);
