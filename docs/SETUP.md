@@ -216,6 +216,42 @@ terms.example.org {
 
 Use an external nginx installation with Certbot for SSL certificates.
 
+Example nginx configuration:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name mtt.example.org;
+    
+    ssl_certificate /etc/letsencrypt/live/mtt.example.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mtt.example.org/privkey.pem;
+
+    # Backend API routes
+    location /api/ {
+        proxy_pass http://localhost:5000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:4173/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name mtt.example.org;
+    return 301 https://$server_name$request_uri;
+}
+```
+
 ---
 
 ## Deployment
@@ -355,6 +391,7 @@ docker compose up -d --build
 
 ```bash
 # Backup database first
+mkdir -p backups
 cp backend/data/translations.db backups/translations-$(date +%Y%m%d-%H%M%S).db
 
 # Pull changes
@@ -363,8 +400,6 @@ git pull origin main
 # Rebuild
 docker compose up -d --build
 ```
-
-### Full Reset (Data Loss)
 
 ### Full Reset (Data Loss)
 
