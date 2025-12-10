@@ -8,6 +8,11 @@ const {
   incrementReviewCount,
   updateChallengeProgress,
 } = require("./gamification.service");
+const {
+  applyApprovalReward,
+  applyRejectionPenalty,
+  applyCreationReward,
+} = require("./reputation.service");
 
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
@@ -218,7 +223,22 @@ function submitReview(params) {
     "UPDATE translations SET status = ?, reviewed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
   ).run(newStatus, userId, translationId);
   
-  // Award points based on action
+  // Apply reputation changes based on action using existing reputation system
+  if (action === 'approve') {
+    // Get the translator and apply approval reward
+    const translatorUsername = translation.modified_by || translation.created_by;
+    if (translatorUsername) {
+      applyApprovalReward(translatorUsername, translationId);
+    }
+  } else if (action === 'reject') {
+    // Apply rejection penalty to translator
+    const translatorUsername = translation.modified_by || translation.created_by;
+    if (translatorUsername) {
+      applyRejectionPenalty(translatorUsername, translationId);
+    }
+  }
+  
+  // Award gamification points to reviewer
   const points = action === 'approve' ? 10 : 5;
   awardPoints(userId, points, `review_${action}`);
   
@@ -278,6 +298,15 @@ function submitTranslation(params) {
        WHERE id = ?`
     ).run(value, userId, existing.id);
     translationId = existing.id;
+    
+    // Log activity for edit
+    try {
+      db.prepare(
+        "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
+      ).run(userId, 'translation_edited', translationId, JSON.stringify({ sessionId, language }));
+    } catch (err) {
+      console.log("Could not log activity:", err.message);
+    }
   } else {
     // Create new translation
     const result = db.prepare(
@@ -285,9 +314,21 @@ function submitTranslation(params) {
        VALUES (?, ?, ?, 'review', ?)`
     ).run(termFieldId, language, value, userId);
     translationId = result.lastInsertRowid;
+    
+    // Apply creation reward from reputation system
+    applyCreationReward(userId, translationId);
+    
+    // Log activity for creation
+    try {
+      db.prepare(
+        "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
+      ).run(userId, 'translation_created', translationId, JSON.stringify({ sessionId, language }));
+    } catch (err) {
+      console.log("Could not log activity:", err.message);
+    }
   }
   
-  // Award points
+  // Award gamification points
   const points = 20;
   awardPoints(userId, points, 'translation_created');
   
@@ -299,15 +340,6 @@ function submitTranslation(params) {
   
   // Update challenge progress
   updateChallengeProgress(userId, 'translate_5', 1);
-  
-  // Log activity
-  try {
-    db.prepare(
-      "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-    ).run(userId, 'translation_created', translationId, JSON.stringify({ sessionId }));
-  } catch (err) {
-    console.log("Could not log activity:", err.message);
-  }
   
   return {
     success: true,
