@@ -29,46 +29,72 @@ function getUserStats(userId) {
 }
 
 /**
- * Award points to a user and update reputation
+ * Award reputation points to a user (merged system - reputation = points)
  * @param {string} userId - Username/ORCID
- * @param {number} points - Points to award
+ * @param {number} points - Reputation points to award
  * @param {string} reason - Reason for points
  */
 function awardPoints(userId, points, reason = "general") {
   const db = getDatabase();
   ensureUserStats(userId);
   
-  // Update gamification points
+  if (points <= 0) {
+    return;
+  }
+  
+  // Update both user_stats.points (for gamification tracking) and users.reputation (main system)
   db.prepare(
     "UPDATE user_stats SET points = points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(points, userId);
   
-  // Also update reputation in the users table to link with existing reputation system
-  // Award partial reputation points (e.g., 1/4 of gamification points)
-  const reputationDelta = Math.floor(points / 4);
-  if (reputationDelta > 0) {
-    try {
-      db.prepare(
-        "UPDATE users SET reputation = reputation + ? WHERE username = ?"
-      ).run(reputationDelta, userId);
-    } catch (err) {
-      console.log("Could not update user reputation:", err.message);
-    }
+  try {
+    db.prepare(
+      "UPDATE users SET reputation = reputation + ? WHERE username = ?"
+    ).run(points, userId);
+  } catch (err) {
+    console.log("Could not update user reputation:", err.message);
   }
   
-  // Log in reputation_events if it exists
+  // Log in reputation_events
   try {
     db.prepare(
       "INSERT INTO reputation_events (user, delta, reason) VALUES (?, ?, ?)"
-    ).run(userId, reputationDelta, reason);
+    ).run(userId, points, reason);
   } catch (err) {
-    // Table might not exist in all deployments
     console.log("Could not log reputation event:", err.message);
+  }
+  
+  // Log in user_activity for traceability
+  try {
+    db.prepare(
+      "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+    ).run(userId, 'reputation_awarded', JSON.stringify({ points, reason }));
+  } catch (err) {
+    console.log("Could not log user activity:", err.message);
   }
 }
 
 /**
- * Update user streak based on activity
+ * Get streak milestone reward based on streak count
+ * @param {number} streak - Current streak
+ * @returns {number} Reputation points to award (0 if no milestone)
+ */
+function getStreakMilestoneReward(streak) {
+  const milestones = {
+    3: 1,     // 3 days
+    7: 2,     // 1 week
+    14: 3,    // 2 weeks
+    21: 4,    // 3 weeks
+    30: 5,    // 1 month
+    60: 10,   // 2 months
+    90: 25,   // 3 months
+  };
+  
+  return milestones[streak] || 0;
+}
+
+/**
+ * Update user streak based on activity and award milestone rewards
  * @param {string} userId - Username/ORCID
  * @returns {object} Updated streak info
  */
@@ -82,6 +108,7 @@ function updateStreak(userId) {
   
   let newStreak = stats.daily_streak;
   let longestStreak = stats.longest_streak;
+  let milestoneReached = false;
   
   if (!lastActive) {
     // First activity ever
@@ -93,10 +120,16 @@ function updateStreak(userId) {
     
     if (daysDiff === 0) {
       // Same day, no change
-      return { streak: newStreak, isNewStreak: false };
+      return { 
+        streak: newStreak, 
+        longestStreak: longestStreak,
+        isNewStreak: false,
+        milestoneReward: 0
+      };
     } else if (daysDiff === 1) {
       // Consecutive day
       newStreak += 1;
+      milestoneReached = true;
     } else {
       // Streak broken
       newStreak = 1;
@@ -108,6 +141,26 @@ function updateStreak(userId) {
     longestStreak = newStreak;
   }
   
+  // Check for streak milestone and award reputation
+  const milestoneReward = milestoneReached ? getStreakMilestoneReward(newStreak) : 0;
+  
+  if (milestoneReward > 0) {
+    // Award reputation for streak milestone
+    awardPoints(userId, milestoneReward, `streak_milestone_${newStreak}_days`);
+    
+    // Log milestone achievement activity
+    try {
+      db.prepare(
+        "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+      ).run(userId, 'streak_milestone_achieved', JSON.stringify({ 
+        streak: newStreak, 
+        reward: milestoneReward 
+      }));
+    } catch (err) {
+      console.log("Could not log streak milestone activity:", err.message);
+    }
+  }
+  
   db.prepare(
     "UPDATE user_stats SET daily_streak = ?, longest_streak = ?, last_active_date = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(newStreak, longestStreak, today, userId);
@@ -115,7 +168,8 @@ function updateStreak(userId) {
   return {
     streak: newStreak,
     longestStreak: longestStreak,
-    isNewStreak: !lastActive || (lastActive !== today)
+    isNewStreak: !lastActive || (lastActive !== today),
+    milestoneReward: milestoneReward
   };
 }
 
@@ -163,10 +217,10 @@ function getDailyChallenges(userId) {
     return existing;
   }
   
-  // Create new challenges for today
+  // Create new challenges for today with reputation rewards
   const challenges = [
-    { type: 'translate_5', target: 5, points: 50 },
-    { type: 'review_10', target: 10, points: 100 },
+    { type: 'translate_5', target: 5, points: 5 },  // 5 reputation for 5 translations
+    { type: 'review_10', target: 10, points: 5 },   // 5 reputation for 10 reviews
   ];
   
   challenges.forEach(challenge => {
@@ -209,9 +263,22 @@ function updateChallengeProgress(userId, challengeType, increment = 1) {
      WHERE id = ?`
   ).run(newCount, isCompleted, isCompleted, challenge.id);
   
-  // Award points if just completed
+  // Award reputation points if just completed
   if (isCompleted && !challenge.completed) {
-    awardPoints(userId, challenge.points_reward, `challenge_${challengeType}`);
+    awardPoints(userId, challenge.points_reward, `challenge_${challengeType}_completed`);
+    
+    // Log challenge completion activity for traceability
+    try {
+      db.prepare(
+        "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+      ).run(userId, 'daily_challenge_completed', JSON.stringify({ 
+        challengeType,
+        target: challenge.target_count,
+        reward: challenge.points_reward
+      }));
+    } catch (err) {
+      console.log("Could not log challenge completion activity:", err.message);
+    }
   }
   
   return db.prepare("SELECT * FROM daily_challenges WHERE id = ?").get(challenge.id);
