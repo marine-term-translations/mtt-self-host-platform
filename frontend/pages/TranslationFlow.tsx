@@ -9,7 +9,6 @@ import {
   startFlowSession,
   getNextTask,
   submitReview,
-  submitTranslation,
   getAvailableLanguages,
   endFlowSession,
   FlowTask,
@@ -17,6 +16,7 @@ import {
   DailyChallenge,
   Language,
 } from '../services/flow.api';
+import { backendApi } from '../services/api';
 
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
@@ -115,8 +115,8 @@ const TranslationFlow: React.FC = () => {
 
       toast.success(
         action === 'approve'
-          ? `Translation approved! +${result.points} points`
-          : `Translation rejected. +${result.points} points`
+          ? `Translation approved! +${result.points} reputation`
+          : `Translation rejected. +${result.points} reputation`
       );
 
       // Load next task
@@ -131,39 +131,55 @@ const TranslationFlow: React.FC = () => {
 
   // Handle translation submission
   const handleSubmitTranslation = async (language: string, value: string) => {
-    if (!currentTask?.task?.term_field_id || !sessionId) return;
+    if (!currentTask?.task || !sessionId || !user) return;
+
+    const task = currentTask.task;
 
     try {
       setIsSubmitting(true);
-      const result = await submitTranslation(
-        currentTask.task.term_field_id,
-        language,
-        value,
-        sessionId
-      );
 
-      // Update session stats
-      setSessionPoints((prev) => prev + result.points);
+      // Build the term structure for PUT /api/terms/:id
+      const termData = {
+        uri: task.term_uri,
+        fields: task.term_fields?.map((field: any) => {
+          const translations: any[] = [];
+          
+          // If this is the field we're translating, add the new translation
+          if (field.field_uri === task.field_uri) {
+            translations.push({
+              language,
+              value,
+              status: 'review',
+              created_by: user.username,
+            });
+          }
+          
+          return {
+            field_uri: field.field_uri,
+            field_term: field.field_term,
+            original_value: field.original_value,
+            translations,
+          };
+        }) || [],
+        username: user.username,
+      };
+
+      // Submit using the existing PUT /api/terms/:id endpoint
+      await backendApi.updateTerm(task.term_id, termData);
+
+      // Update session stats manually (1 point for translation)
+      setSessionPoints((prev) => prev + 1);
       setSessionTranslations((prev) => prev + 1);
-
-      // Show celebration for new streak
-      if (result.streakInfo.isNewStreak && result.streakInfo.streak > 1) {
-        setShowCelebration(true);
-        setTimeout(() => setShowCelebration(false), 3000);
-      }
 
       // Update stats
       if (stats) {
         setStats({
           ...stats,
-          points: stats.points + result.points,
-          daily_streak: result.streakInfo.streak,
-          longest_streak: result.streakInfo.longestStreak,
           translations_count: stats.translations_count + 1,
         });
       }
 
-      toast.success(`Translation submitted! +${result.points} points`);
+      toast.success('Translation submitted! +1 reputation');
 
       // Load next task
       await loadNextTask();

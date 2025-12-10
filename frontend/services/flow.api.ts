@@ -107,23 +107,6 @@ export async function submitReview(
 }
 
 /**
- * Submit a new translation
- */
-export async function submitTranslation(
-  termFieldId: number,
-  language: string,
-  value: string,
-  sessionId?: number
-): Promise<TranslationResult> {
-  return backendApi.post<TranslationResult>('/flow/translate', {
-    termFieldId,
-    language,
-    value,
-    sessionId,
-  });
-}
-
-/**
  * Get user stats and challenges
  */
 export async function getFlowStats(): Promise<{

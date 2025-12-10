@@ -238,8 +238,8 @@ function submitReview(params) {
     }
   }
   
-  // Award gamification points to reviewer
-  const points = action === 'approve' ? 10 : 5;
+  // Award 1 reputation point to reviewer
+  const points = 1;
   awardPoints(userId, points, `review_${action}`);
   
   // Update streak
@@ -269,87 +269,6 @@ function submitReview(params) {
 }
 
 /**
- * Submit a new translation
- * @param {object} params - Translation parameters
- * @returns {object} Result of submission
- */
-function submitTranslation(params) {
-  const { userId, termFieldId, language, value, sessionId } = params;
-  const db = getDatabase();
-  
-  // Validate language
-  const validLanguages = ['nl', 'fr', 'de', 'es', 'it', 'pt'];
-  if (!validLanguages.includes(language)) {
-    throw new Error(`Invalid language. Must be one of: ${validLanguages.join(', ')}`);
-  }
-  
-  // Check if translation already exists
-  const existing = db.prepare(
-    "SELECT id FROM translations WHERE term_field_id = ? AND language = ?"
-  ).get(termFieldId, language);
-  
-  let translationId;
-  
-  if (existing) {
-    // Update existing translation
-    db.prepare(
-      `UPDATE translations 
-       SET value = ?, status = 'review', modified_by = ?, modified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).run(value, userId, existing.id);
-    translationId = existing.id;
-    
-    // Log activity for edit
-    try {
-      db.prepare(
-        "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-      ).run(userId, 'translation_edited', translationId, JSON.stringify({ sessionId, language }));
-    } catch (err) {
-      console.log("Could not log activity:", err.message);
-    }
-  } else {
-    // Create new translation
-    const result = db.prepare(
-      `INSERT INTO translations (term_field_id, language, value, status, created_by) 
-       VALUES (?, ?, ?, 'review', ?)`
-    ).run(termFieldId, language, value, userId);
-    translationId = result.lastInsertRowid;
-    
-    // Apply creation reward from reputation system
-    applyCreationReward(userId, translationId);
-    
-    // Log activity for creation
-    try {
-      db.prepare(
-        "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-      ).run(userId, 'translation_created', translationId, JSON.stringify({ sessionId, language }));
-    } catch (err) {
-      console.log("Could not log activity:", err.message);
-    }
-  }
-  
-  // Award gamification points
-  const points = 20;
-  awardPoints(userId, points, 'translation_created');
-  
-  // Update streak
-  const streakInfo = updateStreak(userId);
-  
-  // Increment translation count
-  incrementTranslationCount(userId);
-  
-  // Update challenge progress
-  updateChallengeProgress(userId, 'translate_5', 1);
-  
-  return {
-    success: true,
-    translationId,
-    points,
-    streakInfo,
-  };
-}
-
-/**
  * Get available languages for translation
  * @returns {array} Array of language codes
  */
@@ -369,6 +288,5 @@ module.exports = {
   getRandomUntranslated,
   getNextTask,
   submitReview,
-  submitTranslation,
   getAvailableLanguages,
 };

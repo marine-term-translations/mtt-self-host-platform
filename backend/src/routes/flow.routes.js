@@ -110,57 +110,6 @@ router.post("/flow/review", writeLimiter, flowController.submitReview);
 
 /**
  * @openapi
- * /api/flow/translate:
- *   post:
- *     summary: Submit a new translation
- *     tags: [Flow]
- *     security:
- *       - sessionAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - termFieldId
- *               - language
- *               - value
- *             properties:
- *               termFieldId:
- *                 type: number
- *               language:
- *                 type: string
- *                 enum: [nl, fr, de, es, it, pt]
- *               value:
- *                 type: string
- *               sessionId:
- *                 type: number
- *     responses:
- *       200:
- *         description: Translation submitted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 translationId:
- *                   type: number
- *                 points:
- *                   type: number
- *                 streakInfo:
- *                   type: object
- *       400:
- *         description: Invalid request
- *       401:
- *         description: Not authenticated
- */
-router.post("/flow/translate", writeLimiter, flowController.submitTranslation);
-
-/**
- * @openapi
  * /api/flow/stats:
  *   get:
  *     summary: Get user statistics and challenges
