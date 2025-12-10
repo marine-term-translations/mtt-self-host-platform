@@ -134,6 +134,68 @@ router.get("/terms", apiLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/terms/{id}:
+ *   get:
+ *     summary: Get a single term by ID with all its fields and translations
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The term ID
+ *     responses:
+ *       200:
+ *         description: Returns the term with all fields and translations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 uri:
+ *                   type: string
+ *                 fields:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       404:
+ *         description: Term not found
+ */
+router.get("/terms/:id", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = getDatabase();
+    
+    // Get the term
+    const term = db.prepare("SELECT * FROM terms WHERE id = ?").get(id);
+    
+    if (!term) {
+      return res.status(404).json({ error: "Term not found" });
+    }
+    
+    // Get fields for this term
+    const fields = db
+      .prepare("SELECT * FROM term_fields WHERE term_id = ?")
+      .all(term.id);
+    
+    // For each field, get translations
+    const fieldsWithTranslations = fields.map((field) => {
+      const translations = db
+        .prepare("SELECT * FROM translations WHERE term_field_id = ?")
+        .all(field.id);
+      return { ...field, translations };
+    });
+    
+    res.json({ ...term, fields: fieldsWithTranslations });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 
 /**

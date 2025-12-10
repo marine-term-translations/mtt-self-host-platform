@@ -125,6 +125,10 @@ class ApiService {
     return this.get<{ terms: ApiTerm[], total: number }>('/terms', params);
   }
 
+  public async getTerm(id: number | string): Promise<ApiTerm> {
+    return this.get<ApiTerm>(`/terms/${id}`);
+  }
+
   public async getUserTeams(username: string, org: string): Promise<any[]> {
     return this.get<any[]>('/user-teams', { username, org });
   }

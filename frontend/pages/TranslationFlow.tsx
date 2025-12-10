@@ -138,9 +138,8 @@ const TranslationFlow: React.FC = () => {
     try {
       setIsSubmitting(true);
 
-      // First, fetch the full term data to get all existing translations
-      const termsResponse = await backendApi.getTerms();
-      const fullTerm = termsResponse.terms.find((t: any) => t.id === task.term_id);
+      // Fetch the full term data by ID to get all existing translations
+      const fullTerm = await backendApi.getTerm(task.term_id);
 
       if (!fullTerm) {
         throw new Error('Term not found');
