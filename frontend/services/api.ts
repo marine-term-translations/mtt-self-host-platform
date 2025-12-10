@@ -126,7 +126,18 @@ class ApiService {
   }
 
   public async getTerm(id: number | string): Promise<ApiTerm> {
-    return this.get<ApiTerm>(`/terms/${id}`);
+    // Use the paginated /terms endpoint with offset to fetch the specific term
+    // Assumes term IDs are sequential starting from 1
+    const termId = typeof id === 'string' ? parseInt(id, 10) : id;
+    const offset = termId - 1; // Zero-based offset (term ID 1 is at offset 0)
+    
+    const response = await this.getTerms(1, offset);
+    
+    if (response.terms.length === 0) {
+      throw new Error(`Term with ID ${id} not found`);
+    }
+    
+    return response.terms[0];
   }
 
   public async getUserTeams(username: string, org: string): Promise<any[]> {
