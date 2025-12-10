@@ -92,7 +92,9 @@ const Landing: React.FC = () => {
         const mappedUsers = apiUsers
             .map((u: ApiPublicUser) => {
                 let displayName = u.name;
-                if (!displayName && u.extra) {
+                
+                // Prioritize name from extra if available to avoid showing ORCID
+                if (u.extra) {
                     try {
                         const extraData = JSON.parse(u.extra);
                         if (extraData.name) {
