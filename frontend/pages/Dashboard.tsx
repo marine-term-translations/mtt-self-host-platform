@@ -19,6 +19,8 @@ const Dashboard: React.FC = () => {
   });
   const [activities, setActivities] = useState<ApiUserActivity[]>([]);
   const [termsMap, setTermsMap] = useState<Record<number, string>>({});
+  const [userLanguages, setUserLanguages] = useState<string[]>([]);
+  const [selectedFlowLanguage, setSelectedFlowLanguage] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -27,12 +29,20 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
 
-        // Fetch data in parallel
-        const [termsResponse, history, users] = await Promise.all([
+        // Fetch data in parallel including user preferences
+        const [termsResponse, history, users, preferences] = await Promise.all([
           backendApi.getTerms(100, 0), // Limit to 100 terms for dashboard stats
           backendApi.getUserHistory(user.username),
-          backendApi.getUsers()
+          backendApi.getUsers(),
+          backendApi.get<{ nativeLanguage: string; translationLanguages: string[] }>('/user/preferences').catch(() => ({ nativeLanguage: '', translationLanguages: [] }))
         ]);
+
+        // Set user's translation languages
+        const languages = preferences.translationLanguages || [];
+        setUserLanguages(languages);
+        if (languages.length > 0) {
+          setSelectedFlowLanguage(languages[0]);
+        }
 
         // 1. Process Terms for quick stats
         const termIdToLabel: Record<number, string> = {};
@@ -99,6 +109,18 @@ const Dashboard: React.FC = () => {
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  };
+
+  const getLanguageName = (code: string) => {
+    const languageMap: Record<string, string> = {
+      'nl': 'Dutch',
+      'fr': 'French',
+      'de': 'German',
+      'es': 'Spanish',
+      'it': 'Italian',
+      'pt': 'Portuguese'
+    };
+    return languageMap[code] || code.toUpperCase();
   };
 
   const parseExtra = (extra: string | null) => {
@@ -188,14 +210,55 @@ const Dashboard: React.FC = () => {
                 : `There are approximately ${stats.needsTranslationCount} terms waiting for plain English definitions or translations in your language.`
               }
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Link to="/flow" className="inline-flex items-center px-5 py-2.5 bg-white text-marine-700 font-bold rounded-lg hover:bg-slate-100 transition-colors shadow-sm">
-                <Zap size={18} className="mr-2 fill-marine-700" /> Enter Flow Mode
-              </Link>
-              <Link to="/browse" className="inline-flex items-center px-5 py-2.5 bg-marine-700/50 text-white font-semibold rounded-lg hover:bg-marine-700 transition-colors border border-marine-500">
-                Browse All Terms
-              </Link>
-            </div>
+            {userLanguages.length > 0 ? (
+              <>
+                <div className="mb-4">
+                  <label htmlFor="flow-language" className="block text-sm font-medium text-marine-100 mb-2">
+                    Select language for Flow Mode:
+                  </label>
+                  <select
+                    id="flow-language"
+                    value={selectedFlowLanguage}
+                    onChange={(e) => setSelectedFlowLanguage(e.target.value)}
+                    className="w-full max-w-xs px-4 py-2 rounded-lg bg-white text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-marine-300"
+                  >
+                    {userLanguages.map((lang) => (
+                      <option key={lang} value={lang}>
+                        {getLanguageName(lang)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <Link 
+                    to={`/flow?language=${selectedFlowLanguage}`} 
+                    className="inline-flex items-center px-5 py-2.5 bg-white text-marine-700 font-bold rounded-lg hover:bg-slate-100 transition-colors shadow-sm"
+                  >
+                    <Zap size={18} className="mr-2 fill-marine-700" /> Enter Flow Mode
+                  </Link>
+                  <Link to="/browse" className="inline-flex items-center px-5 py-2.5 bg-marine-700/50 text-white font-semibold rounded-lg hover:bg-marine-700 transition-colors border border-marine-500">
+                    Browse All Terms
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4 p-4 bg-marine-700/50 rounded-lg border border-marine-500">
+                  <p className="text-sm text-marine-100">
+                    Please set your translation languages in your{' '}
+                    <Link to="/profile" className="underline font-semibold hover:text-white">
+                      profile settings
+                    </Link>
+                    {' '}to use Flow Mode.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <Link to="/browse" className="inline-flex items-center px-5 py-2.5 bg-white text-marine-700 font-bold rounded-lg hover:bg-slate-100 transition-colors shadow-sm">
+                    Browse All Terms
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
           <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
              <BookOpen size={200} />

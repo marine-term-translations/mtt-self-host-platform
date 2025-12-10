@@ -67,25 +67,28 @@ export interface Language {
 /**
  * Start a new translation flow session
  */
-export async function startFlowSession(): Promise<{
+export async function startFlowSession(language?: string): Promise<{
   success: boolean;
   sessionId: number;
   stats: UserStats;
   challenges: DailyChallenge[];
+  language?: string | null;
 }> {
   return backendApi.post<{
     success: boolean;
     sessionId: number;
     stats: UserStats;
     challenges: DailyChallenge[];
-  }>('/flow/start', {});
+    language?: string | null;
+  }>('/flow/start', { language });
 }
 
 /**
  * Get the next task (review or translation)
  */
-export async function getNextTask(): Promise<FlowTask> {
-  return backendApi.get<FlowTask>('/flow/next');
+export async function getNextTask(language?: string): Promise<FlowTask> {
+  const params = language ? { language } : undefined;
+  return backendApi.get<FlowTask>('/flow/next', params);
 }
 
 /**
