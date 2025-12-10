@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
@@ -181,16 +181,21 @@ const Dashboard: React.FC = () => {
         {/* Call to Action */}
         <div className="lg:col-span-2 bg-gradient-to-r from-marine-600 to-marine-800 rounded-xl p-8 text-white shadow-md relative overflow-hidden">
           <div className="relative z-10">
-            <h3 className="text-xl font-bold mb-2">Needs Translation</h3>
+            <h3 className="text-xl font-bold mb-2">Ready to Contribute?</h3>
             <p className="text-marine-100 mb-6 max-w-md">
               {loading 
                 ? "Analyzing terms library..." 
                 : `There are approximately ${stats.needsTranslationCount} terms waiting for plain English definitions or translations in your language.`
               }
             </p>
-            <Link to="/browse" className="inline-block px-5 py-2.5 bg-white text-marine-700 font-semibold rounded-lg hover:bg-slate-100 transition-colors">
-              Start Translating
-            </Link>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/flow" className="inline-flex items-center px-5 py-2.5 bg-white text-marine-700 font-bold rounded-lg hover:bg-slate-100 transition-colors shadow-sm">
+                <Zap size={18} className="mr-2 fill-marine-700" /> Enter Flow Mode
+              </Link>
+              <Link to="/browse" className="inline-flex items-center px-5 py-2.5 bg-marine-700/50 text-white font-semibold rounded-lg hover:bg-marine-700 transition-colors border border-marine-500">
+                Browse All Terms
+              </Link>
+            </div>
           </div>
           <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
              <BookOpen size={200} />
