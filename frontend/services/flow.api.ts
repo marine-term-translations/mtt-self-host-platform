@@ -73,7 +73,12 @@ export async function startFlowSession(): Promise<{
   stats: UserStats;
   challenges: DailyChallenge[];
 }> {
-  return backendApi.post<any>('/flow/start', {});
+  return backendApi.post<{
+    success: boolean;
+    sessionId: number;
+    stats: UserStats;
+    challenges: DailyChallenge[];
+  }>('/flow/start', {});
 }
 
 /**
@@ -122,7 +127,10 @@ export async function getFlowStats(): Promise<{
   stats: UserStats;
   challenges: DailyChallenge[];
 }> {
-  return backendApi.get<any>('/flow/stats');
+  return backendApi.get<{
+    stats: UserStats;
+    challenges: DailyChallenge[];
+  }>('/flow/stats');
 }
 
 /**
@@ -139,7 +147,10 @@ export async function endFlowSession(sessionId: number): Promise<{
   success: boolean;
   session: FlowSession;
 }> {
-  return backendApi.post<any>('/flow/session/end', { sessionId });
+  return backendApi.post<{
+    success: boolean;
+    session: FlowSession;
+  }>('/flow/session/end', { sessionId });
 }
 
 /**
@@ -154,5 +165,13 @@ export async function getLeaderboard(limit: number = 10): Promise<{
     reputation: number;
   }>;
 }> {
-  return backendApi.get<any>('/flow/leaderboard', { limit: limit.toString() });
+  return backendApi.get<{
+    leaderboard: Array<{
+      user_id: string;
+      points: number;
+      daily_streak: number;
+      username: string;
+      reputation: number;
+    }>;
+  }>('/flow/leaderboard', { limit: limit.toString() });
 }
