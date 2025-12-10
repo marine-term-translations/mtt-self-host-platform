@@ -9,7 +9,6 @@ This document provides a comprehensive step-by-step guide for deploying your own
 - [Environment Configuration](#environment-configuration)
 - [Domain and DNS Setup](#domain-and-dns-setup)
 - [SSL and Let's Encrypt](#ssl-and-lets-encrypt)
-- [Vite Preview Host Configuration](#vite-preview-host-configuration)
 - [Deployment](#deployment)
 - [Post-Deployment Setup](#post-deployment-setup)
 - [Production vs Development](#production-vs-development)
@@ -39,9 +38,9 @@ git --version
 ### System Requirements
 
 - **CPU**: 2+ cores recommended
-- **RAM**: 4GB minimum, 8GB recommended
-- **Disk**: 20GB+ free space
-- **Network**: Open ports 3000, 4173, 5000 (or reverse proxy on 80/443)
+- **RAM**: 2GB minimum, 4GB recommended
+- **Disk**: 10GB+ free space
+- **Network**: Open ports 4173 and 5000 (or reverse proxy on 80/443)
 
 ---
 
@@ -66,80 +65,62 @@ cp .env.example .env
 
 Edit the `.env` file with your configuration. Below is a complete reference of all available variables:
 
-#### Gitea Organization Settings
+#### ORCID OAuth Settings
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GITEA_ORG_NAME` | Yes | `marine-org` | Organization name in Gitea |
-| `GITEA_ORG_FULL_NAME` | No | `Marine Organization` | Full display name |
-| `GITEA_ORG_DESCRIPTION` | No | - | Organization description |
-| `GITEA_ORG_EMAIL` | No | - | Contact email |
-| `GITEA_ORG_LOCATION` | No | - | Organization location |
-| `GITEA_ORG_WEBSITE` | No | - | Organization website URL |
-| `GITEA_ORG_VISIBILITY` | No | `public` | `public` or `private` |
+| `ORCID_CLIENT_ID` | Yes | - | ORCID OAuth client ID |
+| `ORCID_CLIENT_SECRET` | Yes | - | ORCID OAuth client secret |
+| `SESSION_SECRET` | Yes | - | Secret for session encryption (long random string) |
 
-#### Database Settings
+#### Backend Settings
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GITEA_DB_PASS` | Yes | - | PostgreSQL password for Gitea database |
-
-#### Admin Account Settings
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GITEA_ADMIN_USER` | Yes | `admin` | Admin username for Gitea |
-| `GITEA_ADMIN_PASS` | Yes | - | Admin password |
-| `GITEA_ADMIN_EMAIL` | Yes | - | Admin email address |
-| `GITEA_ADMIN_TOKEN` | Post-setup | - | Generated after first login (see Post-Deployment) |
-
-#### Runner Settings
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `RUNNER_TOKEN` | Post-setup | - | Runner registration token from Gitea |
-| `RUNNER_NAME` | No | `marine-runner` | Name for the Actions runner |
+| `NODE_ENV` | No | `development` | Environment mode (`development` or `production`) |
+| `BASE_URL` | No | `http://localhost:5000` | Backend base URL |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Frontend URL for CORS |
 
 #### Frontend Settings
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `VITE_API_URL` | Yes | `http://localhost:5000/api` | Backend API endpoint (browser-accessible) |
-| `VITE_GITEA_URL` | Yes | `http://localhost:3000` | Gitea URL (browser-accessible) |
-
-#### Production Domain Settings
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DOMAIN` | Prod only | `localhost` | Your public domain |
-| `ROOT_URL` | Prod only | `http://localhost:3000/` | Full root URL with protocol |
+| `VITE_DOMAIN` | No | `localhost` | Domain name |
 
 #### Translation Database Settings
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TRANSLATIONS_REPO` | Yes | `translations-data` | Repository name for translations |
-| `TRANSLATIONS_REPO_PATH` | Yes | `backend/translations-data` | Local path to repo |
-| `SQLITE_DB_PATH` | Yes | `backend/translations-data/translations.db` | Path to SQLite database |
+| `SQLITE_DB_PATH` | No | `backend/data/translations.db` | Path to SQLite database |
+
+#### Optional API Settings
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENROUTER_API_KEY` | No | - | OpenRouter API key for AI translation suggestions |
 
 ### Example Production Configuration
 
 ```bash
 # Production domain settings
-DOMAIN=terms.example.org
-ROOT_URL=https://terms.example.org/
+NODE_ENV=production
+BASE_URL=https://mtt.example.org
+FRONTEND_URL=https://mtt.example.org
 
 # Frontend URLs (must be accessible from browser)
-VITE_API_URL=https://terms.example.org/api
-VITE_GITEA_URL=https://terms.example.org/
+VITE_API_URL=https://mtt.example.org/api
+VITE_DOMAIN=mtt.example.org
 
-# Database
-GITEA_DB_PASS=your_secure_password_here
+# ORCID OAuth
+ORCID_CLIENT_ID=APP-XXXXXXXXXXXXXXXX
+ORCID_CLIENT_SECRET=11111111-2222-3333-4444-555555555555
 
-# Admin credentials
-GITEA_ADMIN_USER=admin
-GITEA_ADMIN_PASS=secure_admin_password
-GITEA_ADMIN_EMAIL=admin@example.org
+# Session security
+SESSION_SECRET=your-very-long-random-string-here-change-this
+
+# Optional: AI translation assistance
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
 ---
@@ -227,8 +208,7 @@ With a `Caddyfile`:
 ```
 terms.example.org {
     reverse_proxy /api/* backend:5000
-    reverse_proxy /app/* frontend:4173
-    reverse_proxy gitea:3000
+    reverse_proxy /* frontend:4173
 }
 ```
 
@@ -236,44 +216,40 @@ terms.example.org {
 
 Use an external nginx installation with Certbot for SSL certificates.
 
----
+Example nginx configuration:
 
-## Vite Preview Host Configuration
+```nginx
+server {
+    listen 443 ssl;
+    server_name mtt.example.org;
+    
+    ssl_certificate /etc/letsencrypt/live/mtt.example.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mtt.example.org/privkey.pem;
 
-The frontend uses Vite in preview mode, which requires whitelisting allowed hosts for security.
+    # Backend API routes
+    location /api/ {
+        proxy_pass http://localhost:5000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 
-### Adding Custom Domains
+    # Frontend
+    location / {
+        proxy_pass http://localhost:4173/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 
-Edit `frontend/vite.config.ts`:
-
-```typescript
-preview: {
-  port: 4173,
-  host: '0.0.0.0',
-  allowedHosts: [
-    'localhost',
-    '127.0.0.1',
-    'terms.yourdomain.org',  // Add your domain here
-    // Or allow all subdomains:
-    // '.yourdomain.org',
-  ],
-},
-```
-
-### Quick Fix for Development
-
-For quick testing (not recommended for production):
-
-```typescript
-preview: {
-  allowedHosts: 'all',
-},
-```
-
-After modifying, rebuild the frontend:
-
-```bash
-docker compose up -d --build frontend
+server {
+    listen 80;
+    server_name mtt.example.org;
+    return 301 https://$server_name$request_uri;
+}
 ```
 
 ---
@@ -285,14 +261,13 @@ docker compose up -d --build frontend
 ```bash
 # 1. Copy and configure environment
 cp .env.example .env
-# Edit .env with your settings
+# Edit .env with your ORCID credentials and settings
 
-# 2. Copy runner configuration
-cp runner/config.yaml.template runner/config.yaml
-
-# 3. Deploy
+# 2. Deploy
 docker compose up -d --build
 ```
+
+The database will be automatically initialized on first startup.
 
 ### Verify Deployment
 
@@ -306,7 +281,6 @@ docker compose logs -f
 # Check individual service
 docker compose logs frontend
 docker compose logs backend
-docker compose logs gitea
 ```
 
 ---
@@ -315,54 +289,40 @@ docker compose logs gitea
 
 After initial deployment, complete these steps:
 
-### 1. Create Admin Account
+### 1. Register ORCID OAuth Application
 
-1. Navigate to `http://localhost:3000` (or your domain)
-2. Register using credentials from `.env`:
-   - Username: `GITEA_ADMIN_USER`
-   - Password: `GITEA_ADMIN_PASS`
-   - Email: `GITEA_ADMIN_EMAIL`
+Before using the platform, register an OAuth application with ORCID:
 
-### 2. Generate Admin API Token
+1. Go to https://orcid.org/developer-tools
+2. Sign in with your ORCID iD
+3. Navigate to "Developer Tools" → "Register for the free public API"
+4. Fill in application details:
+   - **Application name**: Marine Term Translations
+   - **Website URL**: Your domain (e.g., `https://mtt.example.org`)
+   - **Description**: Translation platform for marine terminology
+   - **Redirect URI**: `http://localhost:5000/api/auth/orcid/callback` (for development) or `https://mtt.example.org/api/auth/orcid/callback` (for production)
 
-1. Log in to Gitea as admin
-2. Go to **Settings** → **Applications**
-3. Under "Generate New Token", enter a name (e.g., `admin-api-token`)
-4. Click **Generate Token**
-5. Copy the token and add to `.env`:
+5. Copy the Client ID and Client Secret
+6. Add them to your `.env` file:
+   ```bash
+   ORCID_CLIENT_ID=APP-XXXXXXXXXXXXXXXX
+   ORCID_CLIENT_SECRET=11111111-2222-3333-4444-555555555555
    ```
-   GITEA_ADMIN_TOKEN=<your-generated-token>
-   ```
 
-### 3. Restart Services
+### 2. Restart Services
 
 ```bash
 docker compose restart
 ```
 
-### 4. Run Setup Script
+### 3. Access the Application
 
-```bash
-sh ./infra/setup-gitea.sh
-```
+1. Navigate to `http://localhost:4173` (or your domain)
+2. Click "Sign in with ORCID"
+3. Authenticate with your ORCID iD
+4. You will be redirected back to the application
 
-This creates the translations repository with the database schema.
-
-### 5. Register the Actions Runner
-
-1. Log in to Gitea as admin
-2. Navigate to the translations repository
-3. Go to **Settings** → **Actions** → **Runners**
-4. Click **Create new Runner**
-5. Copy the registration token
-6. Add to `.env`:
-   ```
-   RUNNER_TOKEN=<your-runner-token>
-   ```
-7. Rebuild services:
-   ```bash
-   sh infra/rebuild.sh
-   ```
+The database will be automatically created and initialized with the schema on first startup.
 
 ---
 
@@ -374,25 +334,35 @@ Default configuration runs in development mode:
 
 ```bash
 # Uses localhost URLs
+NODE_ENV=development
+BASE_URL=http://localhost:5000
+FRONTEND_URL=http://localhost:5173
 VITE_API_URL=http://localhost:5000/api
-VITE_GITEA_URL=http://localhost:3000
 ```
 
 Access locally:
-- Gitea: http://localhost:3000
+- Frontend: http://localhost:4173
 - Backend API: http://localhost:5000/api
 - API Docs: http://localhost:5000/api/docs
-- Frontend: http://localhost:4173
+
+**ORCID Redirect URI for development:**
+```
+http://localhost:5000/api/auth/orcid/callback
+```
 
 ### Production Mode
 
 Update `.env` for production:
 
 ```bash
-DOMAIN=terms.example.org
-ROOT_URL=https://terms.example.org/
-VITE_API_URL=https://terms.example.org/api
-VITE_GITEA_URL=https://terms.example.org/
+NODE_ENV=production
+BASE_URL=https://mtt.example.org
+FRONTEND_URL=https://mtt.example.org
+VITE_API_URL=https://mtt.example.org/api
+VITE_DOMAIN=mtt.example.org
+
+# Update ORCID redirect URI in ORCID Developer Tools to:
+# https://mtt.example.org/api/auth/orcid/callback
 ```
 
 Rebuild with:
@@ -400,6 +370,8 @@ Rebuild with:
 ```bash
 docker compose up -d --build
 ```
+
+**Important:** Update the redirect URI in your ORCID OAuth application to match your production domain.
 
 ---
 
@@ -418,8 +390,9 @@ docker compose up -d --build
 ### Update with Data Preservation
 
 ```bash
-# Backup first
-sh infra/backup.sh
+# Backup database first
+mkdir -p backups
+cp backend/data/translations.db backups/translations-$(date +%Y%m%d-%H%M%S).db
 
 # Pull changes
 git pull origin main
@@ -430,29 +403,22 @@ docker compose up -d --build
 
 ### Full Reset (Data Loss)
 
+⚠️ **WARNING**: This will delete all data including the database.
+
 ```bash
-# Stop and wipe all data
-sh infra/rebuild.sh --wipe
+# Stop containers
+docker compose down
+
+# Remove database
+rm -rf backend/data/
+
+# Restart fresh
+docker compose up -d --build
 ```
 
 ---
 
 ## Troubleshooting
-
-### Blocked Host Error
-
-**Symptom**: Browser shows "Blocked host" or similar error when accessing frontend.
-
-**Solution**: Add your domain to `frontend/vite.config.ts` under `preview.allowedHosts`:
-
-```typescript
-allowedHosts: [
-  'localhost',
-  'your-domain.org',
-],
-```
-
-Then rebuild: `docker compose up -d --build frontend`
 
 ### Port Conflicts
 
@@ -462,11 +428,11 @@ Then rebuild: `docker compose up -d --build frontend`
 
 ```bash
 # Find what's using a port
-lsof -i :3000
+lsof -i :5000
 
 # Or change in docker-compose.yml:
 ports:
-  - "3001:3000"  # Map host 3001 to container 3000
+  - "5001:5000"  # Map host 5001 to container 5000
 ```
 
 ### SSL Certificate Issues
@@ -479,65 +445,42 @@ ports:
 3. Ensure ports 80 and 443 are open
 4. Wait for certificate propagation (can take a few minutes)
 
-### Runner Connection Errors
+### ORCID Callback Fails
 
-**Symptom**: Runner shows "cannot connect to Gitea" errors.
+**Symptom**: Redirect to `/login?error=invalid_state` or error after ORCID login.
+
+**Solution**:
+1. Ensure `BASE_URL` in backend matches the domain: `BASE_URL=https://mtt.example.org`
+2. Check ORCID redirect URI is exactly: `https://mtt.example.org/api/auth/orcid/callback`
+3. Verify `NODE_ENV=production` is set (for secure cookies over HTTPS)
+4. Check that SESSION_SECRET is set and consistent
+
+### Session Doesn't Persist
+
+**Symptom**: Logged out after page refresh.
+
+**Solution**:
+1. Ensure `NODE_ENV=production` (enables secure cookies over HTTPS)
+2. Check that cookies are being set (browser DevTools > Application > Cookies)
+3. Verify cookie domain matches your domain
+4. Ensure SESSION_SECRET is configured
+
+### Database Initialization Fails
+
+**Symptom**: Backend fails to start or shows database errors.
 
 **Solution**:
 
 ```bash
-# Remove cached runner configuration
-rm runner/.runner
+# Check backend logs
+docker compose logs backend
 
-# Restart runner
-docker compose restart runner
-```
+# Ensure data directory exists and is writable
+mkdir -p backend/data
+chmod 755 backend/data
 
-### Workflow Jobs Cannot Access Gitea
-
-**Symptom**: Jobs fail with "Could not resolve host: gitea".
-
-**Solution**:
-
-1. Ensure `runner/config.yaml` exists:
-   ```bash
-   cp runner/config.yaml.template runner/config.yaml
-   ```
-2. Verify it contains:
-   ```yaml
-   container:
-     options: "--add-host=gitea:host-gateway"
-   ```
-3. Restart: `docker compose restart runner`
-
-### Database Connection Errors
-
-**Symptom**: Backend fails to connect to database.
-
-**Solution**:
-
-```bash
-# Check Gitea health
-docker compose logs gitea
-
-# Verify PostgreSQL is running
-docker compose logs db
-
-# Wait for health check
-docker compose ps
-```
-
-### Container Startup Order Issues
-
-**Symptom**: Services fail because dependencies aren't ready.
-
-**Solution**: The `docker-compose.yml` includes health checks. If issues persist:
-
-```bash
-# Start in dependency order
-docker compose up -d db
-docker compose up -d gitea
-docker compose up -d backend frontend runner
+# Restart backend
+docker compose restart backend
 ```
 
 ### View All Logs
@@ -550,7 +493,21 @@ docker compose logs -f
 docker compose logs -f backend
 
 # Last 100 lines
-docker compose logs --tail=100 gitea
+docker compose logs --tail=100 backend
+```
+
+### Frontend Build Issues
+
+**Symptom**: Frontend fails to build or shows errors.
+
+**Solution**:
+
+```bash
+# Check frontend logs
+docker compose logs frontend
+
+# Rebuild frontend
+docker compose up -d --build frontend
 ```
 
 ---
@@ -559,4 +516,4 @@ docker compose logs --tail=100 gitea
 
 - **GitHub Issues**: [Report bugs or request features](https://github.com/marine-term-translations/mtt-self-host-platform/issues)
 - **Documentation**: Check other docs in this repository
-- **Gitea Actions**: See [Gitea Act Runner documentation](https://gitea.com/gitea/act_runner)
+- **ORCID OAuth**: See [ORCID Developer Documentation](https://info.orcid.org/documentation/integration-guide/)
