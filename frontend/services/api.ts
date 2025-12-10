@@ -140,6 +140,35 @@ class ApiService {
     return response.terms[0];
   }
 
+  public async getTermByUri(uri: string): Promise<ApiTerm> {
+    // Normalize URI for comparison (remove trailing slashes)
+    const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
+    const normalizedSearchUri = normalizeUri(uri);
+    
+    // Fetch terms in pages until we find the matching URI
+    const pageSize = 100; // Fetch 100 at a time for efficiency
+    let offset = 0;
+    let total = 0;
+    
+    do {
+      const response = await this.getTerms(pageSize, offset);
+      total = response.total;
+      
+      // Search for matching URI in this page
+      const foundTerm = response.terms.find(
+        (t: ApiTerm) => normalizeUri(t.uri) === normalizedSearchUri
+      );
+      
+      if (foundTerm) {
+        return foundTerm;
+      }
+      
+      offset += pageSize;
+    } while (offset < total);
+    
+    throw new Error(`Term with URI "${uri}" not found`);
+  }
+
   public async getUserTeams(username: string, org: string): Promise<any[]> {
     return this.get<any[]>('/user-teams', { username, org });
   }
