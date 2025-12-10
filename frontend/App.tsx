@@ -16,6 +16,7 @@ import History from './pages/History';
 import Reputation from './pages/Reputation';
 import Leaderboard from './pages/Leaderboard';
 import Documentation from './pages/Documentation';
+import TranslationFlow from './pages/TranslationFlow';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
@@ -64,6 +65,11 @@ const App: React.FC = () => {
         <Route path="/browse" element={
           <ProtectedRoute>
             <Browse />
+          </ProtectedRoute>
+        } />
+        <Route path="/flow" element={
+          <ProtectedRoute>
+            <TranslationFlow />
           </ProtectedRoute>
         } />
         <Route path="/term/:id" element={
