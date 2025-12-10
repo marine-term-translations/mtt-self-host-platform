@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
@@ -24,6 +24,13 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]?.code || 'nl');
   const [translationValue, setTranslationValue] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+
+  // Update selected language if languages prop changes (e.g. from loading state)
+  useEffect(() => {
+    if (languages.length > 0 && !languages.find(l => l.code === selectedLanguage)) {
+        setSelectedLanguage(languages[0].code);
+    }
+  }, [languages, selectedLanguage]);
 
   if (!task) {
     return null;
@@ -235,8 +242,10 @@ Original Text (${task.field_term}): "${task.original_value}"`;
 
         {taskType === 'translate' && (
             <form onSubmit={handleTranslationSubmit} className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="sm:w-1/3">
+                
+                {/* Language Selection - Only show if multiple languages available */}
+                {languages.length > 1 && (
+                    <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                              Target Language
                         </label>
@@ -253,28 +262,28 @@ Original Text (${task.field_term}): "${task.original_value}"`;
                             ))}
                         </select>
                     </div>
-                    <div className="flex-grow flex items-end">
-                         <button
+                )}
+
+                <div>
+                    <div className="flex justify-between items-end mb-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Your Translation {languages.length === 1 && <span className="text-slate-500 font-normal">({languages[0].name})</span>}
+                        </label>
+                        <button
                             type="button"
                             onClick={handleAiSuggest}
                             disabled={aiLoading || isSubmitting}
-                            className="mb-1 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ml-auto"
+                            className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5"
                          >
-                            {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                            {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                             AI Suggest
                          </button>
                     </div>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Your Translation
-                    </label>
                     <div className="relative">
                         <textarea
                             value={translationValue}
                             onChange={(e) => setTranslationValue(e.target.value)}
-                            placeholder={`Enter ${languages.find(l => l.code === selectedLanguage)?.name} translation...`}
+                            placeholder={`Enter ${languages.find(l => l.code === selectedLanguage)?.name || ''} translation...`}
                             rows={4}
                             className="w-full px-5 py-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 focus:border-marine-500 outline-none resize-none shadow-sm transition-shadow text-lg"
                             disabled={isSubmitting}
