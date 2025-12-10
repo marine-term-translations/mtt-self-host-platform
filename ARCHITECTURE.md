@@ -174,23 +174,22 @@ sequenceDiagram
 ```
 /api
 ├── /auth
-│   ├── POST /login
-│   ├── POST /logout
-│   └── GET /user
+│   ├── GET /orcid (initiate OAuth)
+│   ├── GET /orcid/callback (OAuth callback)
+│   ├── GET /me (get current user)
+│   └── POST /logout (logout)
 ├── /terms
 │   ├── GET / (list terms)
 │   ├── GET /:id (get term)
 │   ├── POST / (create term)
 │   └── PUT /:id (update term)
 ├── /teams
-│   ├── GET / (list teams)
+│   ├── GET / (list teams - currently returns empty)
 │   └── POST / (create team)
 ├── /appeals
 │   ├── GET / (list appeals)
 │   ├── POST / (create appeal)
 │   └── PUT /:id (resolve appeal)
-├── /setup-gitea
-│   └── POST / (initialize Gitea org)
 └── /docs
     └── Swagger UI
 ```

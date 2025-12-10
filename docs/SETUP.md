@@ -208,8 +208,7 @@ With a `Caddyfile`:
 ```
 terms.example.org {
     reverse_proxy /api/* backend:5000
-    reverse_proxy /app/* frontend:4173
-    reverse_proxy gitea:3000
+    reverse_proxy /* frontend:4173
 }
 ```
 
@@ -246,7 +245,6 @@ docker compose logs -f
 # Check individual service
 docker compose logs frontend
 docker compose logs backend
-docker compose logs gitea
 ```
 
 ---
