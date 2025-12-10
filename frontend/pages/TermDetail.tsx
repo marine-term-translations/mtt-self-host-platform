@@ -243,9 +243,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
             method: "POST",
             headers: {
               "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
-              "Content-Type": "application/json",
-              "HTTP-Referer": CONFIG.DOMAIN, 
-              "X-Title": "Marine Term Translations" 
+              "Content-Type": "application/json"
             },
             body: JSON.stringify({
               model: model.id,
