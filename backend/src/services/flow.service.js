@@ -13,14 +13,14 @@ const {
  * Get pending reviews for a user (reviews they need to do, not their own translations)
  * Returns translations that are in 'review' status and not created by the user
  * @param {string} userId - Username/ORCID
+ * @param {string} language - Optional language filter
  * @returns {array} Array of translations needing review
  */
-function getPendingReviews(userId) {
+function getPendingReviews(userId, language = null) {
   const db = getDatabase();
   
-  // Get translations in 'review' status that the user didn't create
-  const reviews = db.prepare(
-    `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
+  // Build query with optional language filter
+  let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
             t.created_by, t.created_at,
             tf.field_uri, tf.field_term, tf.original_value,
             term.id as term_id, term.uri as term_uri
@@ -29,10 +29,18 @@ function getPendingReviews(userId) {
      JOIN terms term ON tf.term_id = term.id
      WHERE t.status = 'review' 
        AND t.created_by != ?
-       AND (t.reviewed_by IS NULL OR t.reviewed_by = '')
-     ORDER BY t.created_at ASC
-     LIMIT 1`
-  ).get(userId);
+       AND (t.reviewed_by IS NULL OR t.reviewed_by = '')`;
+  
+  const params = [userId];
+  
+  if (language) {
+    query += ` AND t.language = ?`;
+    params.push(language);
+  }
+  
+  query += ` ORDER BY t.created_at ASC LIMIT 1`;
+  
+  const reviews = db.prepare(query).get(...params);
   
   if (!reviews) {
     return null;
@@ -55,39 +63,65 @@ function getPendingReviews(userId) {
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
  * @param {string} userId - Username/ORCID (optional, for filtering)
+ * @param {string} language - Optional language filter
  * @returns {object|null} Term field needing translation
  */
-function getRandomUntranslated(userId) {
+function getRandomUntranslated(userId, language = null) {
   const db = getDatabase();
   
-  // Get term fields that have no translations or incomplete translations
-  // Focus on 'definition' and 'prefLabel' fields
-  const untranslated = db.prepare(
-    `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
+  // Build query with optional language filter
+  let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
             term.id as term_id, term.uri as term_uri
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE (tf.field_term LIKE '%definition%' OR tf.field_term LIKE '%prefLabel%')
-       AND tf.id NOT IN (
+     WHERE (tf.field_term LIKE '%definition%' OR tf.field_term LIKE '%prefLabel%')`;
+  
+  const params = [];
+  
+  if (language) {
+    query += ` AND tf.id NOT IN (
+         SELECT term_field_id FROM translations WHERE language = ?
+       )`;
+    params.push(language);
+  } else {
+    query += ` AND tf.id NOT IN (
          SELECT term_field_id FROM translations WHERE language IN ('nl', 'fr', 'de', 'es', 'it', 'pt')
-       )
-     ORDER BY RANDOM()
-     LIMIT 1`
-  ).get();
+       )`;
+  }
+  
+  query += ` ORDER BY RANDOM() LIMIT 1`;
+  
+  const untranslated = db.prepare(query).get(...params);
   
   if (!untranslated) {
     // Try to find fields with partial translations
-    const partiallyTranslated = db.prepare(
-      `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
+    let partialQuery = `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
               term.id as term_id, term.uri as term_uri,
-              (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id) as translation_count
+              (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
+    
+    if (language) {
+      partialQuery += ` AND language = ?`;
+    }
+    
+    partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
        WHERE (tf.field_term LIKE '%definition%' OR tf.field_term LIKE '%prefLabel%')
-         AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id) < 6
-       ORDER BY translation_count ASC, RANDOM()
-       LIMIT 1`
-    ).get();
+         AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
+    
+    const partialParams = [];
+    
+    if (language) {
+      partialQuery += ` AND language = ?`;
+      partialParams.push(language);
+      partialQuery += `) < 1`;
+    } else {
+      partialQuery += `) < 6`;
+    }
+    
+    partialQuery += ` ORDER BY translation_count ASC, RANDOM() LIMIT 1`;
+    
+    const partiallyTranslated = db.prepare(partialQuery).get(...partialParams);
     
     if (!partiallyTranslated) {
       return null;
@@ -122,11 +156,12 @@ function getRandomUntranslated(userId) {
 /**
  * Get the next task for the user (review or translate)
  * @param {string} userId - Username/ORCID
+ * @param {string} language - Optional language filter
  * @returns {object} Next task object
  */
-function getNextTask(userId) {
+function getNextTask(userId, language = null) {
   // Priority 1: Pending reviews
-  const review = getPendingReviews(userId);
+  const review = getPendingReviews(userId, language);
   if (review) {
     return {
       type: 'review',
@@ -135,7 +170,7 @@ function getNextTask(userId) {
   }
   
   // Priority 2: Untranslated terms
-  const untranslated = getRandomUntranslated(userId);
+  const untranslated = getRandomUntranslated(userId, language);
   if (untranslated) {
     return {
       type: 'translate',

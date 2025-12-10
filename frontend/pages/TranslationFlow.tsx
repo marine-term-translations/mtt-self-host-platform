@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Sparkles, Home, TrendingUp } from 'lucide-react';
 import FlowTermCard from '../components/FlowTermCard';
@@ -21,6 +21,8 @@ import {
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedLanguage = searchParams.get('language') || undefined;
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
@@ -42,7 +44,7 @@ const TranslationFlow: React.FC = () => {
 
         // Start session and get languages in parallel
         const [sessionData, languagesData] = await Promise.all([
-          startFlowSession(),
+          startFlowSession(selectedLanguage),
           getAvailableLanguages(),
         ]);
 
@@ -52,7 +54,7 @@ const TranslationFlow: React.FC = () => {
         setLanguages(languagesData.languages);
 
         // Get first task
-        const task = await getNextTask();
+        const task = await getNextTask(selectedLanguage);
         setCurrentTask(task);
       } catch (error) {
         console.error('Failed to initialize flow:', error);
@@ -65,12 +67,12 @@ const TranslationFlow: React.FC = () => {
     if (user) {
       initFlow();
     }
-  }, [user]);
+  }, [user, selectedLanguage]);
 
   // Load next task
   const loadNextTask = async () => {
     try {
-      const task = await getNextTask();
+      const task = await getNextTask(selectedLanguage);
       setCurrentTask(task);
     } catch (error) {
       console.error('Failed to load next task:', error);
@@ -266,6 +268,11 @@ const TranslationFlow: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
               <TrendingUp className="w-8 h-8 text-blue-600" />
               Translation Flow
+              {selectedLanguage && (
+                <span className="text-sm font-semibold px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
+                  {languages.find(l => l.code === selectedLanguage)?.name || selectedLanguage.toUpperCase()}
+                </span>
+              )}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               Complete tasks to earn points and maintain your streak!
@@ -285,7 +292,11 @@ const TranslationFlow: React.FC = () => {
             <FlowTermCard
               task={currentTask.task}
               taskType={currentTask.type as 'review' | 'translate'}
-              languages={languages}
+              languages={
+                selectedLanguage && currentTask.type === 'translate'
+                  ? languages.filter(lang => lang.code === selectedLanguage)
+                  : languages
+              }
               onSubmitReview={handleSubmitReview}
               onSubmitTranslation={handleSubmitTranslation}
               isSubmitting={isSubmitting}
