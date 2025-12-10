@@ -13,6 +13,7 @@ const {
   applyMergeReward,
   applyCreationReward,
 } = require("../services/reputation.service");
+const { harvestCollection, harvestCollectionWithProgress } = require("../services/harvest.service");
 
 /**
  * @openapi
@@ -672,11 +673,202 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     }
     // 5. Commit and push after DB update
     console.log("Committing and pushing changes", { id, username });
-    gitCommitAndPush(`Term ${id} updated by ${username}`, username);
     console.log("PUT /terms/:id success", { id, uri });
     res.json({ id, uri });
   } catch (err) {
     console.error("PUT /terms/:id error", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/harvest:
+ *   post:
+ *     summary: Harvest terms from a SKOS collection URI
+ *     description: Fetches terms from a SPARQL endpoint and populates the translations database
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               collectionUri:
+ *                 type: string
+ *                 description: URI of the SKOS collection to harvest
+ *                 example: 'http://vocab.nerc.ac.uk/collection/P01/current/'
+ *     responses:
+ *       200:
+ *         description: Harvest completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 termsInserted:
+ *                   type: integer
+ *                 termsUpdated:
+ *                   type: integer
+ *                 fieldsInserted:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid request - missing collection URI
+ *       401:
+ *         description: Not authenticated
+ *       500:
+ *         description: Harvest failed
+ */
+router.post("/harvest", writeLimiter, async (req, res) => {
+  const { collectionUri } = req.body;
+  
+  if (!collectionUri) {
+    return res.status(400).json({ error: "Missing collectionUri" });
+  }
+  
+  // Require authentication for harvest operations
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  try {
+    console.log(`[Harvest API] Starting harvest for: ${collectionUri}`);
+    const result = await harvestCollection(collectionUri);
+    
+    res.json({
+      success: result.success,
+      termsInserted: result.termsInserted,
+      termsUpdated: result.termsUpdated,
+      fieldsInserted: result.fieldsInserted,
+      message: `Harvest completed: ${result.termsInserted} terms inserted, ${result.termsUpdated} terms updated, ${result.fieldsInserted} fields inserted`,
+    });
+  } catch (err) {
+    console.error(`[Harvest API] Error:`, err);
+    res.status(500).json({ 
+      error: "Harvest failed", 
+      details: err.message 
+    });
+  }
+});
+
+/**
+ * @openapi
+ * /api/harvest/stream:
+ *   post:
+ *     summary: Harvest terms from a SKOS collection URI with real-time progress updates
+ *     description: Fetches terms from a SPARQL endpoint and streams progress updates using Server-Sent Events (SSE)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               collectionUri:
+ *                 type: string
+ *                 description: URI of the SKOS collection to harvest
+ *                 example: 'http://vocab.nerc.ac.uk/collection/P01/current/'
+ *     responses:
+ *       200:
+ *         description: Server-Sent Events stream with progress updates
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *       400:
+ *         description: Invalid request - missing collection URI
+ *       401:
+ *         description: Not authenticated
+ */
+router.post("/harvest/stream", writeLimiter, async (req, res) => {
+  const { collectionUri } = req.body;
+  
+  if (!collectionUri) {
+    return res.status(400).json({ error: "Missing collectionUri" });
+  }
+  
+  // Require authentication for harvest operations
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  // Set headers for Server-Sent Events
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  // Disable nginx buffering for real-time streaming (not needed in all environments)
+  res.setHeader('X-Accel-Buffering', 'no');
+  
+  // CORS headers for SSE streaming
+  // SSE requires explicit CORS headers on the response, even when app-level CORS middleware
+  // is configured, because the streaming response is sent progressively over time
+  if (req.headers.origin) {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  /**
+   * Helper function to safely send SSE messages with error handling
+   */
+  const sendSSE = (data) => {
+    try {
+      const jsonData = JSON.stringify(data);
+      res.write(`data: ${jsonData}\n\n`);
+      return true;
+    } catch (err) {
+      console.error('[Harvest Stream API] Failed to serialize SSE data:', err);
+      try {
+        // Send a simplified error message
+        res.write(`data: ${JSON.stringify({ 
+          type: 'error', 
+          message: 'Failed to serialize progress data' 
+        })}\n\n`);
+      } catch (e) {
+        // If even the error message fails, just log it
+        console.error('[Harvest Stream API] Failed to send error message:', e);
+      }
+      return false;
+    }
+  };
+
+  // Send initial connection message
+  sendSSE({ type: 'connected', message: 'Connected to harvest stream' });
+
+  try {
+    console.log(`[Harvest Stream API] Starting harvest for: ${collectionUri}`);
+    
+    // Execute harvest with progress callback
+    const result = await harvestCollectionWithProgress(collectionUri, (progress) => {
+      // Send progress update via SSE with error handling
+      sendSSE(progress);
+    });
+    
+    // Send final completion message
+    sendSSE({ 
+      type: 'done', 
+      message: 'Harvest completed successfully',
+      data: {
+        success: result.success,
+        termsInserted: result.termsInserted,
+        termsUpdated: result.termsUpdated,
+        fieldsInserted: result.fieldsInserted
+      }
+    });
+    
+    res.end();
+  } catch (err) {
+    console.error(`[Harvest Stream API] Error:`, err);
+    
+    // Send error via SSE
+    sendSSE({ 
+      type: 'error', 
+      message: err.message || 'Unknown error occurred' 
+    });
+    
+    res.end();
   }
 });

@@ -90,14 +90,29 @@ const Landing: React.FC = () => {
 
         // Map and sort users by reputation (taking top 8)
         const mappedUsers = apiUsers
-            .map((u: ApiPublicUser) => ({
-                name: u.username, 
-                username: u.username,
-                avatar: `https://ui-avatars.com/api/?name=${u.username}&background=0ea5e9&color=fff`,
-                contributions: contributionsMap[u.username] || 0,
-                reputation: u.reputation,
-                role: u.reputation >= 500 ? "Trusted Contributor" : "Contributor"
-            }))
+            .map((u: ApiPublicUser) => {
+                let displayName = u.name;
+                if (!displayName && u.extra) {
+                    try {
+                        const extraData = JSON.parse(u.extra);
+                        if (extraData.name) {
+                            displayName = extraData.name;
+                        }
+                    } catch (e) {
+                        // ignore parsing error
+                    }
+                }
+                const nameToUse = displayName || u.username;
+                
+                return {
+                    name: nameToUse, 
+                    username: u.username,
+                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=0ea5e9&color=fff`,
+                    contributions: contributionsMap[u.username] || 0,
+                    reputation: u.reputation,
+                    role: u.reputation >= 500 ? "Trusted Contributor" : "Contributor"
+                };
+            })
             .sort((a, b) => b.reputation - a.reputation)
             .slice(0, 8);
 
