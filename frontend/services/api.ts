@@ -123,7 +123,11 @@ class ApiService {
     if (limit !== undefined) params.limit = limit.toString();
     if (offset !== undefined) params.offset = offset.toString();
     
-    const response = await this.get<any>('/terms', params);
+    type TermsResponse = 
+      | ApiTerm[] 
+      | { terms: ApiTerm[], total: number, limit: number, offset: number };
+    
+    const response = await this.get<TermsResponse>('/terms', params);
     
     // Handle both old format (array) and new format (object with pagination)
     if (Array.isArray(response)) {
