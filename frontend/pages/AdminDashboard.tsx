@@ -49,13 +49,13 @@ const AdminDashboard: React.FC = () => {
         });
 
         // 3. Prepare Time Series Data (Mocking buckets based on available timestamps)
-        const sortedTimestamps = timestamps.sort((a, b) => a - b);
+        const sortedTimestamps = timestamps.sort((a: number, b: number) => a - b);
         
         const buckets: Record<string, number> = {};
         
         // If no data, use empty
         if (sortedTimestamps.length > 0) {
-             sortedTimestamps.forEach(ts => {
+             sortedTimestamps.forEach((ts: number) => {
                  const d = new Date(ts);
                  const key = `${d.getMonth()+1}/${d.getDate()}`; // Simple Day bucket
                  buckets[key] = (buckets[key] || 0) + 1;
@@ -88,7 +88,9 @@ const AdminDashboard: React.FC = () => {
 
   // Simple Bar Chart for Status
   const renderStatusBars = () => {
-     const max = Math.max(...Object.values(statusDist), 1);
+     // Fix: Cast Object.values to number[] to handle TS 'unknown' inference
+     const values = Object.values(statusDist) as number[];
+     const max = Math.max(...values, 1);
      const colors: Record<string, string> = {
          merged: 'bg-purple-500', approved: 'bg-green-500', review: 'bg-amber-500', draft: 'bg-slate-400', rejected: 'bg-red-500'
      };

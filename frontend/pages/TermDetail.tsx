@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser } from '../types';
@@ -184,60 +185,118 @@ const TermDetail: React.FC = () => {
   };
 
   const handleAiSuggest = async (field: ApiField) => {
+    console.log("handleAiSuggest started for field:", field.id);
     if (!selectedLang) {
+      console.log("No language selected");
       toast.error("Please select a target language first");
       return;
     }
-    
+
     setAiLoading(prev => ({ ...prev, [field.id]: true }));
 
     try {
-      const type = field.field_term.includes('definition') ? 'definition' : 'term';
-      const prompt = `You are a professional marine scientist and translator. 
-Translate the following ${type} into ${selectedLang}.
-Keep the translation scientific, accurate, and natural. 
-Do not add explanations, only provide the translation.
-
-Original Text (${field.field_term}): "${field.original_value}"`;
-
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
+      console.log("Fetching models from OpenRouter...");
+      // Fetch current free models once
+      const modelsResponse = await fetch("https://openrouter.ai/api/v1/models", {
+        method: "GET",
         headers: {
           "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
           "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: "arcee-ai/trinity-mini:free",
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ]
-        })
+        }
       });
 
-      if (!response.ok) {
-        throw new Error("AI Service unavailable");
+      if (!modelsResponse.ok) {
+        console.error("Failed to fetch models", modelsResponse.status);
+        throw new Error("Failed to fetch free models");
       }
 
-      const data = await response.json();
-      const suggestion = data.choices?.[0]?.message?.content?.trim();
+      const modelsData = await modelsResponse.json();
+      console.log("Models fetched:", modelsData.data?.length);
+
+      const freeModels = modelsData.data.filter((m: any) => 
+        m.id.includes(":free")
+      );
+      console.log("Filtered free models:", freeModels.map((m: any) => m.id));
+
+      if (freeModels.length === 0) {
+        console.error("No free models found with ':free' in ID");
+        throw new Error("No free models available");
+      }
+
+      const type = field.field_term.includes('definition') ? 'definition' : 'term';
+      const prompt = `You are a professional marine scientist and translator.
+Translate the following ${type} into ${selectedLang}.
+Keep the translation scientific, accurate, and natural.
+Do not add explanations, only provide the translation.
+Original Text (${field.field_term}): "${field.original_value}"`;
+      
+      console.log("Prompt prepared:", prompt);
+
+      let suggestion: string | null = null;
+      let successfulModel: { id: string; name: string } | null = null;
+
+      // Loop through free models until one succeeds
+      for (const model of freeModels) {
+        try {
+          console.log(`Trying model: ${model.id}`);
+          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+              "Content-Type": "application/json",
+              "HTTP-Referer": CONFIG.DOMAIN, 
+              "X-Title": "Marine Term Translations" 
+            },
+            body: JSON.stringify({
+              model: model.id,
+              messages: [
+                {
+                  role: "user",
+                  content: prompt
+                }
+              ]
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`Model ${model.id} response data:`, data);
+            const candidateSuggestion = data.choices?.[0]?.message?.content?.trim();
+            if (candidateSuggestion) {
+              suggestion = candidateSuggestion;
+              successfulModel = { id: model.id, name: model.name };
+              console.log("Suggestion received:", suggestion);
+              break; // Success! Stop looping
+            } else {
+                console.warn(`Model ${model.id} returned empty content`);
+            }
+          } else {
+             console.warn(`Model ${model.id} response not OK:`, response.status);
+          }
+        } catch (modelError) {
+          console.warn(`Model ${model.id} failed:`, modelError);
+          // Continue to next model
+        }
+      }
 
       if (suggestion) {
         // Simple cleanup: remove surrounding quotes if present
         const cleanSuggestion = suggestion.replace(/^["']|["']$/g, '');
+        console.log("Final clean suggestion:", cleanSuggestion);
         handleInputChange(field.id, cleanSuggestion);
-        toast.success("AI suggestion generated");
+        toast.success(
+          `AI suggestion generated using ${successfulModel!.name} (${successfulModel!.id})`
+        );
       } else {
-        toast.error("No suggestion returned");
+        console.error("No suggestion returned from any free model");
+        toast.error("No suggestion returned from any free model");
       }
-
     } catch (error) {
       console.error("AI Suggestion failed", error);
       toast.error("Failed to generate AI suggestion");
     } finally {
       setAiLoading(prev => ({ ...prev, [field.id]: false }));
+      console.log("handleAiSuggest finished");
     }
   };
 
