@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Trophy, Flame, Target, Award } from 'lucide-react';
 import { UserStats, DailyChallenge } from '../services/flow.api';

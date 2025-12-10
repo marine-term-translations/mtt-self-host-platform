@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { CheckCircle, XCircle, Send, Globe } from 'lucide-react';
 
