@@ -28,6 +28,11 @@ const Browse: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [needsTransFilter, setNeedsTransFilter] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalTerms, setTotalTerms] = useState(0);
+  const [pageSize] = useState(50); // Terms per page
 
   // Fetch Terms Logic
   useEffect(() => {
@@ -35,10 +40,11 @@ const Browse: React.FC = () => {
       setLoading(true);
       try {
         console.log("Fetching terms from API...");
-        const apiTerms = await backendApi.getTerms();
+        const offset = (currentPage - 1) * pageSize;
+        const response = await backendApi.getTerms(pageSize, offset);
         
         // Map API response to UI Term model
-        const mappedTerms: Term[] = apiTerms.map((apiTerm: ApiTerm) => {
+        const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
           // Find key fields
           const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
           const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
@@ -106,6 +112,7 @@ const Browse: React.FC = () => {
         });
 
         setTerms(mappedTerms);
+        setTotalTerms(response.total);
         setUsingMock(false);
       } catch (error) {
         console.error("Failed to fetch terms from API, using mock data:", error);
@@ -118,7 +125,7 @@ const Browse: React.FC = () => {
     };
 
     fetchTerms();
-  }, []);
+  }, [currentPage, pageSize]); // Re-fetch when page changes
 
   const categories = ['All', ...Array.from(new Set(terms.map(t => t.category)))];
   const languages = [
@@ -219,11 +226,71 @@ const Browse: React.FC = () => {
            <p>Loading terms library...</p>
         </div>
       ) : filteredTerms.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTerms.map(term => (
-            <TermCard key={term.id} term={term} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {filteredTerms.map(term => (
+              <TermCard key={term.id} term={term} />
+            ))}
+          </div>
+          
+          {/* Pagination Controls */}
+          {!usingMock && totalTerms > pageSize && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-700">
+              <div className="text-sm text-slate-600 dark:text-slate-400">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalTerms)} of {totalTerms} terms
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, Math.ceil(totalTerms / pageSize)) }, (_, i) => {
+                    const totalPages = Math.ceil(totalTerms / pageSize);
+                    let pageNum: number;
+                    
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-marine-500 text-white'
+                            : 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalTerms / pageSize), p + 1))}
+                  disabled={currentPage >= Math.ceil(totalTerms / pageSize)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
