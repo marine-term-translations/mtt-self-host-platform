@@ -18,6 +18,7 @@ fi
 # Create backup of current database before restoring
 if [ -f "$DB_PATH" ]; then
   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+  mkdir -p backups
   cp "$DB_PATH" "backups/before-restore-${TIMESTAMP}.db"
   echo "✓ Current database backed up to: backups/before-restore-${TIMESTAMP}.db"
 fi
