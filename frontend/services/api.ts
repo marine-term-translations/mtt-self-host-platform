@@ -118,8 +118,30 @@ class ApiService {
 
   // --- Domain Specific Methods ---
 
-  public async getTerms(): Promise<ApiTerm[]> {
-    return this.get<ApiTerm[]>('/terms');
+  public async getTerms(limit?: number, offset?: number): Promise<{ terms: ApiTerm[], total: number, limit: number, offset: number }> {
+    const params: Record<string, string> = {};
+    if (limit !== undefined) params.limit = limit.toString();
+    if (offset !== undefined) params.offset = offset.toString();
+    
+    type TermsResponse = 
+      | ApiTerm[] 
+      | { terms: ApiTerm[], total: number, limit: number, offset: number };
+    
+    const response = await this.get<TermsResponse>('/terms', params);
+    
+    // Handle both old format (array) and new format (object with pagination)
+    if (Array.isArray(response)) {
+      // Old format - backward compatibility
+      return {
+        terms: response,
+        total: response.length,
+        limit: response.length,
+        offset: 0
+      };
+    }
+    
+    // New format with pagination
+    return response;
   }
 
   public async getUserTeams(username: string, org: string): Promise<any[]> {

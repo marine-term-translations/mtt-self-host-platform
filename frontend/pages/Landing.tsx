@@ -28,14 +28,14 @@ const Landing: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [apiTerms, apiUsers] = await Promise.all([
-          backendApi.getTerms(),
+        const [termsResponse, apiUsers] = await Promise.all([
+          backendApi.getTerms(10, 0), // Limit to first 10 for landing page
           backendApi.getUsers()
         ]);
 
         // --- 1. Process Recent Terms ---
         // Sort by updated_at (descending)
-        const sortedTerms = [...apiTerms].sort((a, b) => {
+        const sortedTerms = [...termsResponse.terms].sort((a, b) => {
             const dateA = new Date(a.updated_at || a.created_at).getTime();
             const dateB = new Date(b.updated_at || b.created_at).getTime();
             return dateB - dateA;
@@ -77,7 +77,7 @@ const Landing: React.FC = () => {
         // --- 2. Process Contributors ---
         // Count activities (translations) per user
         const contributionsMap: Record<string, number> = {};
-        apiTerms.forEach(t => {
+        termsResponse.terms.forEach(t => {
             t.fields.forEach(f => {
                 if (f.translations) {
                     f.translations.forEach(tr => {
