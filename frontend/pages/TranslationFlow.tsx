@@ -138,29 +138,58 @@ const TranslationFlow: React.FC = () => {
     try {
       setIsSubmitting(true);
 
+      // First, fetch the full term data to get all existing translations
+      const termsResponse = await backendApi.getTerms();
+      const fullTerm = termsResponse.terms.find((t: any) => t.id === task.term_id);
+
+      if (!fullTerm) {
+        throw new Error('Term not found');
+      }
+
       // Build the term structure for PUT /api/terms/:id
+      // We need to preserve ALL existing translations and add/update the new one
       const termData = {
-        uri: task.term_uri,
-        fields: task.term_fields?.map((field: any) => {
-          const translations: any[] = [];
+        uri: fullTerm.uri,
+        fields: fullTerm.fields.map((field: any) => {
+          // Start with all existing translations for this field
+          let translationsPayload = field.translations ? [...field.translations].map((t: any) => ({
+            language: t.language,
+            value: t.value,
+            status: t.status,
+            created_by: t.created_by || user.username,
+          })) : [];
           
-          // If this is the field we're translating, add the new translation
+          // If this is the field we're translating, add or update the translation
           if (field.field_uri === task.field_uri) {
-            translations.push({
-              language,
-              value,
-              status: 'review',
-              created_by: user.username,
-            });
+            const existingIndex = translationsPayload.findIndex((t: any) => t.language === language);
+            
+            if (existingIndex >= 0) {
+              // Update existing translation
+              translationsPayload[existingIndex] = {
+                language,
+                value,
+                status: 'review',
+                created_by: translationsPayload[existingIndex].created_by,
+              };
+            } else {
+              // Add new translation
+              translationsPayload.push({
+                language,
+                value,
+                status: 'review',
+                created_by: user.username,
+              });
+            }
           }
           
           return {
             field_uri: field.field_uri,
             field_term: field.field_term,
             original_value: field.original_value,
-            translations,
+            translations: translationsPayload,
           };
-        }) || [],
+        }),
+        token: user.token,
         username: user.username,
       };
 
