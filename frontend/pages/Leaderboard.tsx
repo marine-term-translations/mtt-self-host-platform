@@ -34,7 +34,7 @@ const Leaderboard: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [apiUsers, apiTerms] = await Promise.all([
+        const [apiUsers, termsResponse] = await Promise.all([
           backendApi.getUsers(),
           backendApi.getTerms()
         ]);
@@ -49,7 +49,7 @@ const Leaderboard: React.FC = () => {
         const gStatus = { approved: 0, merged: 0, review: 0, draft: 0, rejected: 0 };
         let gTotal = 0;
 
-        apiTerms.forEach((term: ApiTerm) => {
+        termsResponse.terms.forEach((term: ApiTerm) => {
           term.fields.forEach(field => {
             if (field.translations) {
               field.translations.forEach(t => {
