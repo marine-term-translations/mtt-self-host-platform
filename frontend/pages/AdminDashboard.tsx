@@ -21,7 +21,7 @@ const AdminDashboard: React.FC = () => {
     const fetchAdminData = async () => {
       setLoading(true);
       try {
-        const [users, terms, appeals] = await Promise.all([
+        const [users, termsResponse, appeals] = await Promise.all([
            backendApi.getUsers(),
            backendApi.getTerms(),
            backendApi.getAppeals()
@@ -35,7 +35,7 @@ const AdminDashboard: React.FC = () => {
         const dist: Record<string, number> = { merged: 0, approved: 0, review: 0, draft: 0, rejected: 0 };
         const timestamps: number[] = [];
 
-        terms.forEach(term => {
+        termsResponse.terms.forEach(term => {
             term.fields.forEach(field => {
                 if (field.translations) {
                     field.translations.forEach(t => {
@@ -67,7 +67,7 @@ const AdminDashboard: React.FC = () => {
 
         setStats({
             userCount: users.length,
-            termCount: terms.length,
+            termCount: termsResponse.total || termsResponse.terms.length,
             translationCount: tCount,
             openAppeals
         });
