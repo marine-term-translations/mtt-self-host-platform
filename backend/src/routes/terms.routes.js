@@ -651,31 +651,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               })
             );
 
-            // If status changed to 'review', also log submission for review
-            if ((status || "draft") === "review" && existingTranslation.status !== "review") {
-              console.log("Logging translation_submitted_for_review activity", {
-                username,
-                field_uri,
-                language,
-                old_status: existingTranslation.status,
-              });
-              db.prepare(
-                "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-              ).run(
-                username,
-                "translation_submitted_for_review",
-                id,
-                fieldId,
-                existingTranslation.id,
-                JSON.stringify({
-                  field_uri,
-                  language,
-                  old_status: existingTranslation.status,
-                  new_status: "review",
-                })
-              );
-            }
-
             // Apply reputation penalties based on status change
             const newStatus = status || "draft";
             const oldStatus = existingTranslation.status;
@@ -780,6 +755,7 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             field_uri,
             language,
             value,
+            status: status || "draft",
           });
           db.prepare(
             "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
@@ -789,28 +765,8 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             id,
             fieldId,
             translationResult.lastInsertRowid,
-            JSON.stringify({ field_uri, language, value })
+            JSON.stringify({ field_uri, language, value, status: status || "draft" })
           );
-
-          // If translation is created with 'review' status, log submission for review
-          if ((status || "draft") === "review") {
-            console.log("Logging translation_submitted_for_review activity", {
-              username,
-              field_uri,
-              language,
-              value,
-            });
-            db.prepare(
-              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-            ).run(
-              username,
-              "translation_submitted_for_review",
-              id,
-              fieldId,
-              translationResult.lastInsertRowid,
-              JSON.stringify({ field_uri, language, status: "review" })
-            );
-          }
 
           // Apply creation reward for new translations
           const creationRewardResult = applyCreationReward(
