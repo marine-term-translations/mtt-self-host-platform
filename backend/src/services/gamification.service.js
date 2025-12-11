@@ -1,13 +1,41 @@
 // Gamification service - handles points, streaks, and challenges
 
-const { getDatabase } = require("../db/database");
+const { getDatabase, resolveUsernameToId } = require("../db/database");
+
+/**
+ * Helper: Resolve user identifier to user_id
+ * Accepts either a numeric user_id or a username string
+ * @param {number|string} userIdentifier - User ID or username
+ * @returns {number|null} The user_id or null if not found
+ */
+function resolveUserIdentifier(userIdentifier) {
+  // If it's already a number, return it
+  if (typeof userIdentifier === 'number') {
+    return userIdentifier;
+  }
+  
+  // If it's a string that looks like a number, parse it
+  const asNumber = parseInt(userIdentifier, 10);
+  if (!isNaN(asNumber) && asNumber.toString() === userIdentifier) {
+    return asNumber;
+  }
+  
+  // Otherwise, treat it as a username and resolve to ID
+  return resolveUsernameToId(userIdentifier);
+}
 
 /**
  * Initialize user stats if they don't exist
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  */
-function ensureUserStats(userId) {
+function ensureUserStats(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    throw new Error(`User not found: ${userIdentifier}`);
+  }
+  
   const existing = db.prepare("SELECT user_id FROM user_stats WHERE user_id = ?").get(userId);
   
   if (!existing) {
@@ -19,23 +47,36 @@ function ensureUserStats(userId) {
 
 /**
  * Get user statistics
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {object} User stats object
  */
-function getUserStats(userId) {
+function getUserStats(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
+  
   ensureUserStats(userId);
   return db.prepare("SELECT * FROM user_stats WHERE user_id = ?").get(userId);
 }
 
 /**
  * Award reputation points to a user (unified system - no separate points tracking)
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} points - Reputation points to award
  * @param {string} reason - Reason for points
  */
-function awardPoints(userId, points, reason = "general") {
+function awardPoints(userIdentifier, points, reason = "general") {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    console.log("Could not award points: user not found:", userIdentifier);
+    return;
+  }
+  
   ensureUserStats(userId);
   
   if (points <= 0) {
@@ -45,7 +86,7 @@ function awardPoints(userId, points, reason = "general") {
   // Only update users.reputation (no separate points tracking)
   try {
     db.prepare(
-      "UPDATE users SET reputation = reputation + ? WHERE username = ?"
+      "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
     ).run(points, userId);
   } catch (err) {
     console.log("Could not update user reputation:", err.message);
@@ -54,7 +95,7 @@ function awardPoints(userId, points, reason = "general") {
   // Log in reputation_events
   try {
     db.prepare(
-      "INSERT INTO reputation_events (user, delta, reason) VALUES (?, ?, ?)"
+      "INSERT INTO reputation_events (user_id, delta, reason) VALUES (?, ?, ?)"
     ).run(userId, points, reason);
   } catch (err) {
     console.log("Could not log reputation event:", err.message);
@@ -63,7 +104,7 @@ function awardPoints(userId, points, reason = "general") {
   // Log in user_activity for traceability
   try {
     db.prepare(
-      "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+      "INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)"
     ).run(userId, 'reputation_awarded', JSON.stringify({ points, reason }));
   } catch (err) {
     console.log("Could not log user activity:", err.message);
@@ -91,11 +132,17 @@ function getStreakMilestoneReward(streak) {
 
 /**
  * Update user streak based on activity and award milestone rewards
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {object} Updated streak info
  */
-function updateStreak(userId) {
+function updateStreak(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
+  
   ensureUserStats(userId);
   
   const stats = db.prepare("SELECT * FROM user_stats WHERE user_id = ?").get(userId);
@@ -147,7 +194,7 @@ function updateStreak(userId) {
     // Log milestone achievement activity
     try {
       db.prepare(
-        "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+        "INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)"
       ).run(userId, 'streak_milestone_achieved', JSON.stringify({ 
         streak: newStreak, 
         reward: milestoneReward 
@@ -171,10 +218,16 @@ function updateStreak(userId) {
 
 /**
  * Increment translation count
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  */
-function incrementTranslationCount(userId) {
+function incrementTranslationCount(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return;
+  }
+  
   ensureUserStats(userId);
   
   db.prepare(
@@ -184,10 +237,16 @@ function incrementTranslationCount(userId) {
 
 /**
  * Increment review count
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  */
-function incrementReviewCount(userId) {
+function incrementReviewCount(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return;
+  }
+  
   ensureUserStats(userId);
   
   db.prepare(
@@ -197,11 +256,17 @@ function incrementReviewCount(userId) {
 
 /**
  * Get or create daily challenges for a user
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {array} Array of daily challenges
  */
-function getDailyChallenges(userId) {
+function getDailyChallenges(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return [];
+  }
+  
   const today = new Date().toISOString().split('T')[0];
   
   // Get existing challenges for today
@@ -232,12 +297,18 @@ function getDailyChallenges(userId) {
 
 /**
  * Update challenge progress
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @param {string} challengeType - Type of challenge
  * @param {number} increment - Amount to increment (default 1)
  */
-function updateChallengeProgress(userId, challengeType, increment = 1) {
+function updateChallengeProgress(userIdentifier, challengeType, increment = 1) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
+  
   const today = new Date().toISOString().split('T')[0];
   
   const challenge = db.prepare(
@@ -266,7 +337,7 @@ function updateChallengeProgress(userId, challengeType, increment = 1) {
     // Log challenge completion activity for traceability
     try {
       db.prepare(
-        "INSERT INTO user_activity (user, action, extra) VALUES (?, ?, ?)"
+        "INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)"
       ).run(userId, 'daily_challenge_completed', JSON.stringify({ 
         challengeType,
         target: challenge.target_count,
@@ -282,11 +353,16 @@ function updateChallengeProgress(userId, challengeType, increment = 1) {
 
 /**
  * Start a new flow session
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {object} Session object
  */
-function startFlowSession(userId) {
+function startFlowSession(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
   
   const result = db.prepare(
     "INSERT INTO flow_sessions (user_id) VALUES (?)"
@@ -354,13 +430,14 @@ function getLeaderboard(limit = 10) {
   return db.prepare(
     `SELECT us.user_id, us.points, us.daily_streak, u.username, u.reputation
      FROM user_stats us
-     LEFT JOIN users u ON us.user_id = u.username
+     LEFT JOIN users u ON us.user_id = u.id
      ORDER BY us.points DESC
      LIMIT ?`
   ).all(limit);
 }
 
 module.exports = {
+  resolveUserIdentifier,
   ensureUserStats,
   getUserStats,
   awardPoints,
