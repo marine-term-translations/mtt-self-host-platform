@@ -12,7 +12,7 @@ async function startFlow(req, res) {
       return res.status(401).json({ error: "Not authenticated" });
     }
     
-    const userId = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     const { language } = req.body;
     
     // Create a new session
@@ -44,7 +44,7 @@ async function getNextTask(req, res) {
       return res.status(401).json({ error: "Not authenticated" });
     }
     
-    const userId = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     const language = req.query.language || null;
     const task = flowService.getNextTask(userId, language);
     
@@ -64,7 +64,7 @@ async function submitReview(req, res) {
       return res.status(401).json({ error: "Not authenticated" });
     }
     
-    const userId = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     const { translationId, action, sessionId } = req.body;
     
     if (!translationId || !action) {
@@ -102,7 +102,7 @@ async function getStats(req, res) {
       return res.status(401).json({ error: "Not authenticated" });
     }
     
-    const userId = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     const stats = gamificationService.getUserStats(userId);
     const challenges = gamificationService.getDailyChallenges(userId);
     

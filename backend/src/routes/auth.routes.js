@@ -96,9 +96,16 @@ router.get("/auth/orcid/callback", async (req, res) => {
       const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
       const isFirstUser = userCount.count === 0;
       
-      // Check if user already exists
-      const existingUser = db.prepare('SELECT * FROM users WHERE username = ?').get(orcid);
-      const isNewUser = !existingUser;
+      // Check if auth provider entry exists for this ORCID
+      const existingAuth = db.prepare(
+        'SELECT ap.*, u.* FROM auth_providers ap JOIN users u ON ap.user_id = u.id WHERE ap.provider = ? AND ap.provider_id = ?'
+      ).get('orcid', orcid);
+      
+      let userId;
+      let username;
+      let userReputation;
+      let userExtra;
+      const isNewUser = !existingAuth;
       
       if (isNewUser) {
         console.log('[ORCID Callback] New user detected, creating user record');
@@ -112,30 +119,60 @@ router.get("/auth/orcid/callback", async (req, res) => {
           registered_at: new Date().toISOString()
         });
         
-        db.prepare('INSERT INTO users (username, reputation, extra) VALUES (?, ?, ?)').run(
+        const userResult = db.prepare(
+          'INSERT INTO users (username, reputation, extra) VALUES (?, ?, ?)'
+        ).run(orcid, 0, extra);
+        
+        userId = userResult.lastInsertRowid;
+        username = orcid;
+        userReputation = 0;
+        userExtra = { name, orcid, is_admin: isFirstUser, registered_at: new Date().toISOString() };
+        
+        // Create auth_provider entry
+        db.prepare(
+          'INSERT INTO auth_providers (user_id, provider, provider_id, name, access_token, refresh_token, token_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(
+          userId,
+          'orcid',
           orcid,
-          0,
-          extra
+          name,
+          access_token,
+          refresh_token,
+          new Date(Date.now() + expires_in * 1000).toISOString()
         );
         
-        console.log('[ORCID Callback] User created successfully');
+        console.log('[ORCID Callback] User created successfully with ID:', userId);
       } else {
         console.log('[ORCID Callback] Existing user found:', orcid);
+        userId = existingAuth.user_id;
+        username = existingAuth.username;
+        userReputation = existingAuth.reputation;
+        userExtra = existingAuth.extra ? JSON.parse(existingAuth.extra) : {};
+        
+        // Update auth_provider tokens
+        db.prepare(
+          'UPDATE auth_providers SET access_token = ?, refresh_token = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE provider = ? AND provider_id = ?'
+        ).run(
+          access_token,
+          refresh_token,
+          new Date(Date.now() + expires_in * 1000).toISOString(),
+          'orcid',
+          orcid
+        );
       }
       
-      // Store user info in session with admin flag
-      const userExtra = isNewUser 
-        ? { name, orcid, is_admin: isFirstUser, registered_at: new Date().toISOString() }
-        : JSON.parse(existingUser.extra || '{}');
-      
+      // Store user info in session with both user_id and username for backward compatibility
       req.session.user = { 
+        id: userId,
+        user_id: userId, // Alias for consistency
+        username: username,
         orcid, 
         name: name || userExtra.name, 
         access_token, 
         refresh_token, 
         expires_at: Date.now() + expires_in * 1000,
         is_admin: userExtra.is_admin || false,
-        reputation: existingUser ? existingUser.reputation : 0
+        reputation: userReputation
       };
 
       // Save session before redirect
