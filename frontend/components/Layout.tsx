@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap } from 'lucide-react';
+import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -86,13 +87,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               
               {isAuthenticated ? (
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
-                   <Link to="/profile" className="flex items-center gap-2 hover:opacity-80">
-                      <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 hidden lg:block">{user?.name}</span>
-                   </Link>
-                   <button onClick={handleLogout} className="text-slate-500 hover:text-red-500 transition-colors" title="Sign out">
-                     <LogOut size={20} />
-                   </button>
+                   <div className="relative group">
+                     <Link to={`/user/${user?.id || user?.user_id}`} className="flex items-center gap-2 hover:opacity-80">
+                        <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-200 hidden lg:block">{user?.name}</span>
+                     </Link>
+                     {/* Hover Dropdown */}
+                     <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-100 dark:border-slate-700 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                        <Link to={`/user/${user?.id || user?.user_id}`} className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+                           <UserIcon size={16} /> My Profile
+                        </Link>
+                        <Link to="/settings" className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+                           <SettingsIcon size={16} /> Settings
+                        </Link>
+                        <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+                        <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+                           <LogOut size={16} /> Sign Out
+                        </button>
+                     </div>
+                   </div>
                 </div>
               ) : (
                 <Link to="/login" className="px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg font-medium text-sm transition-all shadow-sm hover:shadow-md">
@@ -127,7 +140,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <>
                   <Link to="/browse" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Browse Terms</Link>
                   <Link to="/dashboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>
-                  <Link to="/profile" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>My Profile</Link>
+                  <Link to={`/user/${user?.id || user?.user_id}`} className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>My Profile</Link>
+                  <Link to="/settings" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Settings</Link>
                    {user?.isAdmin && (
                     <Link to="/admin" className="block py-2 text-marine-600 dark:text-marine-400 font-semibold" onClick={() => setIsMenuOpen(false)}>Admin Dashboard</Link>
                   )}

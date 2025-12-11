@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
@@ -9,7 +10,8 @@ import Dashboard from './pages/Dashboard';
 import Browse from './pages/Browse';
 import TermDetail from './pages/TermDetail';
 import About from './pages/About';
-import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import UserProfile from './pages/UserProfile';
 import History from './pages/History';
 import Reputation from './pages/Reputation';
 import Leaderboard from './pages/Leaderboard';
@@ -22,8 +24,11 @@ import AdminHarvest from './pages/admin/AdminHarvest';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import { useAuth } from './context/AuthContext';
 
 const App: React.FC = () => {
+  const { user } = useAuth();
+  
   return (
     <Layout>
       <Toaster 
@@ -75,16 +80,24 @@ const App: React.FC = () => {
             <TermDetail />
           </ProtectedRoute>
         } />
-         <Route path="/profile" element={
+         
+        {/* Profile & Settings Routes */}
+        <Route path="/settings" element={
           <ProtectedRoute>
-            <Profile />
+            <Settings />
           </ProtectedRoute>
         } />
-         <Route path="/user-profile" element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
+        <Route path="/user/:id" element={
+          <UserProfile />
         } />
+        {/* Deprecated/Redirect Routes */}
+        <Route path="/profile" element={
+            user ? <Navigate to={`/user/${user.id || user.user_id}`} replace /> : <Navigate to="/login" replace />
+        } />
+        <Route path="/user-profile" element={
+            user ? <Navigate to={`/user/${user.id || user.user_id}`} replace /> : <Navigate to="/login" replace />
+        } />
+
          <Route path="/history" element={
           <ProtectedRoute>
             <History />

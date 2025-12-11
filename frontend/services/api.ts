@@ -195,6 +195,10 @@ class ApiService {
     return this.get<ApiPublicUser[]>('/users');
   }
 
+  public async getUser(id: number | string): Promise<ApiPublicUser> {
+    return this.get<ApiPublicUser>(`/user/${id}`);
+  }
+
   // --- Appeals ---
 
   public async getAppeals(translation_id?: number): Promise<ApiAppeal[]> {
