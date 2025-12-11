@@ -238,6 +238,38 @@ class ApiService {
       credentials: 'include'
     });
   }
+
+  // --- Browse (Search & Faceted Filtering) ---
+
+  public async browse(params: {
+    query?: string;
+    limit?: number;
+    offset?: number;
+    language?: string;
+    status?: string;
+    field_uri?: string;
+    facets?: string[];
+  }): Promise<{
+    results: any[];
+    total: number;
+    limit: number;
+    offset: number;
+    facets: Record<string, Record<string, number>>;
+  }> {
+    const queryParams: Record<string, string> = {};
+    
+    if (params.query) queryParams.query = params.query;
+    if (params.limit !== undefined) queryParams.limit = params.limit.toString();
+    if (params.offset !== undefined) queryParams.offset = params.offset.toString();
+    if (params.language) queryParams.language = params.language;
+    if (params.status) queryParams.status = params.status;
+    if (params.field_uri) queryParams.field_uri = params.field_uri;
+    if (params.facets && params.facets.length > 0) {
+      queryParams.facets = params.facets.join(',');
+    }
+    
+    return this.get('/browse', queryParams);
+  }
 }
 
 // Export pre-configured instances
