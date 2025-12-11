@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
+const { apiLimiter } = require("../middleware/rateLimit");
 
 /**
  * @openapi
@@ -30,7 +31,7 @@ const { getDatabase } = require("../db/database");
  *                   extra:
  *                     type: string
  */
-router.get("/users", (req, res) => {
+router.get("/users", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const users = db
