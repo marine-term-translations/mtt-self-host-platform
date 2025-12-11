@@ -15,12 +15,12 @@ const History: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.username) return;
+      if (!user?.id && !user?.user_id) return; // Check for user ID
       try {
         setLoading(true);
         // Fetch user history and all terms to resolve names
         const [historyData, termsResponse] = await Promise.all([
-          backendApi.getUserHistory(user.username),
+          backendApi.getUserHistory(user.id || user.user_id!), // Use user ID
           backendApi.getTerms() // Will use defaults
         ]);
 
