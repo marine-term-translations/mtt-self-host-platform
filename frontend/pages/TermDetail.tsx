@@ -661,7 +661,8 @@ Original Text (${field.field_term}): "${field.original_value}"`;
               const isTextArea = field.field_term.includes('definition');
               const currentTranslation = field.translations?.find(t => t.language.toLowerCase() === selectedLang.toLowerCase());
               const status = currentTranslation?.status || 'draft';
-              const isMyTranslation = currentTranslation?.created_by === user?.username;
+              // Check if this is the current user's translation using user_id
+              const isMyTranslation = currentTranslation?.created_by_id === (user?.id || user?.user_id);
               const hasValue = formValues[field.id] && formValues[field.id].trim().length > 0;
               const translationId = currentTranslation?.id;
               
