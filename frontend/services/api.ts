@@ -177,8 +177,8 @@ class ApiService {
     return this.put<any>(`/terms/${id}`, data);
   }
 
-  public async getUserHistory(username: string): Promise<ApiUserActivity[]> {
-    return this.get<ApiUserActivity[]>(`/user-history/${username}`);
+  public async getUserHistory(userId: number | string): Promise<ApiUserActivity[]> {
+    return this.get<ApiUserActivity[]>(`/user-history/${userId}`);
   }
 
   // Fetch history for a specific term (mocked or real endpoint)

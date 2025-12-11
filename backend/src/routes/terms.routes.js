@@ -225,15 +225,16 @@ module.exports = router;
 
 /**
  * @openapi
- * /api/user-history/{username}:
+ * /api/user-history/{userId}:
  *   get:
  *     summary: Get a user's activity history
  *     parameters:
  *       - in: path
- *         name: username
+ *         name: userId
  *         required: true
  *         schema:
  *           type: string
+ *         description: User ID (integer) or username (for backward compatibility)
  *     responses:
  *       200:
  *         description: Returns user activity history
@@ -244,15 +245,27 @@ module.exports = router;
  *               items:
  *                 type: object
  */
-router.get("/user-history/:username", apiLimiter, (req, res) => {
-  const { username } = req.params;
+router.get("/user-history/:userId", apiLimiter, (req, res) => {
+  const { userId } = req.params;
   try {
     const db = getDatabase();
+    const { resolveUsernameToId } = require("../db/database");
+    
+    // Resolve userId - could be integer ID or username for backward compatibility
+    let resolvedUserId = parseInt(userId, 10);
+    if (isNaN(resolvedUserId)) {
+      // It's a username, resolve to ID
+      resolvedUserId = resolveUsernameToId(userId);
+      if (!resolvedUserId) {
+        return res.status(404).json({ error: "User not found" });
+      }
+    }
+    
     const history = db
       .prepare(
-        "SELECT * FROM user_activity WHERE user = ? ORDER BY created_at DESC"
+        "SELECT * FROM user_activity WHERE user_id = ? ORDER BY created_at DESC"
       )
-      .all(username);
+      .all(resolvedUserId);
     res.json(history);
   } catch (err) {
     res.status(500).json({ error: err.message });

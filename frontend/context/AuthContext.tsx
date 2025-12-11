@@ -28,11 +28,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (!data.error) {
             // Map ORCID user to our User type
             const userData: User = {
-              username: data.orcid,
+              id: data.id || data.user_id, // Use id or user_id from backend
+              user_id: data.id || data.user_id, // Alias for consistency
+              username: data.username || data.orcid, // Prefer username, fallback to orcid
               name: data.name || data.orcid,
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || data.orcid)}&background=0ea5e9&color=fff`,
               token: data.access_token, // For compatibility with existing code
-              isAdmin: data.is_admin || false // Use is_admin from backend session
+              isAdmin: data.is_admin || false, // Use is_admin from backend session
+              orcid: data.orcid, // Keep ORCID for reference
+              reputation: data.reputation // Include reputation if available
             };
             setUser(userData);
           }
