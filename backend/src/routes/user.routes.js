@@ -25,6 +25,64 @@ const requireAuth = (req, res, next) => {
 
 /**
  * @openapi
+ * /api/user/{id}:
+ *   get:
+ *     summary: Get a specific user by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: Returns user details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 username:
+ *                   type: string
+ *                 reputation:
+ *                   type: integer
+ *                 joined_at:
+ *                   type: string
+ *                 extra:
+ *                   type: string
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/user/:id", (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = parseInt(req.params.id, 10);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    const user = db
+      .prepare("SELECT id, username, reputation, joined_at, extra FROM users WHERE id = ?")
+      .get(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
  * /api/user/preferences:
  *   get:
  *     summary: Get user preferences
