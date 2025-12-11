@@ -18,6 +18,17 @@ const { getDatabase } = require("../db/database");
  *               type: array
  *               items:
  *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   username:
+ *                     type: string
+ *                   reputation:
+ *                     type: integer
+ *                   joined_at:
+ *                     type: string
+ *                   extra:
+ *                     type: string
  */
 router.get("/users", (req, res) => {
   try {
