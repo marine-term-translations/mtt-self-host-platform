@@ -590,8 +590,10 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         // Resolve created_by to user_id
         const createdByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(created_by, parseInt(created_by) || 0);
         if (!createdByUser) {
-          console.log("Warning: Created_by user not found", created_by);
-          continue;
+          console.error("Error: Created_by user not found", created_by);
+          return res.status(400).json({ 
+            error: `Invalid created_by user: ${created_by}` 
+          });
         }
         const createdByUserId = createdByUser.id;
 

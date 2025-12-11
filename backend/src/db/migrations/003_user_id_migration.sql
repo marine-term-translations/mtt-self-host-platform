@@ -47,6 +47,8 @@ CREATE TABLE auth_providers (
 
 -- Populate auth_providers with existing ORCID data from users
 -- Current users table stores ORCID in username field
+-- NOTE: This migration assumes all existing users are ORCID users
+-- If you have users from other providers, you may need to customize this section
 INSERT INTO auth_providers (user_id, provider, provider_id, name, created_at)
 SELECT u_new.id, 'orcid', u_old.username, 
        json_extract(u_old.extra, '$.name'),
