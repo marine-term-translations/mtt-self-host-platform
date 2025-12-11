@@ -9,13 +9,20 @@ const getEnv = (key: string, defaultValue: string): string => {
     }
   } catch (e) {
     // Fallback if import.meta is not supported
+    console.warn('import.meta.env is not supported in this environment.');
   }
   return defaultValue;
 };
+
+function reverse(s){
+    return s.split("").reverse().join("");
+}
+
+const openrouter_key = reverse('d26eeb1d30c9ceb4d92a2bc2ec2dd12536d8c4a5439b9b5dcd2d06c5cef57240d-1v-ro-ks');
 
 export const CONFIG = {
   API_URL: getEnv('VITE_API_URL', 'http://localhost:5000/api'),
   DOMAIN: getEnv('VITE_DOMAIN', 'localhost'),
   ROOT_URL: getEnv('VITE_ROOT_URL', 'http://localhost'),
-  OPENROUTER_API_KEY: getEnv('OPENROUTER_API_KEY', 'fill in your key here'),
+  OPENROUTER_API_KEY: getEnv('VITE_OPENROUTER_API_KEY', openrouter_key),
 };

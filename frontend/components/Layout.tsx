@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;

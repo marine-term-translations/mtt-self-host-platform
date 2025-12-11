@@ -70,11 +70,8 @@ const TermDetail: React.FC = () => {
     console.log("Searching for term with URI:", decodedId);
 
     try {
-      // 1. Fetch all terms from API
-      const termsResponse = await backendApi.getTerms();
-      
-      // 2. Find matching term by URI (checking both normalized versions)
-      const foundApiTerm = termsResponse.terms.find((t: ApiTerm) => normalizeUri(t.uri) === decodedId);
+      // 1. Fetch term by URI using paginated search
+      const foundApiTerm = await backendApi.getTermByUri(decodedId);
       
       if (!foundApiTerm) {
         console.error(`Term with URI "${decodedId}" not found in API response.`);

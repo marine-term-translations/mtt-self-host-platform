@@ -134,6 +134,93 @@ router.get("/terms", apiLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/terms/{id}:
+ *   get:
+ *     summary: Get a single term by ID with all its fields and translations
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The term ID
+ *     responses:
+ *       200:
+ *         description: Returns the term with all fields and translations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 uri:
+ *                   type: string
+ *                 fields:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       404:
+ *         description: Term not found
+ */
+router.get("/terms/:id", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  // Validate that id is a valid integer
+  const termId = parseInt(id, 10);
+  if (isNaN(termId) || termId < 1) {
+    return res.status(400).json({ error: "Invalid term ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Get the term
+    const term = db.prepare("SELECT * FROM terms WHERE id = ?").get(termId);
+    
+    if (!term) {
+      return res.status(404).json({ error: "Term not found" });
+    }
+    
+    // Get fields for this term
+    const fields = db
+      .prepare("SELECT * FROM term_fields WHERE term_id = ?")
+      .all(term.id);
+    
+    // Get all translations for all fields in a single query to avoid N+1 problem
+    const fieldIds = fields.map(f => f.id);
+    let allTranslations = [];
+    
+    if (fieldIds.length > 0) {
+      const placeholders = fieldIds.map(() => '?').join(',');
+      allTranslations = db
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders})`)
+        .all(...fieldIds);
+    }
+    
+    // Group translations by field_id
+    const translationsByField = {};
+    for (const trans of allTranslations) {
+      if (!translationsByField[trans.term_field_id]) {
+        translationsByField[trans.term_field_id] = [];
+      }
+      translationsByField[trans.term_field_id].push(trans);
+    }
+    
+    // Attach translations to fields
+    const fieldsWithTranslations = fields.map((field) => ({
+      ...field,
+      translations: translationsByField[field.id] || []
+    }));
+    
+    res.json({ ...term, fields: fieldsWithTranslations });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 
 /**
@@ -564,6 +651,31 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               })
             );
 
+            // If status changed to 'review', also log submission for review
+            if ((status || "draft") === "review" && existingTranslation.status !== "review") {
+              console.log("Logging translation_submitted_for_review activity", {
+                username,
+                field_uri,
+                language,
+                old_status: existingTranslation.status,
+              });
+              db.prepare(
+                "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+              ).run(
+                username,
+                "translation_submitted_for_review",
+                id,
+                fieldId,
+                existingTranslation.id,
+                JSON.stringify({
+                  field_uri,
+                  language,
+                  old_status: existingTranslation.status,
+                  new_status: "review",
+                })
+              );
+            }
+
             // Apply reputation penalties based on status change
             const newStatus = status || "draft";
             const oldStatus = existingTranslation.status;
@@ -679,6 +791,26 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             translationResult.lastInsertRowid,
             JSON.stringify({ field_uri, language, value })
           );
+
+          // If translation is created with 'review' status, log submission for review
+          if ((status || "draft") === "review") {
+            console.log("Logging translation_submitted_for_review activity", {
+              username,
+              field_uri,
+              language,
+              value,
+            });
+            db.prepare(
+              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+            ).run(
+              username,
+              "translation_submitted_for_review",
+              id,
+              fieldId,
+              translationResult.lastInsertRowid,
+              JSON.stringify({ field_uri, language, status: "review" })
+            );
+          }
 
           // Apply creation reward for new translations
           const creationRewardResult = applyCreationReward(
