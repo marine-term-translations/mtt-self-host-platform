@@ -469,14 +469,20 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
   
+  // Get the user_id from session
+  const currentUserId = req.session.user.id || req.session.user.user_id;
+  
   // Verify the user making the request matches the username field
-  if (req.session.user.orcid !== username && req.session.user.name !== username) {
-    console.log("403: User mismatch", { sessionUser: req.session.user, username });
+  // Support both username and user_id in the username parameter for backward compatibility
+  const db = getDatabase();
+  const requestUser = db.prepare("SELECT id, username FROM users WHERE username = ? OR id = ?").get(username, parseInt(username) || 0);
+  
+  if (!requestUser || requestUser.id !== currentUserId) {
+    console.log("403: User mismatch", { sessionUserId: currentUserId, requestUser });
     return res.status(403).json({ error: "User mismatch" });
   }
   
   try {
-    const db = getDatabase();
     // Fetch current term, fields, translations
     const oldTerm = db.prepare("SELECT * FROM terms WHERE id = ?").get(id);
     const oldFields = db
@@ -581,6 +587,14 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           continue;
         }
 
+        // Resolve created_by to user_id
+        const createdByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(created_by, parseInt(created_by) || 0);
+        if (!createdByUser) {
+          console.log("Warning: Created_by user not found", created_by);
+          continue;
+        }
+        const createdByUserId = createdByUser.id;
+
         const translationKey = `${fieldId}:${language}`;
         const existingTranslation = oldTranslationMap[translationKey];
 
@@ -593,8 +607,8 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
           if (needsUpdate) {
             db.prepare(
-              "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-            ).run(value, status || "draft", username, existingTranslation.id);
+              "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).run(value, status || "draft", currentUserId, existingTranslation.id);
             console.log("Updated translation", {
               id: existingTranslation.id,
               fieldId,
@@ -606,16 +620,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           // User activity logging for existing translation
           if (existingTranslation.value !== value) {
             console.log("Logging translation_edited activity", {
-              username,
+              userId: currentUserId,
               field_uri,
               language,
               old_value: existingTranslation.value,
               new_value: value,
             });
             db.prepare(
-              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+              "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
             ).run(
-              username,
+              currentUserId,
               "translation_edited",
               id,
               fieldId,
@@ -629,16 +643,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             );
           } else if (existingTranslation.status !== (status || "draft")) {
             console.log("Logging translation_status_changed activity", {
-              username,
+              userId: currentUserId,
               field_uri,
               language,
               old_status: existingTranslation.status,
               new_status: status || "draft",
             });
             db.prepare(
-              "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+              "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
             ).run(
-              username,
+              currentUserId,
               "translation_status_changed",
               id,
               fieldId,
@@ -658,16 +672,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             // When status changes to 'rejected', apply rejection penalty to the translator
             if (oldStatus !== "rejected" && newStatus === "rejected") {
               // Get the user who created/modified the translation
-              const translatorUsername =
-                existingTranslation.modified_by ||
-                existingTranslation.created_by;
-              if (translatorUsername) {
+              const translatorUserId =
+                existingTranslation.modified_by_id ||
+                existingTranslation.created_by_id;
+              if (translatorUserId) {
                 const penaltyResult = applyRejectionPenalty(
-                  translatorUsername,
+                  translatorUserId,
                   existingTranslation.id
                 );
                 console.log("Applied rejection penalty", {
-                  translatorUsername,
+                  translatorUserId,
                   penaltyResult,
                 });
               }
@@ -675,16 +689,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
             // When status changes to 'approved', reward the translator
             if (oldStatus !== "approved" && newStatus === "approved") {
-              const translatorUsername =
-                existingTranslation.modified_by ||
-                existingTranslation.created_by;
-              if (translatorUsername) {
+              const translatorUserId =
+                existingTranslation.modified_by_id ||
+                existingTranslation.created_by_id;
+              if (translatorUserId) {
                 const rewardResult = applyApprovalReward(
-                  translatorUsername,
+                  translatorUserId,
                   existingTranslation.id
                 );
                 console.log("Applied approval reward", {
-                  translatorUsername,
+                  translatorUserId,
                   rewardResult,
                 });
               }
@@ -693,16 +707,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             // When status changes to 'merged', reward the translator and check for false rejections
             if (oldStatus !== "merged" && newStatus === "merged") {
               // Reward the translator for merged translation
-              const translatorUsername =
-                existingTranslation.modified_by ||
-                existingTranslation.created_by;
-              if (translatorUsername) {
+              const translatorUserId =
+                existingTranslation.modified_by_id ||
+                existingTranslation.created_by_id;
+              if (translatorUserId) {
                 const rewardResult = applyMergeReward(
-                  translatorUsername,
+                  translatorUserId,
                   existingTranslation.id
                 );
                 console.log("Applied merge reward", {
-                  translatorUsername,
+                  translatorUserId,
                   rewardResult,
                 });
               }
@@ -711,24 +725,24 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               // that were reviewed by someone other than the current user
               const previousRejections = db
                 .prepare(
-                  `SELECT DISTINCT ua.user as reviewer
+                  `SELECT DISTINCT ua.user_id as reviewer_id
                    FROM user_activity ua
                    WHERE ua.translation_id = ?
                      AND ua.action = 'translation_status_changed'
                      AND ua.extra LIKE '%"new_status":"rejected"%'
-                     AND ua.user != ?`
+                     AND ua.user_id != ?`
                 )
-                .all(existingTranslation.id, username);
+                .all(existingTranslation.id, currentUserId);
 
               for (const rejection of previousRejections) {
                 // The reviewer who rejected it was wrong (false rejection)
-                if (rejection.reviewer) {
+                if (rejection.reviewer_id) {
                   const falseRejectionResult = applyFalseRejectionPenalty(
-                    rejection.reviewer,
+                    rejection.reviewer_id,
                     existingTranslation.id
                   );
                   console.log("Applied false rejection penalty", {
-                    reviewerUsername: rejection.reviewer,
+                    reviewerUserId: rejection.reviewer_id,
                     falseRejectionResult,
                   });
                 }
@@ -739,9 +753,9 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           // Insert new translation
           const translationResult = db
             .prepare(
-              "INSERT INTO translations (term_field_id, language, value, status, created_by) VALUES (?, ?, ?, ?, ?)"
+              "INSERT INTO translations (term_field_id, language, value, status, created_by_id) VALUES (?, ?, ?, ?, ?)"
             )
-            .run(fieldId, language, value, status || "draft", created_by);
+            .run(fieldId, language, value, status || "draft", createdByUserId);
           console.log("Inserted translation", {
             translationResult,
             fieldId,
@@ -751,16 +765,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
           // User activity logging for new translation
           console.log("Logging translation_created activity", {
-            username,
+            userId: createdByUserId,
             field_uri,
             language,
             value,
             status: status || "draft",
           });
           db.prepare(
-            "INSERT INTO user_activity (user, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
           ).run(
-            username,
+            createdByUserId,
             "translation_created",
             id,
             fieldId,
@@ -770,11 +784,11 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
           // Apply creation reward for new translations
           const creationRewardResult = applyCreationReward(
-            created_by,
+            createdByUserId,
             translationResult.lastInsertRowid
           );
           console.log("Applied creation reward", {
-            created_by,
+            createdByUserId,
             creationRewardResult,
           });
         }

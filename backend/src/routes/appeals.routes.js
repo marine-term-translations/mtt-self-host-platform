@@ -43,19 +43,24 @@ router.post("/appeals", (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
   
-  // Verify the user making the request matches the opened_by field
-  if (req.session.user.orcid !== opened_by && req.session.user.name !== opened_by) {
+  // Get the current user's ID
+  const currentUserId = req.session.user.id || req.session.user.user_id;
+  
+  // Resolve opened_by to user_id (supports both username and user_id)
+  const db = getDatabase();
+  const openedByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(opened_by, parseInt(opened_by) || 0);
+  
+  if (!openedByUser || openedByUser.id !== currentUserId) {
     return res.status(403).json({ error: "User mismatch" });
   }
   
   try {
-    const db = getDatabase();
     const stmt = db.prepare(
-      "INSERT INTO appeals (translation_id, opened_by, resolution) VALUES (?, ?, ?)"
+      "INSERT INTO appeals (translation_id, opened_by_id, resolution) VALUES (?, ?, ?)"
     );
-    const info = stmt.run(translation_id, opened_by, resolution || null);
+    const info = stmt.run(translation_id, currentUserId, resolution || null);
     // Git commit and push removed - Gitea integration removed
-    res.status(201).json({ id: info.lastInsertRowid, translation_id, opened_by, resolution });
+    res.status(201).json({ id: info.lastInsertRowid, translation_id, opened_by_id: currentUserId, resolution });
   } catch (err) {
     console.error("Error creating appeal:", err.message);
     return res.status(500).json({ error: err.message });
@@ -131,13 +136,18 @@ router.patch("/appeals/:id", (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
   
-  // Verify the user making the request matches the username field
-  if (req.session.user.orcid !== username && req.session.user.name !== username) {
+  // Get the current user's ID
+  const db = getDatabase();
+  const currentUserId = req.session.user.id || req.session.user.user_id;
+  
+  // Resolve username to user_id
+  const user = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(username, parseInt(username) || 0);
+  
+  if (!user || user.id !== currentUserId) {
     return res.status(403).json({ error: "User mismatch" });
   }
   
   try {
-    const db = getDatabase();
     const stmt = db.prepare(
       "UPDATE appeals SET status = COALESCE(?, status), resolution = COALESCE(?, resolution), closed_at = CASE WHEN ? = 'closed' OR ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE closed_at END WHERE id = ?"
     );
