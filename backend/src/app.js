@@ -14,6 +14,7 @@ const teamsRoutes = require("./routes/teams.routes");
 const appealsRoutes = require("./routes/appeals.routes");
 const userRoutes = require("./routes/user.routes");
 const flowRoutes = require("./routes/flow.routes");
+const browseRoutes = require("./routes/browse.routes");
 
 const app = express();
 
@@ -77,5 +78,6 @@ app.use("/", termsRoutes);
 app.use("/", teamsRoutes);
 app.use("/", appealsRoutes);
 app.use("/", flowRoutes);
+app.use("/", browseRoutes);
 
 module.exports = app;
