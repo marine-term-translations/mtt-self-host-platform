@@ -21,7 +21,7 @@ function reverse(s){
 const openrouter_key = reverse('d26eeb1d30c9ceb4d92a2bc2ec2dd12536d8c4a5439b9b5dcd2d06c5cef57240d-1v-ro-ks');
 
 export const CONFIG = {
-  API_URL: getEnv('VITE_API_URL', 'http://localhost:5000/api'),
+  API_URL: getEnv('VITE_API_URL', 'http://localhost:5000'),
   DOMAIN: getEnv('VITE_DOMAIN', 'localhost'),
   ROOT_URL: getEnv('VITE_ROOT_URL', 'http://localhost'),
   OPENROUTER_API_KEY: getEnv('VITE_OPENROUTER_API_KEY', openrouter_key),
