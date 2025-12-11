@@ -264,6 +264,9 @@ router.post("/auth/register", async (req, res) => {
     const userId = userResult.lastInsertRowid;
 
     // Create auth provider entry
+    // Note: For email/password, we store the hashed password in access_token field
+    // This is a design choice to avoid adding password-specific columns
+    // In production, consider adding a dedicated password_hash column or using a separate table
     db.prepare(
       'INSERT INTO auth_providers (user_id, provider, provider_id, email, access_token) VALUES (?, ?, ?, ?, ?)'
     ).run(userId, 'email', email, email, hashedPassword);
