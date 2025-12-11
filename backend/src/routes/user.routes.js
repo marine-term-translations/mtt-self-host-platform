@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const rateLimit = require("express-rate-limit");
+const { apiLimiter } = require("../middleware/rateLimit");
 
 // Set up rate limiter for user preferences endpoints (max 100 per 15 minutes per IP)
 const userPreferencesLimiter = rateLimit({
@@ -58,7 +59,7 @@ const requireAuth = (req, res, next) => {
  *       500:
  *         description: Server error
  */
-router.get("/user/:id", (req, res) => {
+router.get("/user/:id", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const userId = parseInt(req.params.id, 10);
