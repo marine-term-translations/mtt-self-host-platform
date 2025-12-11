@@ -17,24 +17,34 @@ const {
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
  * Returns translations that are in 'review' status and not created by the user
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter
  * @returns {array} Array of translations needing review
  */
-function getPendingReviews(userId, language = null) {
+function getPendingReviews(userIdentifier, language = null) {
   const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve user identifier to user_id
+  let userId = typeof userIdentifier === 'number' ? userIdentifier : parseInt(userIdentifier, 10);
+  if (isNaN(userId)) {
+    userId = resolveUsernameToId(userIdentifier);
+    if (!userId) {
+      return null;
+    }
+  }
   
   // Build query with optional language filter
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
-            t.created_by, t.created_at,
+            t.created_by_id, t.created_at,
             tf.field_uri, tf.field_term, tf.original_value,
             term.id as term_id, term.uri as term_uri
      FROM translations t
      JOIN term_fields tf ON t.term_field_id = tf.id
      JOIN terms term ON tf.term_id = term.id
      WHERE t.status = 'review' 
-       AND t.created_by != ?
-       AND (t.reviewed_by IS NULL OR t.reviewed_by = '')`;
+       AND t.created_by_id != ?
+       AND (t.reviewed_by_id IS NULL)`;
   
   const params = [userId];
   
@@ -67,11 +77,11 @@ function getPendingReviews(userId, language = null) {
 /**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
- * @param {string} userId - Username/ORCID (optional, for filtering)
+ * @param {number|string} userIdentifier - User ID or username (optional, for filtering)
  * @param {string} language - Optional language filter
  * @returns {object|null} Term field needing translation
  */
-function getRandomUntranslated(userId, language = null) {
+function getRandomUntranslated(userIdentifier, language = null) {
   const db = getDatabase();
   
   // Build query with optional language filter
@@ -160,13 +170,13 @@ function getRandomUntranslated(userId, language = null) {
 
 /**
  * Get the next task for the user (review or translate)
- * @param {string} userId - Username/ORCID
+ * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter
  * @returns {object} Next task object
  */
-function getNextTask(userId, language = null) {
+function getNextTask(userIdentifier, language = null) {
   // Priority 1: Pending reviews
-  const review = getPendingReviews(userId, language);
+  const review = getPendingReviews(userIdentifier, language);
   if (review) {
     return {
       type: 'review',
@@ -175,7 +185,7 @@ function getNextTask(userId, language = null) {
   }
   
   // Priority 2: Untranslated terms
-  const untranslated = getRandomUntranslated(userId, language);
+  const untranslated = getRandomUntranslated(userIdentifier, language);
   if (untranslated) {
     return {
       type: 'translate',
@@ -198,6 +208,16 @@ function getNextTask(userId, language = null) {
 function submitReview(params) {
   const { userId, translationId, action, sessionId } = params;
   const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve userId to integer ID
+  let resolvedUserId = typeof userId === 'number' ? userId : parseInt(userId, 10);
+  if (isNaN(resolvedUserId)) {
+    resolvedUserId = resolveUsernameToId(userId);
+    if (!resolvedUserId) {
+      throw new Error('User not found');
+    }
+  }
   
   // Validate action
   if (!['approve', 'reject'].includes(action)) {
@@ -220,42 +240,42 @@ function submitReview(params) {
   // Update translation status
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
   db.prepare(
-    "UPDATE translations SET status = ?, reviewed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-  ).run(newStatus, userId, translationId);
+    "UPDATE translations SET status = ?, reviewed_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+  ).run(newStatus, resolvedUserId, translationId);
   
   // Apply reputation changes based on action using existing reputation system
   if (action === 'approve') {
     // Get the translator and apply approval reward
-    const translatorUsername = translation.modified_by || translation.created_by;
-    if (translatorUsername) {
-      applyApprovalReward(translatorUsername, translationId);
+    const translatorUserId = translation.modified_by_id || translation.created_by_id;
+    if (translatorUserId) {
+      applyApprovalReward(translatorUserId, translationId);
     }
   } else if (action === 'reject') {
     // Apply rejection penalty to translator
-    const translatorUsername = translation.modified_by || translation.created_by;
-    if (translatorUsername) {
-      applyRejectionPenalty(translatorUsername, translationId);
+    const translatorUserId = translation.modified_by_id || translation.created_by_id;
+    if (translatorUserId) {
+      applyRejectionPenalty(translatorUserId, translationId);
     }
   }
   
   // Award 1 reputation point to reviewer
   const points = 1;
-  awardPoints(userId, points, `review_${action}`);
+  awardPoints(resolvedUserId, points, `review_${action}`);
   
   // Update streak
-  const streakInfo = updateStreak(userId);
+  const streakInfo = updateStreak(resolvedUserId);
   
   // Increment review count
-  incrementReviewCount(userId);
+  incrementReviewCount(resolvedUserId);
   
   // Update challenge progress
-  updateChallengeProgress(userId, 'review_10', 1);
+  updateChallengeProgress(resolvedUserId, 'review_10', 1);
   
   // Log activity
   try {
     db.prepare(
-      "INSERT INTO user_activity (user, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-    ).run(userId, `translation_${action}d`, translationId, JSON.stringify({ sessionId }));
+      "INSERT INTO user_activity (user_id, action, translation_id, extra) VALUES (?, ?, ?, ?)"
+    ).run(resolvedUserId, `translation_${action}d`, translationId, JSON.stringify({ sessionId }));
   } catch (err) {
     console.log("Could not log activity:", err.message);
   }
