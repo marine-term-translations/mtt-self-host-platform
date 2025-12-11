@@ -19,12 +19,12 @@ services:
     build: 
       context: ./frontend
       args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000}
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
         - VITE_DOMAIN=${DOMAIN:-localhost}
     container_name: marine-frontend
     restart: unless-stopped
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:5000}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
     ports:
       - "4173:4173"
     depends_on:
