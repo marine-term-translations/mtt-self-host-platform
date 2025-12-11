@@ -144,6 +144,10 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
 });
 
 /**
+ * Get a specific user by ID
+ * Note: This route is intentionally placed after more specific routes (like /user/preferences)
+ * to prevent the :id parameter from matching literal path segments.
+ * 
  * @openapi
  * /api/user/{id}:
  *   get:
