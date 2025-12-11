@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const rateLimit = require("express-rate-limit");
+const { apiLimiter } = require("../middleware/rateLimit");
 
 // Set up rate limiter for user preferences endpoints (max 100 per 15 minutes per IP)
 const userPreferencesLimiter = rateLimit({
@@ -139,6 +140,70 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
   } catch (error) {
     console.error('[User Preferences] Error:', error);
     res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+/**
+ * Get a specific user by ID
+ * Note: This route is intentionally placed after more specific routes (like /user/preferences)
+ * to prevent the :id parameter from matching literal path segments.
+ * 
+ * @openapi
+ * /api/user/{id}:
+ *   get:
+ *     summary: Get a specific user by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The user ID
+ *     responses:
+ *       200:
+ *         description: Returns user details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 username:
+ *                   type: string
+ *                 reputation:
+ *                   type: integer
+ *                 joined_at:
+ *                   type: string
+ *                 extra:
+ *                   type: string
+ *       400:
+ *         description: Invalid user ID
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/user/:id", apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = parseInt(req.params.id, 10);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    const user = db
+      .prepare("SELECT id, username, reputation, joined_at, extra FROM users WHERE id = ?")
+      .get(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

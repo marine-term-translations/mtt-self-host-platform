@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
+const { apiLimiter } = require("../middleware/rateLimit");
 
 /**
  * @openapi
@@ -18,12 +19,23 @@ const { getDatabase } = require("../db/database");
  *               type: array
  *               items:
  *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   username:
+ *                     type: string
+ *                   reputation:
+ *                     type: integer
+ *                   joined_at:
+ *                     type: string
+ *                   extra:
+ *                     type: string
  */
-router.get("/users", (req, res) => {
+router.get("/users", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const users = db
-      .prepare("SELECT username, reputation, joined_at, extra FROM users")
+      .prepare("SELECT id, username, reputation, joined_at, extra FROM users")
       .all();
     res.json(users);
   } catch (err) {
