@@ -205,6 +205,12 @@ router.get("/browse", apiLimiter, (req, res) => {
     // Compute requested facets
     const facets = {};
     
+    // Note: COUNT(DISTINCT) can be expensive on large datasets
+    // For production with large data, consider:
+    // 1. Using materialized views for facet counts
+    // 2. Caching facet counts with periodic refresh
+    // 3. Pre-computing counts during off-peak hours
+    
     if (requestedFacets.includes('language')) {
       const langFacetQuery = `
         SELECT tr.language, COUNT(DISTINCT tr.id) as count
