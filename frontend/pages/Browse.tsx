@@ -50,7 +50,16 @@ const Browse: React.FC = () => {
       console.log("Fetching terms from /api/browse...");
       const offset = (currentPage - 1) * pageSize;
       
-      const params: any = {
+      interface BrowseParams {
+        limit: number;
+        offset: number;
+        facets: string[];
+        query?: string;
+        language?: string;
+        status?: string;
+      }
+      
+      const params: BrowseParams = {
         limit: pageSize,
         offset,
         facets: ['language', 'status']
@@ -65,8 +74,19 @@ const Browse: React.FC = () => {
       // Store facets
       setFacets(response.facets || {});
       
+      interface BrowseResult {
+        uri: string;
+        field_term?: string;
+        original_value?: string;
+        translations: Array<{
+          language: string;
+          value: string;
+          status: string;
+        }>;
+      }
+      
       // Map browse results to Term format
-      const mappedTerms: Term[] = response.results.map((result: any) => {
+      const mappedTerms: Term[] = response.results.map((result: BrowseResult) => {
         const translations: Record<string, string | null> = {
           en_plain: null,
           es: null,
@@ -89,7 +109,7 @@ const Browse: React.FC = () => {
         };
 
         if (result.translations) {
-          result.translations.forEach((t: any) => {
+          result.translations.forEach((t) => {
             if (t.language && t.value) {
               translations[t.language] = t.value;
             }
