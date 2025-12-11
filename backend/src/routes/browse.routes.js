@@ -99,16 +99,14 @@ router.get("/browse", apiLimiter, (req, res) => {
     // If there's a search query, use FTS
     if (searchQuery) {
       // Search in both terms and translations FTS tables
-      // We'll need to join results from both
+      // terms_fts contains term_fields data (rowid = term_field.id)
+      // translations_fts contains translation data (rowid = translation.id)
       whereClauses.push(`(
-        t.id IN (
+        tf.id IN (
           SELECT rowid FROM terms_fts WHERE terms_fts MATCH ?
         ) OR 
-        t.id IN (
-          SELECT DISTINCT tf2.term_id 
-          FROM translations_fts 
-          JOIN term_fields tf2 ON translations_fts.term_field_id = tf2.id
-          WHERE translations_fts MATCH ?
+        tr.id IN (
+          SELECT rowid FROM translations_fts WHERE translations_fts MATCH ?
         )
       )`);
       params.push(searchQuery, searchQuery);
