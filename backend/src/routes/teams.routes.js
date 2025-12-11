@@ -23,7 +23,7 @@ router.get("/users", (req, res) => {
   try {
     const db = getDatabase();
     const users = db
-      .prepare("SELECT username, reputation, joined_at, extra FROM users")
+      .prepare("SELECT id, username, reputation, joined_at, extra FROM users")
       .all();
     res.json(users);
   } catch (err) {
