@@ -1,6 +1,6 @@
 // Reputation service - handles reputation system functions with shield protection
 
-const { getDatabase } = require("../db/database");
+const { getDatabase, resolveUsernameToId, getUserById } = require("../db/database");
 
 /**
  * Reputation tier thresholds and rules
@@ -42,26 +42,60 @@ const REPUTATION_REWARDS = {
 };
 
 /**
+ * Helper: Resolve user identifier to user_id
+ * Accepts either a numeric user_id or a username string
+ * @param {number|string} userIdentifier - User ID or username
+ * @returns {number|null} The user_id or null if not found
+ */
+function resolveUserIdentifier(userIdentifier) {
+  // If it's already a number, return it
+  if (typeof userIdentifier === 'number') {
+    return userIdentifier;
+  }
+  
+  // If it's a string that looks like a number, parse it
+  const asNumber = parseInt(userIdentifier, 10);
+  if (!isNaN(asNumber) && asNumber.toString() === userIdentifier) {
+    return asNumber;
+  }
+  
+  // Otherwise, treat it as a username and resolve to ID
+  return resolveUsernameToId(userIdentifier);
+}
+
+/**
  * Get a user's current reputation
- * @param {string} username - The username to look up
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {number} The user's reputation (0 if not found)
  */
-function getUserReputation(username) {
+function getUserReputation(userIdentifier) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return 0;
+  }
+  
   const user = db
-    .prepare("SELECT reputation FROM users WHERE username = ?")
-    .get(username);
+    .prepare("SELECT reputation FROM users WHERE id = ?")
+    .get(userId);
   return user ? user.reputation : 0;
 }
 
 /**
  * Count recent rejections for a user within the lookback period
- * @param {string} username - The username to check
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number|null} excludeTranslationId - Optional translation ID to exclude from count
  * @returns {number} Count of recent rejections
  */
-function countRecentRejections(username, excludeTranslationId = null) {
+function countRecentRejections(userIdentifier, excludeTranslationId = null) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return 0;
+  }
+  
   // Use parameterized query with string interpolation for lookback days
   // Since REJECTION_LOOKBACK_DAYS is a constant defined in this module, we use it safely
   const lookbackModifier = `-${REJECTION_LOOKBACK_DAYS} days`;
@@ -69,11 +103,11 @@ function countRecentRejections(username, excludeTranslationId = null) {
     SELECT COUNT(*) AS cnt
     FROM translations t
     WHERE t.status = 'rejected'
-      AND (t.submitted_for_review_by = ? OR t.modified_by = ? OR t.created_by = ?)
+      AND (t.created_by_id = ? OR t.modified_by_id = ?)
       AND t.updated_at >= datetime('now', ?)
   `;
 
-  const params = [username, username, username, lookbackModifier];
+  const params = [userId, userId, lookbackModifier];
 
   if (excludeTranslationId !== null) {
     query += " AND t.id != ?";
@@ -118,13 +152,13 @@ function applyReputationShield(rawPenalty, reputation) {
 
 /**
  * Calculate the rejection penalty with reputation shield for a user
- * @param {string} username - The username whose translation was rejected
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number|null} excludeTranslationId - Optional translation ID to exclude from count
  * @returns {{ rawPenalty: number, shieldedPenalty: number, reputation: number, recentCount: number }}
  */
-function calculateRejectionPenalty(username, excludeTranslationId = null) {
-  const reputation = getUserReputation(username);
-  const recentCount = countRecentRejections(username, excludeTranslationId);
+function calculateRejectionPenalty(userIdentifier, excludeTranslationId = null) {
+  const reputation = getUserReputation(userIdentifier);
+  const recentCount = countRecentRejections(userIdentifier, excludeTranslationId);
   const rawPenalty = calculateRawRejectionPenalty(recentCount);
   const shieldedPenalty = applyReputationShield(rawPenalty, reputation);
 
@@ -138,11 +172,11 @@ function calculateRejectionPenalty(username, excludeTranslationId = null) {
 
 /**
  * Calculate the false rejection penalty with reputation shield
- * @param {string} username - The username who made the false rejection
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {{ rawPenalty: number, shieldedPenalty: number, reputation: number }}
  */
-function calculateFalseRejectionPenalty(username) {
-  const reputation = getUserReputation(username);
+function calculateFalseRejectionPenalty(userIdentifier) {
+  const reputation = getUserReputation(userIdentifier);
   const rawPenalty = BASE_FALSE_REJECTION_PENALTY;
 
   let shieldedPenalty;
@@ -166,7 +200,7 @@ function calculateFalseRejectionPenalty(username) {
 
 /**
  * Record a reputation event in the database
- * @param {string} username - The user whose reputation changed
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} delta - The reputation change amount
  * @param {string} reason - The reason for the change
  * @param {number|null} translationId - Optional related translation ID
@@ -174,21 +208,26 @@ function calculateFalseRejectionPenalty(username) {
  * @returns {number} The inserted event ID
  */
 function recordReputationEvent(
-  username,
+  userIdentifier,
   delta,
   reason,
   translationId = null,
   extra = null
 ) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    throw new Error(`User not found: ${userIdentifier}`);
+  }
 
   // First record user activity
   const activityStmt = db.prepare(`
-    INSERT INTO user_activity (user, action, translation_id, extra)
+    INSERT INTO user_activity (user_id, action, translation_id, extra)
     VALUES (?, ?, ?, ?)
   `);
   const activityInfo = activityStmt.run(
-    username,
+    userId,
     reason,
     translationId,
     extra ? JSON.stringify(extra) : null
@@ -196,16 +235,16 @@ function recordReputationEvent(
 
   // Then record reputation event
   const stmt = db.prepare(`
-    INSERT INTO reputation_events (user, delta, reason, related_activity_id)
+    INSERT INTO reputation_events (user_id, delta, reason, related_activity_id)
     VALUES (?, ?, ?, ?)
   `);
-  const info = stmt.run(username, delta, reason, activityInfo.lastInsertRowid);
+  const info = stmt.run(userId, delta, reason, activityInfo.lastInsertRowid);
   return info.lastInsertRowid;
 }
 
 /**
  * Apply a reputation change to a user
- * @param {string} username - The user to update
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} delta - The reputation change amount (positive or negative)
  * @param {string} reason - The reason for the change
  * @param {number|null} translationId - Optional related translation ID
@@ -213,18 +252,23 @@ function recordReputationEvent(
  * @returns {{ newReputation: number, eventId: number } | null} Result or null if user not found
  */
 function applyReputationChange(
-  username,
+  userIdentifier,
   delta,
   reason,
   translationId = null,
   extra = null
 ) {
   const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
 
   // Check if user exists first
   const userExists = db
-    .prepare("SELECT 1 FROM users WHERE username = ?")
-    .get(username);
+    .prepare("SELECT 1 FROM users WHERE id = ?")
+    .get(userId);
 
   if (!userExists) {
     return null;
@@ -233,24 +277,24 @@ function applyReputationChange(
   if (delta === 0) {
     // No change needed, but still record the event if there's a reason
     const eventId = recordReputationEvent(
-      username,
+      userId,
       delta,
       reason,
       translationId,
       extra
     );
-    const reputation = getUserReputation(username);
+    const reputation = getUserReputation(userId);
     return { newReputation: reputation, eventId };
   }
 
   // Update user reputation
   db.prepare(
-    "UPDATE users SET reputation = reputation + ? WHERE username = ?"
-  ).run(delta, username);
+    "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+  ).run(delta, userId);
 
   // Record the event
   const eventId = recordReputationEvent(
-    username,
+    userId,
     delta,
     reason,
     translationId,
@@ -258,19 +302,19 @@ function applyReputationChange(
   );
 
   // Get new reputation
-  const newReputation = getUserReputation(username);
+  const newReputation = getUserReputation(userId);
 
   return { newReputation, eventId };
 }
 
 /**
  * Apply rejection penalty to a user (with shield protection)
- * @param {string} username - The username whose translation was rejected
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} translationId - The rejected translation ID
  * @returns {{ applied: boolean, penalty: number, rawPenalty: number, shielded: boolean, newReputation: number | null }}
  */
-function applyRejectionPenalty(username, translationId) {
-  const penaltyInfo = calculateRejectionPenalty(username, translationId);
+function applyRejectionPenalty(userIdentifier, translationId) {
+  const penaltyInfo = calculateRejectionPenalty(userIdentifier, translationId);
   const { rawPenalty, shieldedPenalty, reputation, recentCount } = penaltyInfo;
 
   // Only apply if there's actually a penalty
@@ -285,7 +329,7 @@ function applyRejectionPenalty(username, translationId) {
   }
 
   const result = applyReputationChange(
-    username,
+    userIdentifier,
     shieldedPenalty,
     "translation_rejected",
     translationId,
@@ -319,12 +363,12 @@ function applyRejectionPenalty(username, translationId) {
 
 /**
  * Apply false rejection penalty to a user (with shield protection)
- * @param {string} username - The username who made the false rejection
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} translationId - The translation ID that was falsely rejected
  * @returns {{ applied: boolean, penalty: number, rawPenalty: number, shielded: boolean, newReputation: number | null }}
  */
-function applyFalseRejectionPenalty(username, translationId) {
-  const penaltyInfo = calculateFalseRejectionPenalty(username);
+function applyFalseRejectionPenalty(userIdentifier, translationId) {
+  const penaltyInfo = calculateFalseRejectionPenalty(userIdentifier);
   const { rawPenalty, shieldedPenalty, reputation } = penaltyInfo;
 
   // Only apply if there's actually a penalty
@@ -339,7 +383,7 @@ function applyFalseRejectionPenalty(username, translationId) {
   }
 
   const result = applyReputationChange(
-    username,
+    userIdentifier,
     shieldedPenalty,
     "false_rejection",
     translationId,
@@ -372,21 +416,21 @@ function applyFalseRejectionPenalty(username, translationId) {
 
 /**
  * Check if a user is immune to rejection penalties
- * @param {string} username - The username to check
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {boolean} True if user is immune
  */
-function isImmuneToRejectionPenalty(username) {
-  const reputation = getUserReputation(username);
+function isImmuneToRejectionPenalty(userIdentifier) {
+  const reputation = getUserReputation(userIdentifier);
   return reputation >= REPUTATION_TIERS.VETERAN;
 }
 
 /**
  * Get the reputation tier name for a user
- * @param {string} username - The username to check
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {string} The tier name (veteran, trusted, regular, or new_user)
  */
-function getReputationTierName(username) {
-  const reputation = getUserReputation(username);
+function getReputationTierName(userIdentifier) {
+  const reputation = getUserReputation(userIdentifier);
 
   if (reputation >= REPUTATION_TIERS.VETERAN) {
     return "veteran";
@@ -401,12 +445,12 @@ function getReputationTierName(username) {
 
 /**
  * Get reputation tier info for a user
- * @param {string} username - The username to check
+ * @param {number|string} userIdentifier - User ID or username
  * @returns {{ reputation: number, tier: string, maxPenalty: number | null, immuneToRejection: boolean }}
  */
-function getReputationTierInfo(username) {
-  const reputation = getUserReputation(username);
-  const tier = getReputationTierName(username);
+function getReputationTierInfo(userIdentifier) {
+  const reputation = getUserReputation(userIdentifier);
+  const tier = getReputationTierName(userIdentifier);
 
   let maxPenalty;
   let immuneToRejection;
@@ -435,15 +479,15 @@ function getReputationTierInfo(username) {
 
 /**
  * Generic function to apply a reputation reward
- * @param {string} username - The user to reward
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} reward - The reward amount
  * @param {string} reason - The reason for the reward
  * @param {number} translationId - The translation ID
  * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
  */
-function applyReward(username, reward, reason, translationId) {
+function applyReward(userIdentifier, reward, reason, translationId) {
   const result = applyReputationChange(
-    username,
+    userIdentifier,
     reward,
     reason,
     translationId,
@@ -467,13 +511,13 @@ function applyReward(username, reward, reason, translationId) {
 
 /**
  * Apply reputation reward when a translation is approved
- * @param {string} username - The translator who created the translation
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} translationId - The translation ID
  * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
  */
-function applyApprovalReward(username, translationId) {
+function applyApprovalReward(userIdentifier, translationId) {
   return applyReward(
-    username,
+    userIdentifier,
     REPUTATION_REWARDS.TRANSLATION_APPROVED,
     "translation_approved",
     translationId
@@ -482,13 +526,13 @@ function applyApprovalReward(username, translationId) {
 
 /**
  * Apply reputation reward when a translation is merged
- * @param {string} username - The translator who created the translation
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} translationId - The translation ID
  * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
  */
-function applyMergeReward(username, translationId) {
+function applyMergeReward(userIdentifier, translationId) {
   return applyReward(
-    username,
+    userIdentifier,
     REPUTATION_REWARDS.TRANSLATION_MERGED,
     "translation_merged",
     translationId
@@ -497,13 +541,13 @@ function applyMergeReward(username, translationId) {
 
 /**
  * Apply reputation reward when a translation is created
- * @param {string} username - The translator who created the translation
+ * @param {number|string} userIdentifier - User ID or username
  * @param {number} translationId - The translation ID
  * @returns {{ applied: boolean, reward: number, newReputation: number | null }}
  */
-function applyCreationReward(username, translationId) {
+function applyCreationReward(userIdentifier, translationId) {
   return applyReward(
-    username,
+    userIdentifier,
     REPUTATION_REWARDS.TRANSLATION_CREATED,
     "translation_created",
     translationId
@@ -519,6 +563,7 @@ module.exports = {
   REPUTATION_REWARDS,
 
   // Core functions
+  resolveUserIdentifier,
   getUserReputation,
   countRecentRejections,
   calculateRawRejectionPenalty,

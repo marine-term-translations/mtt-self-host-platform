@@ -24,7 +24,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.username) return;
+      if (!user?.id && !user?.user_id) return; // Check for user ID
 
       try {
         setLoading(true);
@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
         // Fetch data in parallel including user preferences
         const [termsResponse, history, users, preferences] = await Promise.all([
           backendApi.getTerms(100, 0), // Limit to 100 terms for dashboard stats
-          backendApi.getUserHistory(user.username),
+          backendApi.getUserHistory(user.id || user.user_id!), // Use user ID
           backendApi.getUsers(),
           backendApi.get<{ nativeLanguage: string; translationLanguages: string[] }>('/user/preferences').catch(() => ({ nativeLanguage: '', translationLanguages: [] }))
         ]);

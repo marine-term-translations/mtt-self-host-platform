@@ -48,11 +48,11 @@ const requireAuth = (req, res, next) => {
 router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
-    const orcid = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     
-    console.log('[User Preferences] Getting preferences for:', orcid);
+    console.log('[User Preferences] Getting preferences for user ID:', userId);
     
-    const user = db.prepare('SELECT extra FROM users WHERE username = ?').get(orcid);
+    const user = db.prepare('SELECT extra FROM users WHERE id = ?').get(userId);
     
     if (!user) {
       console.log('[User Preferences] User not found');
@@ -100,14 +100,14 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
 router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) => {
   try {
     const db = getDatabase();
-    const orcid = req.session.user.orcid;
+    const userId = req.session.user.id || req.session.user.user_id;
     const { nativeLanguage, translationLanguages } = req.body;
     
-    console.log('[User Preferences] Updating preferences for:', orcid);
+    console.log('[User Preferences] Updating preferences for user ID:', userId);
     console.log('[User Preferences] New preferences:', { nativeLanguage, translationLanguages });
     
     // Get current user data
-    const user = db.prepare('SELECT extra FROM users WHERE username = ?').get(orcid);
+    const user = db.prepare('SELECT extra FROM users WHERE id = ?').get(userId);
     
     if (!user) {
       console.log('[User Preferences] User not found');
@@ -122,9 +122,9 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
     extra.translationLanguages = translationLanguages || extra.translationLanguages || [];
     
     // Save updated extra data
-    db.prepare('UPDATE users SET extra = ? WHERE username = ?').run(
+    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
       JSON.stringify(extra),
-      orcid
+      userId
     );
     
     console.log('[User Preferences] Preferences updated successfully');
