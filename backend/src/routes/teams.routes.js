@@ -31,7 +31,7 @@ const { apiLimiter } = require("../middleware/rateLimit");
  *                   extra:
  *                     type: string
  */
-router.get("/users", apiLimiter, (req, res) => {
+router.get("/api/users", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const users = db
