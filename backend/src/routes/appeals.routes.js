@@ -3,6 +3,7 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
+const { writeLimiter, apiLimiter } = require("../middleware/rateLimit");
 /**
  * @openapi
  * /api/appeals:
@@ -29,7 +30,7 @@ const { getDatabase } = require("../db/database");
  *             schema:
  *               type: object
  */
-router.post("/appeals", (req, res) => {
+router.post("/appeals", writeLimiter, (req, res) => {
   const { translation_id, opened_by, resolution } = req.body;
   if (!translation_id || !opened_by) {
     return res
@@ -82,7 +83,7 @@ router.post("/appeals", (req, res) => {
  *               items:
  *                 type: object
  */
-router.get("/appeals", (req, res) => {
+router.get("/appeals", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const appeals = db.prepare("SELECT * FROM appeals").all();
@@ -122,7 +123,7 @@ router.get("/appeals", (req, res) => {
  *             schema:
  *               type: object
  */
-router.patch("/appeals/:id", (req, res) => {
+router.patch("/appeals/:id", writeLimiter, (req, res) => {
   const { id } = req.params;
   const { status, resolution, username } = req.body;
   if ((!status && !resolution) || !username) {
