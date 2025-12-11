@@ -118,30 +118,55 @@ class ApiService {
 
   // --- Domain Specific Methods ---
 
-  public async getTerms(limit?: number, offset?: number): Promise<{ terms: ApiTerm[], total: number, limit: number, offset: number }> {
+  public async getTerms(limit?: number, offset?: number): Promise<{ terms: ApiTerm[], total: number }> {
     const params: Record<string, string> = {};
     if (limit !== undefined) params.limit = limit.toString();
     if (offset !== undefined) params.offset = offset.toString();
+    return this.get<{ terms: ApiTerm[], total: number }>('/terms', params);
+  }
+
+  public async getTerm(id: number | string): Promise<ApiTerm> {
+    // Use the paginated /terms endpoint with offset to fetch the specific term
+    // Assumes term IDs are sequential starting from 1
+    const termId = typeof id === 'string' ? parseInt(id, 10) : id;
+    const offset = termId - 1; // Zero-based offset (term ID 1 is at offset 0)
     
-    type TermsResponse = 
-      | ApiTerm[] 
-      | { terms: ApiTerm[], total: number, limit: number, offset: number };
+    const response = await this.getTerms(1, offset);
     
-    const response = await this.get<TermsResponse>('/terms', params);
-    
-    // Handle both old format (array) and new format (object with pagination)
-    if (Array.isArray(response)) {
-      // Old format - backward compatibility
-      return {
-        terms: response,
-        total: response.length,
-        limit: response.length,
-        offset: 0
-      };
+    if (response.terms.length === 0) {
+      throw new Error(`Term with ID ${id} not found`);
     }
     
-    // New format with pagination
-    return response;
+    return response.terms[0];
+  }
+
+  public async getTermByUri(uri: string): Promise<ApiTerm> {
+    // Normalize URI for comparison (remove trailing slashes)
+    const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
+    const normalizedSearchUri = normalizeUri(uri);
+    
+    // Fetch terms in pages until we find the matching URI
+    const pageSize = 100; // Fetch 100 at a time for efficiency
+    let offset = 0;
+    let total = 0;
+    
+    do {
+      const response = await this.getTerms(pageSize, offset);
+      total = response.total;
+      
+      // Search for matching URI in this page
+      const foundTerm = response.terms.find(
+        (t: ApiTerm) => normalizeUri(t.uri) === normalizedSearchUri
+      );
+      
+      if (foundTerm) {
+        return foundTerm;
+      }
+      
+      offset += pageSize;
+    } while (offset < total);
+    
+    throw new Error(`Term with URI "${uri}" not found`);
   }
 
   public async getUserTeams(username: string, org: string): Promise<any[]> {
