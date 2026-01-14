@@ -45,12 +45,6 @@ services:
     cpus: 4
     volumes:
       - ./data:/root/graphdb-import/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7200/rest/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   ldes-consumer:
     image: ghcr.io/vliz-be-opsci/kgap/kgap_ldes-consumer:latest
