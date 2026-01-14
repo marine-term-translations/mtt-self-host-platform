@@ -2,8 +2,45 @@
 
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+
+// Configure multer for file uploads to /data volume
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = "/data/uploads";
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept RDF/Turtle/JSON-LD files
+    const allowedExts = ['.ttl', '.rdf', '.xml', '.jsonld', '.json', '.nt', '.nq'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only RDF formats are allowed (.ttl, .rdf, .xml, .jsonld, .json, .nt, .nq)'));
+    }
+  }
+});
 
 /**
  * @openapi
@@ -49,18 +86,23 @@ const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
  *         description: Server error
  */
 router.post("/sources", writeLimiter, (req, res) => {
-  const { source_path, graph_name } = req.body;
+  const { source_path, graph_name, source_type } = req.body;
   
   if (!source_path) {
     return res.status(400).json({ error: "Missing source_path" });
   }
   
+  // Validate source_type if provided
+  if (source_type && !['LDES', 'Static_file'].includes(source_type)) {
+    return res.status(400).json({ error: "Invalid source_type. Must be 'LDES' or 'Static_file'" });
+  }
+  
   try {
     const db = getDatabase();
     const stmt = db.prepare(
-      "INSERT INTO sources (source_path, graph_name) VALUES (?, ?)"
+      "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
     );
-    const info = stmt.run(source_path, graph_name || null);
+    const info = stmt.run(source_path, graph_name || null, source_type || 'Static_file');
     
     // Fetch the created source
     const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
@@ -235,7 +277,7 @@ router.get("/sources/:id", apiLimiter, (req, res) => {
  */
 router.put("/sources/:id", writeLimiter, (req, res) => {
   const { id } = req.params;
-  const { source_path, graph_name } = req.body;
+  const { source_path, graph_name, source_type } = req.body;
   
   // Validate that id is a valid integer
   const sourceId = parseInt(id, 10);
@@ -245,6 +287,11 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
   
   if (!source_path) {
     return res.status(400).json({ error: "Missing source_path" });
+  }
+  
+  // Validate source_type if provided
+  if (source_type && !['LDES', 'Static_file'].includes(source_type)) {
+    return res.status(400).json({ error: "Invalid source_type. Must be 'LDES' or 'Static_file'" });
   }
   
   try {
@@ -258,8 +305,8 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
     
     // Update the source
     db.prepare(
-      "UPDATE sources SET source_path = ?, graph_name = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
-    ).run(source_path, graph_name || null, sourceId);
+      "UPDATE sources SET source_path = ?, graph_name = ?, source_type = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
+    ).run(source_path, graph_name || null, source_type || existing.source_type || 'Static_file', sourceId);
     
     // Fetch updated source
     const updated = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
@@ -418,6 +465,85 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
       source
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources/upload:
+ *   post:
+ *     summary: Upload a static file as a new data source
+ *     description: Uploads an RDF file to the /data volume and creates a source entry
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: RDF file (.ttl, .rdf, .xml, .jsonld, .json, .nt, .nq)
+ *               graph_name:
+ *                 type: string
+ *                 description: Optional graph name for the RDF data
+ *     responses:
+ *       201:
+ *         description: File uploaded and source created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 source_id:
+ *                   type: integer
+ *                 source_path:
+ *                   type: string
+ *                 graph_name:
+ *                   type: string
+ *                 source_type:
+ *                   type: string
+ *                 original_filename:
+ *                   type: string
+ *       400:
+ *         description: Invalid file or missing file
+ *       500:
+ *         description: Server error
+ */
+router.post("/sources/upload", writeLimiter, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const { graph_name } = req.body;
+    const filePath = `/data/uploads/${req.file.filename}`;
+    
+    // Create source entry in database
+    const db = getDatabase();
+    const stmt = db.prepare(
+      "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
+    );
+    const info = stmt.run(filePath, graph_name || null, 'Static_file');
+    
+    // Fetch the created source
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
+    
+    res.status(201).json({
+      ...source,
+      original_filename: req.file.originalname
+    });
+  } catch (err) {
+    // Clean up uploaded file on error
+    if (req.file) {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });
