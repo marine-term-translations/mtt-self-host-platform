@@ -11,7 +11,9 @@ const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = "/data/uploads";
+    // In production, this will be /data/uploads (mounted volume)
+    // For development/testing, use a writable directory
+    const uploadDir = process.env.NODE_ENV === 'production' ? "/data/uploads" : path.join(__dirname, "../../data/uploads");
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -521,7 +523,10 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), (req, res) =
     }
 
     const { graph_name } = req.body;
-    const filePath = `/data/uploads/${req.file.filename}`;
+    // Use the actual file path (relative to the upload directory)
+    const filePath = process.env.NODE_ENV === 'production' 
+      ? `/data/uploads/${req.file.filename}`
+      : req.file.path;
     
     // Create source entry in database
     const db = getDatabase();
