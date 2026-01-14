@@ -1,0 +1,425 @@
+// Sources routes - handles CRUD operations for data sources
+
+const express = require("express");
+const router = express.Router();
+const { getDatabase } = require("../db/database");
+const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+
+/**
+ * @openapi
+ * /api/sources:
+ *   post:
+ *     summary: Create a new data source
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - source_path
+ *             properties:
+ *               source_path:
+ *                 type: string
+ *                 description: Path or URI of the data source
+ *               graph_name:
+ *                 type: string
+ *                 description: Optional graph name for RDF data sources
+ *     responses:
+ *       201:
+ *         description: Source created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 source_id:
+ *                   type: integer
+ *                 source_path:
+ *                   type: string
+ *                 graph_name:
+ *                   type: string
+ *                 created_at:
+ *                   type: string
+ *                 last_modified:
+ *                   type: string
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error
+ */
+router.post("/sources", writeLimiter, (req, res) => {
+  const { source_path, graph_name } = req.body;
+  
+  if (!source_path) {
+    return res.status(400).json({ error: "Missing source_path" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const stmt = db.prepare(
+      "INSERT INTO sources (source_path, graph_name) VALUES (?, ?)"
+    );
+    const info = stmt.run(source_path, graph_name || null);
+    
+    // Fetch the created source
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
+    
+    res.status(201).json(source);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources:
+ *   get:
+ *     summary: List all data sources with pagination
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of sources to return (default 50, max 100)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of sources to skip (default 0)
+ *     responses:
+ *       200:
+ *         description: Returns paginated sources
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 sources:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *                 limit:
+ *                   type: integer
+ *                 offset:
+ *                   type: integer
+ */
+router.get("/sources", apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    // Parse pagination parameters
+    let limit = parseInt(req.query.limit) || 50;
+    let offset = parseInt(req.query.offset) || 0;
+    
+    // Validate and cap limit
+    if (limit < 1) limit = 50;
+    if (limit > 100) limit = 100;
+    if (offset < 0) offset = 0;
+    
+    // Get total count
+    const totalCount = db.prepare("SELECT COUNT(*) as count FROM sources").get().count;
+    
+    // Get paginated sources
+    const sources = db.prepare(
+      "SELECT * FROM sources ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    ).all(limit, offset);
+    
+    res.json({
+      sources,
+      total: totalCount,
+      limit,
+      offset
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources/{id}:
+ *   get:
+ *     summary: Get a single source by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The source ID
+ *     responses:
+ *       200:
+ *         description: Returns the source
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 source_id:
+ *                   type: integer
+ *                 source_path:
+ *                   type: string
+ *                 graph_name:
+ *                   type: string
+ *                 created_at:
+ *                   type: string
+ *                 last_modified:
+ *                   type: string
+ *       400:
+ *         description: Invalid source ID
+ *       404:
+ *         description: Source not found
+ */
+router.get("/sources/:id", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  // Validate that id is a valid integer
+  const sourceId = parseInt(id, 10);
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    
+    if (!source) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    res.json(source);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources/{id}:
+ *   put:
+ *     summary: Update a source
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The source ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               source_path:
+ *                 type: string
+ *               graph_name:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Source updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Source not found
+ */
+router.put("/sources/:id", writeLimiter, (req, res) => {
+  const { id } = req.params;
+  const { source_path, graph_name } = req.body;
+  
+  // Validate that id is a valid integer
+  const sourceId = parseInt(id, 10);
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  if (!source_path) {
+    return res.status(400).json({ error: "Missing source_path" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if source exists
+    const existing = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    if (!existing) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    // Update the source
+    db.prepare(
+      "UPDATE sources SET source_path = ?, graph_name = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
+    ).run(source_path, graph_name || null, sourceId);
+    
+    // Fetch updated source
+    const updated = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources/{id}:
+ *   delete:
+ *     summary: Delete a source
+ *     description: Deletes a source. Note that this does not cascade to terms/term_fields due to SQLite limitations. Consider setting source_id to NULL on related records first.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The source ID
+ *     responses:
+ *       200:
+ *         description: Source deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid source ID
+ *       404:
+ *         description: Source not found
+ */
+router.delete("/sources/:id", writeLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  // Validate that id is a valid integer
+  const sourceId = parseInt(id, 10);
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if source exists
+    const existing = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    if (!existing) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    // Set source_id to NULL on any related terms and term_fields
+    // This is done explicitly since we don't have FK constraints with CASCADE
+    db.prepare("UPDATE terms SET source_id = NULL WHERE source_id = ?").run(sourceId);
+    db.prepare("UPDATE term_fields SET source_id = NULL WHERE source_id = ?").run(sourceId);
+    
+    // Delete the source
+    db.prepare("DELETE FROM sources WHERE source_id = ?").run(sourceId);
+    
+    res.json({ message: "Source deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/sources/{id}/terms:
+ *   get:
+ *     summary: Get all terms associated with a source
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The source ID
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Maximum number of terms to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of terms to skip
+ *     responses:
+ *       200:
+ *         description: Returns terms associated with the source
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 terms:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 total:
+ *                   type: integer
+ *       400:
+ *         description: Invalid source ID
+ *       404:
+ *         description: Source not found
+ */
+router.get("/sources/:id/terms", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  // Validate that id is a valid integer
+  const sourceId = parseInt(id, 10);
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if source exists
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    if (!source) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    // Parse pagination parameters
+    let limit = parseInt(req.query.limit) || 50;
+    let offset = parseInt(req.query.offset) || 0;
+    
+    // Validate and cap limit
+    if (limit < 1) limit = 50;
+    if (limit > 100) limit = 100;
+    if (offset < 0) offset = 0;
+    
+    // Get total count
+    const totalCount = db.prepare(
+      "SELECT COUNT(*) as count FROM terms WHERE source_id = ?"
+    ).get(sourceId).count;
+    
+    // Get paginated terms
+    const terms = db.prepare(
+      "SELECT * FROM terms WHERE source_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    ).all(sourceId, limit, offset);
+    
+    res.json({
+      terms,
+      total: totalCount,
+      limit,
+      offset,
+      source
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
