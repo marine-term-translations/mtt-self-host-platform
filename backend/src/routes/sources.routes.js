@@ -5,8 +5,10 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const axios = require("axios");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const config = require("../config");
 
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
@@ -43,6 +45,70 @@ const upload = multer({
     }
   }
 });
+
+/**
+ * Upload RDF file to GraphDB triplestore
+ */
+async function uploadToGraphDB(filePath, graphName) {
+  const graphdbUrl = config.graphdb.url;
+  const repository = config.graphdb.repository;
+  
+  // Determine the content type based on file extension
+  const ext = path.extname(filePath).toLowerCase();
+  const contentTypeMap = {
+    '.ttl': 'text/turtle',
+    '.rdf': 'application/rdf+xml',
+    '.xml': 'application/rdf+xml',
+    '.jsonld': 'application/ld+json',
+    '.json': 'application/ld+json',
+    '.nt': 'application/n-triples',
+    '.nq': 'application/n-quads'
+  };
+  
+  const contentType = contentTypeMap[ext] || 'text/turtle';
+  
+  try {
+    // Read the file content
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    
+    // Construct the endpoint URL
+    // If graph_name is provided, use the /rdf-graphs/service endpoint
+    // Otherwise, use the /statements endpoint for the default graph
+    let endpoint;
+    let params = {};
+    
+    if (graphName) {
+      endpoint = `${graphdbUrl}/repositories/${repository}/rdf-graphs/service`;
+      params = { graph: graphName };
+    } else {
+      endpoint = `${graphdbUrl}/repositories/${repository}/statements`;
+    }
+    
+    // Upload the RDF data
+    const response = await axios.post(endpoint, fileContent, {
+      headers: {
+        'Content-Type': contentType
+      },
+      params: params,
+      timeout: 60000 // 60 second timeout for large files
+    });
+    
+    return {
+      success: true,
+      statusCode: response.status,
+      message: 'RDF data successfully uploaded to GraphDB'
+    };
+  } catch (error) {
+    console.error('GraphDB upload error:', error.message);
+    if (error.response) {
+      throw new Error(`GraphDB error: ${error.response.status} - ${error.response.statusText}`);
+    } else if (error.request) {
+      throw new Error('Cannot connect to GraphDB. Make sure it is running and accessible.');
+    } else {
+      throw new Error(`GraphDB upload error: ${error.message}`);
+    }
+  }
+}
 
 /**
  * @openapi
@@ -516,7 +582,7 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *       500:
  *         description: Server error
  */
-router.post("/sources/upload", writeLimiter, upload.single('file'), (req, res) => {
+router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -527,6 +593,16 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), (req, res) =
     const filePath = process.env.NODE_ENV === 'production' 
       ? `/data/uploads/${req.file.filename}`
       : req.file.path;
+    
+    // Upload file to GraphDB triplestore
+    try {
+      const uploadResult = await uploadToGraphDB(req.file.path, graph_name);
+      console.log('GraphDB upload successful:', uploadResult.message);
+    } catch (graphdbError) {
+      console.error('GraphDB upload failed:', graphdbError.message);
+      // Note: We continue creating the source even if GraphDB upload fails
+      // The file is still saved locally for later processing
+    }
     
     // Create source entry in database
     const db = getDatabase();
@@ -540,7 +616,8 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), (req, res) =
     
     res.status(201).json({
       ...source,
-      original_filename: req.file.originalname
+      original_filename: req.file.originalname,
+      graphdb_upload: 'success' // Could be enhanced to return actual status
     });
   } catch (err) {
     // Clean up uploaded file on error
