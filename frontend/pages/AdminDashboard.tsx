@@ -1,7 +1,7 @@
 
 
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud } from 'lucide-react';
+import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -214,16 +214,53 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Vocabulary</p>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Database</p>
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                        Harvest Data
+                        Query Tool
                     </h3>
                 </div>
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-lg">
-                    <DownloadCloud size={20} />
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg">
+                    <Search size={20} />
                 </div>
             </div>
-            <Link to="/admin/harvest" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Import Collections &rarr;</Link>
+            <Link to="/admin/query" className="text-xs font-medium text-purple-600 hover:text-purple-700">Run Queries &rarr;</Link>
+        </div>
+      </div>
+
+      {/* Management Panels */}
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+             <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <DownloadCloud size={20} className="text-indigo-600" />
+                        Harvest & Import
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Import terms from SPARQL endpoints, LDES feeds, or upload static files
+                    </p>
+                </div>
+            </div>
+            <Link to="/admin/harvest" className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+                Manage Imports &rarr;
+            </Link>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+             <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Layers size={20} className="text-teal-600" />
+                        Data Sources
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        View and manage all data sources (LDES feeds, static files, SPARQL)
+                    </p>
+                </div>
+            </div>
+            <Link to="/admin/sources" className="inline-block px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors">
+                View Sources &rarr;
+            </Link>
         </div>
       </div>
 

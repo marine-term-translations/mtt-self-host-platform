@@ -21,6 +21,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
 import AdminHarvest from './pages/admin/AdminHarvest';
+import AdminSources from './pages/admin/AdminSources';
+import AdminQuery from './pages/admin/AdminQuery';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -128,6 +130,16 @@ const App: React.FC = () => {
         <Route path="/admin/harvest" element={
           <AdminRoute>
             <AdminHarvest />
+          </AdminRoute>
+        } />
+        <Route path="/admin/sources" element={
+          <AdminRoute>
+            <AdminSources />
+          </AdminRoute>
+        } />
+        <Route path="/admin/query" element={
+          <AdminRoute>
+            <AdminQuery />
           </AdminRoute>
         } />
 
