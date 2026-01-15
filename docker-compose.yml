@@ -44,7 +44,8 @@ services:
       - 7200:7200 # HTTP
     cpus: 4
     volumes:
-      - ./data:/root/graphdb-import/data
+      - ./data:/data
+      - ./data/graphdb-import:/root/graphdb-import/data
 
   ldes-consumer:
     image: ghcr.io/vliz-be-opsci/kgap/kgap_ldes-consumer:latest

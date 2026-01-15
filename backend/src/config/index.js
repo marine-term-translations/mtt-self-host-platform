@@ -24,7 +24,7 @@ const config = {
     dbPath: process.env.SQLITE_DB_PATH || 'backend/data/translations.db',
   },
   graphdb: {
-    url: process.env.GRAPHDB_URL || 'http://localhost:7200',
+    url: process.env.GRAPHDB_URL || 'http://graphdb:7200',
     repository: process.env.GRAPHDB_REPO || 'kgap',
   },
 };
