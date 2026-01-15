@@ -34,6 +34,7 @@ interface Predicate {
   count: number;
   sampleValue: string;
   sampleType: string;
+  languages?: string[]; // Available language tags for this predicate
 }
 
 interface PredicateObject {
@@ -48,6 +49,8 @@ interface PredicatePath {
   label: string;
   isTranslatable: boolean;
   role?: 'label' | 'reference' | 'translatable'; // New field role
+  languageTag?: string; // Per-path language tag
+  availableLanguages?: string[]; // Available languages for this path
 }
 
 interface TypeConfig {
@@ -60,7 +63,7 @@ interface TranslationConfig {
   labelField?: string; // New
   referenceFields?: string[]; // New
   translatableFields?: string[]; // New
-  languageTag?: string; // New
+  languageTag?: string; // Global fallback (deprecated, use per-path instead)
 }
 
 export default function AdminSourceDetail() {
@@ -75,8 +78,6 @@ export default function AdminSourceDetail() {
   const [translatableFields, setTranslatableFields] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [nestedPredicates, setNestedPredicates] = useState<Map<string, Predicate[]>>(new Map());
-  const [languageTag, setLanguageTag] = useState<string>('@en');
-  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [loadingTypes, setLoadingTypes] = useState(false);
@@ -209,11 +210,13 @@ export default function AdminSourceDetail() {
     if (!objectInfo) return;
     
     if (objectInfo.isTranslatable) {
-      // Add to selected paths
+      // Add to selected paths with language information
       const newPath: PredicatePath = {
         path: predicate.predicate,
         label: predicate.predicate.split('/').pop() || predicate.predicate,
-        isTranslatable: true
+        isTranslatable: true,
+        languageTag: predicate.languages && predicate.languages.length > 0 ? predicate.languages[0] : undefined,
+        availableLanguages: predicate.languages
       };
       
       if (!selectedPaths.find(p => p.path === newPath.path)) {
@@ -260,8 +263,7 @@ export default function AdminSourceDetail() {
         }],
         labelField: labelField || undefined,
         referenceFields: referenceFields.length > 0 ? referenceFields : undefined,
-        translatableFields: actualTranslatableFields.length > 0 ? actualTranslatableFields : undefined,
-        languageTag: languageTag !== '@en' ? languageTag : undefined
+        translatableFields: actualTranslatableFields.length > 0 ? actualTranslatableFields : undefined
       };
       
       await axios.put(`${API_URL}/sources/${id}/config`, { config });
@@ -318,6 +320,12 @@ export default function AdminSourceDetail() {
     } else {
       setReferenceFields([...referenceFields, path]);
     }
+  };
+
+  const handleLanguageChange = (pathString: string, language: string) => {
+    setSelectedPaths(selectedPaths.map(p => 
+      p.path === pathString ? { ...p, languageTag: language } : p
+    ));
   };
 
   return (
@@ -395,45 +403,9 @@ export default function AdminSourceDetail() {
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Path:</span>
             <span className="ml-2 text-gray-900 dark:text-white font-mono break-all">{source.source_path}</span>
-          </div>
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Graph Name:</span>
             <span className="ml-2 text-blue-600 dark:text-blue-400 font-mono break-all">{source.graph_name || 'N/A'}</span>
-          </div>
-          <div className="col-span-2">
-            <label className="text-gray-600 dark:text-gray-400 block mb-2">
-              Language Tag for Translation:
-            </label>
-            {availableLanguages.length > 0 ? (
-              <select
-                value={languageTag}
-                onChange={(e) => setLanguageTag(e.target.value)}
-                className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-              >
-                {availableLanguages.map(lang => (
-                  <option key={lang} value={lang}>{lang}</option>
-                ))}
-              </select>
-            ) : (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={languageTag}
-                  onChange={(e) => setLanguageTag(e.target.value)}
-                  className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
-                  placeholder="@en"
-                />
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  No language tags detected
-                </span>
-              </div>
-            )}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {availableLanguages.length > 0 
-                ? 'Select which language to use as example for translation'
-                : 'Enter language tag (e.g., @en, @fr) or leave as @en for default'
-              }
-            </p>
           </div>
         </div>
       </div>
@@ -523,6 +495,11 @@ export default function AdminSourceDetail() {
                             URI
                           </span>
                         )}
+                        {pred.languages && pred.languages.length > 0 && (
+                          <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded font-mono">
+                            {pred.languages.join(', ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
@@ -556,60 +533,82 @@ export default function AdminSourceDetail() {
             {selectedPaths.map((path) => (
               <div
                 key={path.path}
-                className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+                className="px-3 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-mono text-gray-900 dark:text-white">
-                      {path.label}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-mono text-gray-900 dark:text-white">
+                        {path.label}
+                      </div>
+                      {path.path === labelField && (
+                        <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded font-semibold">
+                          LABEL
+                        </span>
+                      )}
+                      {referenceFields.includes(path.path) && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-semibold">
+                          REFERENCE
+                        </span>
+                      )}
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-semibold">
+                        TRANSLATABLE
+                      </span>
                     </div>
-                    {path.path === labelField && (
-                      <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded font-semibold">
-                        LABEL
-                      </span>
-                    )}
-                    {referenceFields.includes(path.path) && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-semibold">
-                        REFERENCE
-                      </span>
-                    )}
-                    <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-semibold">
-                      TRANSLATABLE
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {path.path}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSetAsLabel(path.path)}
+                      disabled={path.path === labelField}
+                      className={`text-xs px-2 py-1 rounded transition-colors ${
+                        path.path === labelField
+                          ? 'bg-yellow-200 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-200 cursor-not-allowed'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30'
+                      }`}
+                    >
+                      Set as Label
+                    </button>
+                    <button
+                      onClick={() => handleToggleReference(path.path)}
+                      className={`text-xs px-2 py-1 rounded transition-colors ${
+                        referenceFields.includes(path.path)
+                          ? 'bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                      }`}
+                    >
+                      {referenceFields.includes(path.path) ? 'Unmark Ref' : 'Mark as Ref'}
+                    </button>
+                    <button
+                      onClick={() => handleRemovePath(path.path)}
+                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs px-2 py-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                {/* Language selector if languages are available */}
+                {path.availableLanguages && path.availableLanguages.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-xs text-gray-600 dark:text-gray-400">
+                      Language:
+                    </label>
+                    <select
+                      value={path.languageTag || path.availableLanguages[0]}
+                      onChange={(e) => handleLanguageChange(path.path, e.target.value)}
+                      className="text-xs px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white font-mono"
+                    >
+                      {path.availableLanguages.map(lang => (
+                        <option key={lang} value={lang}>{lang}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      (auto-detected)
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {path.path}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleSetAsLabel(path.path)}
-                    disabled={path.path === labelField}
-                    className={`text-xs px-2 py-1 rounded transition-colors ${
-                      path.path === labelField
-                        ? 'bg-yellow-200 dark:bg-yellow-900/50 text-yellow-900 dark:text-yellow-200 cursor-not-allowed'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/30'
-                    }`}
-                  >
-                    Set as Label
-                  </button>
-                  <button
-                    onClick={() => handleToggleReference(path.path)}
-                    className={`text-xs px-2 py-1 rounded transition-colors ${
-                      referenceFields.includes(path.path)
-                        ? 'bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-                    }`}
-                  >
-                    {referenceFields.includes(path.path) ? 'Unmark Ref' : 'Mark as Ref'}
-                  </button>
-                  <button
-                    onClick={() => handleRemovePath(path.path)}
-                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs px-2 py-1"
-                  >
-                    Remove
-                  </button>
-                </div>
+                )}
               </div>
             ))}
           </div>

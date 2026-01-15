@@ -124,12 +124,56 @@ router.get("/sources/:id/predicates", apiLimiter, async (req, res) => {
       timeout: 30000
     });
     
-    const predicates = response.data.results.bindings.map(binding => ({
-      predicate: binding.predicate.value,
-      count: parseInt(binding.count.value, 10),
-      sampleValue: binding.sample.value,
-      sampleType: binding.sample.type // 'uri' or 'literal'
-    }));
+    const predicates = [];
+    
+    // For each predicate, detect language tags
+    for (const binding of response.data.results.bindings) {
+      const predicateUri = binding.predicate.value;
+      const count = parseInt(binding.count.value, 10);
+      const sampleValue = binding.sample.value;
+      const sampleType = binding.sample.type;
+      
+      let languages = [];
+      
+      // If sample is a literal, check for language tags
+      if (sampleType === 'literal' || sampleType === 'typed-literal') {
+        const langQuery = `
+          PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+          SELECT DISTINCT (LANG(?object) as ?lang)
+          WHERE {
+            GRAPH <${source.graph_name}> {
+              ?subject rdf:type <${type}> .
+              ?subject <${predicateUri}> ?object .
+              FILTER(isLiteral(?object) && LANG(?object) != "")
+            }
+          }
+        `;
+        
+        try {
+          const langResponse = await axios.post(endpoint, langQuery, {
+            headers: {
+              'Content-Type': 'application/sparql-query',
+              'Accept': 'application/sparql-results+json'
+            },
+            timeout: 15000
+          });
+          
+          languages = langResponse.data.results.bindings
+            .map(b => b.lang.value)
+            .filter(lang => lang); // Filter out empty strings
+        } catch (err) {
+          console.error(`Failed to detect languages for ${predicateUri}:`, err.message);
+        }
+      }
+      
+      predicates.push({
+        predicate: predicateUri,
+        count,
+        sampleValue,
+        sampleType,
+        languages: languages.length > 0 ? languages : undefined
+      });
+    }
     
     res.json({ source_id: sourceId, rdf_type: type, predicates });
   } catch (err) {
@@ -402,8 +446,11 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
           const fieldTerm = pathConfig.label || predicatePath;
           const fieldRole = getFieldRole(predicatePath);
           
+          // Use per-path language tag, fallback to global, then to '@en'
+          const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
+          
           // Query for the value at this predicate path
-          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, languageTag);
+          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
           
           if (valueQuery && valueQuery.length > 0) {
             for (const value of valueQuery) {
@@ -452,14 +499,18 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
  * Supports nested paths like "ex:hasAuthor/foaf:name"
  * Filters by language tag if provided
  */
-async function getValueForPath(graphName, subjectUri, predicatePath, languageTag = '@en') {
+async function getValueForPath(graphName, subjectUri, predicatePath, languageTag) {
   const pathParts = predicatePath.split('/').map(p => p.trim());
   
   // Build SPARQL property path
   const propertyPath = pathParts.map(p => `<${p}>`).join(' / ');
   
-  // Remove @ prefix from language tag for SPARQL
-  const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
+  // Determine language filter
+  let languageFilter = '';
+  if (languageTag && languageTag !== '@en') {
+    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
+    languageFilter = `FILTER(!LANG(?value) || LANG(?value) = "${lang}")`;
+  }
   
   const sparqlQuery = `
     SELECT DISTINCT ?value
@@ -467,7 +518,7 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
-        ${lang !== 'en' || languageTag !== '@en' ? `FILTER(!LANG(?value) || LANG(?value) = "${lang}")` : ''}
+        ${languageFilter}
       }
     }
     LIMIT 100
