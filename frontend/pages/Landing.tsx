@@ -64,7 +64,7 @@ const Landing: React.FC = () => {
 
             return {
                 id: apiTerm.uri,
-                prefLabel: prefLabelField?.original_value || 'Unknown Term',
+                prefLabel: prefLabelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term',
                 definition: definitionField?.original_value || 'No definition available.',
                 category: collectionName,
                 translations: translations,

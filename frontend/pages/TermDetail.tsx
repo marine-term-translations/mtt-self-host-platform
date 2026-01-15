@@ -114,10 +114,14 @@ const TermDetail: React.FC = () => {
       }
 
       // 5. Extract Meta Info
-      const prefLabelField = foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-      const definitionField = foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
-      
-      setDisplayLabel(prefLabelField?.original_value || 'Unknown Term');
+      // Extract display values using field roles
+      // Priority: field_role > hardcoded skos fields (backward compatibility)
+      const labelField = foundApiTerm.fields.find(f => f.field_role === 'label') 
+        || foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+      const definitionField = foundApiTerm.fields.find(f => f.field_role === 'reference') 
+        || foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
+
+      setDisplayLabel(labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term');
       setDisplayDef(definitionField?.original_value || 'No definition available.');
       
       const collectionMatch = foundApiTerm.uri.match(/\/collection\/([^/]+)\//);
@@ -547,23 +551,25 @@ Original Text (${field.field_term}): "${field.original_value}"`;
 
   const canTranslate = allowedLanguages.length > 0;
   
+  // Filter translatable fields using field_role with backward compatibility
   const translatableFields = term.fields.filter(f => 
     f.original_value && 
-    (f.field_term.includes('prefLabel') || f.field_term.includes('altLabel') || f.field_term.includes('definition'))
+    (f.field_role === 'translatable' || f.field_role === 'label' || f.field_role === 'reference' ||
+     f.field_term.includes('prefLabel') || f.field_term.includes('altLabel') || f.field_term.includes('definition'))
   );
 
-  const getFieldIcon = (uri: string) => {
-    if (uri.includes('prefLabel')) return <Tag size={16} className="text-blue-500" />;
+  const getFieldIcon = (uri: string, field_role?: string) => {
+    if (field_role === 'label' || uri.includes('prefLabel')) return <Tag size={16} className="text-blue-500" />;
     if (uri.includes('altLabel')) return <Tag size={16} className="text-amber-500" />;
-    if (uri.includes('definition')) return <AlignLeft size={16} className="text-green-500" />;
+    if (field_role === 'reference' || uri.includes('definition')) return <AlignLeft size={16} className="text-green-500" />;
     return <Globe size={16} />;
   };
 
-  const getFieldLabel = (uri: string) => {
-    if (uri.includes('prefLabel')) return 'Preferred Label';
+  const getFieldLabel = (uri: string, field_role?: string) => {
+    if (field_role === 'label' || uri.includes('prefLabel')) return 'Preferred Label';
     if (uri.includes('altLabel')) return 'Alternative Label';
-    if (uri.includes('definition')) return 'Definition';
-    return 'Other Field';
+    if (field_role === 'reference' || uri.includes('definition')) return 'Definition';
+    return uri.split('#').pop() || uri.split('/').pop() || 'Other Field';
   };
 
   return (
@@ -691,7 +697,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                    {/* Field Header */}
                    <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                          {getFieldIcon(field.field_term)}
+                          {getFieldIcon(field.field_term, field.field_role)}
                           <span className="font-bold text-slate-700 dark:text-slate-200">{label}</span>
                           {hasActiveAppeal && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 animate-pulse">

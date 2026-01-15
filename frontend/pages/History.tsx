@@ -24,10 +24,12 @@ const History: React.FC = () => {
           backendApi.getTerms() // Will use defaults
         ]);
 
-        // Create a map of term ID -> prefLabel
+        // Create a map of term ID -> label (using field_role)
         const tMap: Record<number, string> = {};
         termsResponse.terms.forEach((t: ApiTerm) => {
-          const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
+          const labelField = t.fields.find(f => f.field_role === 'label') 
+            || t.fields.find(f => f.field_term.includes('prefLabel'));
+          const prefLabel = labelField?.original_value || t.uri.split('/').pop() || 'Unknown Term';
           tMap[t.id] = prefLabel;
         });
         setTermMap(tMap);

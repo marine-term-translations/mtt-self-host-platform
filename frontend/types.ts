@@ -66,6 +66,7 @@ export interface ApiField {
   translations: ApiTranslation[];
   created_at?: string;
   updated_at?: string;
+  field_role?: 'label' | 'reference' | 'translatable'; // New field role
 }
 
 export interface ApiTerm {
