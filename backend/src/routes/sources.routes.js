@@ -6,6 +6,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const axios = require("axios");
+const yaml = require("js-yaml");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 const config = require("../config");
@@ -111,6 +112,62 @@ async function uploadToGraphDB(filePath, graphName) {
 }
 
 /**
+ * Update or create ldes-feeds.yml configuration file
+ */
+function updateLdesFeedsYaml(graphName, url) {
+  const ldesFeedsPath = process.env.NODE_ENV === 'production' 
+    ? '/data/ldes-feeds.yml' 
+    : path.join(__dirname, '../../data/ldes-feeds.yml');
+  
+  let feedsConfig = { feeds: {} };
+  
+  // Read existing file if it exists
+  if (fs.existsSync(ldesFeedsPath)) {
+    try {
+      const fileContent = fs.readFileSync(ldesFeedsPath, 'utf8');
+      feedsConfig = yaml.load(fileContent) || { feeds: {} };
+    } catch (error) {
+      console.error('Error reading ldes-feeds.yml:', error.message);
+      // Continue with empty config
+    }
+  }
+  
+  // Ensure feeds object exists
+  if (!feedsConfig.feeds) {
+    feedsConfig.feeds = {};
+  }
+  
+  // Add or update the feed configuration
+  feedsConfig.feeds[graphName] = {
+    url: url,
+    environment: {
+      MATERIALIZE: "true"
+    }
+  };
+  
+  // Write the updated configuration
+  try {
+    const yamlContent = yaml.dump(feedsConfig, {
+      indent: 2,
+      lineWidth: -1 // Don't wrap lines
+    });
+    
+    // Ensure directory exists
+    const dir = path.dirname(ldesFeedsPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    fs.writeFileSync(ldesFeedsPath, yamlContent, 'utf8');
+    console.log(`Updated ldes-feeds.yml with feed: ${graphName}`);
+    return true;
+  } catch (error) {
+    console.error('Error writing ldes-feeds.yml:', error.message);
+    throw error;
+  }
+}
+
+/**
  * @openapi
  * /api/sources:
  *   post:
@@ -171,6 +228,16 @@ router.post("/sources", writeLimiter, (req, res) => {
       "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
     );
     const info = stmt.run(source_path, graph_name || null, source_type || 'Static_file');
+    
+    // If this is an LDES feed and a graph_name is provided, update ldes-feeds.yml
+    if (source_type === 'LDES' && graph_name) {
+      try {
+        updateLdesFeedsYaml(graph_name, source_path);
+      } catch (error) {
+        console.error('Failed to update ldes-feeds.yml:', error.message);
+        // Continue - source is still created in database
+      }
+    }
     
     // Fetch the created source
     const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);

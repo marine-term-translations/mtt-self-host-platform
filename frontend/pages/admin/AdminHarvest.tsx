@@ -182,7 +182,9 @@ const AdminHarvest: React.FC = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
       if (graphName) {
-        formData.append('graph_name', graphName);
+        // Prepend 'urn:' to graph name if not already present
+        const graphToUse = graphName.startsWith('urn:') ? graphName : `urn:${graphName}`;
+        formData.append('graph_name', graphToUse);
       }
 
       const response = await fetch(`${backendApi.baseUrl}/sources/upload`, {
