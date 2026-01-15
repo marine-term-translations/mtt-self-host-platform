@@ -226,6 +226,16 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
 
 /**
  * Save translation configuration for a source
+ * Expected body structure:
+ * {
+ *   config: {
+ *     types: [...],
+ *     paths: [...],
+ *     labelField: "uri:of:label:field",
+ *     referenceFields: ["uri:of:ref:field1", "uri:of:ref:field2"],
+ *     translatableFields: ["uri:of:trans:field1", ...]
+ *   }
+ * }
  */
 router.put("/sources/:id/config", writeLimiter, (req, res) => {
   const { id } = req.params;
@@ -251,17 +261,34 @@ router.put("/sources/:id/config", writeLimiter, (req, res) => {
     // Validate and serialize config as JSON
     const configJson = JSON.stringify(translationConfig);
     
-    // Update the source
+    // Extract field role configurations
+    const labelFieldUri = translationConfig.labelField || null;
+    const referenceFieldUris = JSON.stringify(translationConfig.referenceFields || []);
+    const translatableFieldUris = JSON.stringify(translationConfig.translatableFields || []);
+    
+    // Update the source with both old and new fields
     db.prepare(
-      "UPDATE sources SET translation_config = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
-    ).run(configJson, sourceId);
+      `UPDATE sources SET 
+        translation_config = ?, 
+        label_field_uri = ?,
+        reference_field_uris = ?,
+        translatable_field_uris = ?,
+        last_modified = CURRENT_TIMESTAMP 
+      WHERE source_id = ?`
+    ).run(configJson, labelFieldUri, referenceFieldUris, translatableFieldUris, sourceId);
     
     // Fetch updated source
     const updated = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
     
-    // Parse translation_config back to JSON for response
+    // Parse JSON fields back for response
     if (updated.translation_config) {
       updated.translation_config = JSON.parse(updated.translation_config);
+    }
+    if (updated.reference_field_uris) {
+      updated.reference_field_uris = JSON.parse(updated.reference_field_uris);
+    }
+    if (updated.translatable_field_uris) {
+      updated.translatable_field_uris = JSON.parse(updated.translatable_field_uris);
     }
     
     res.json(updated);
@@ -298,6 +325,19 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
     }
     
     const translationConfig = JSON.parse(source.translation_config);
+    
+    // Parse field role configurations
+    const labelFieldUri = source.label_field_uri;
+    const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
+    const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
+    
+    // Helper function to determine field role
+    const getFieldRole = (fieldUri) => {
+      if (fieldUri === labelFieldUri) return 'label';
+      if (referenceFieldUris.includes(fieldUri)) return 'reference';
+      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
+      return 'translatable'; // default
+    };
     
     // Process each configured type and its predicates
     let termsCreated = 0;
@@ -357,6 +397,7 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
         for (const pathConfig of selectedPaths) {
           const predicatePath = pathConfig.path;
           const fieldTerm = pathConfig.label || predicatePath;
+          const fieldRole = getFieldRole(predicatePath);
           
           // Query for the value at this predicate path
           const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath);
@@ -369,11 +410,16 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
               ).get(term.id, predicatePath, value);
               
               if (!existingField) {
-                // Create new term_field
+                // Create new term_field with field_role
                 db.prepare(
-                  "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id) VALUES (?, ?, ?, ?, ?)"
-                ).run(term.id, predicatePath, fieldTerm, value, sourceId);
+                  "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
+                ).run(term.id, predicatePath, fieldTerm, value, sourceId, fieldRole);
                 fieldsCreated++;
+              } else if (!existingField.field_role) {
+                // Update existing field with role if not set
+                db.prepare(
+                  "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                ).run(fieldRole, existingField.id);
               }
             }
           }

@@ -413,7 +413,7 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
  *       404:
  *         description: Source not found
  */
-router.delete("/sources/:id", writeLimiter, (req, res) => {
+router.delete("/sources/:id", writeLimiter, async (req, res) => {
   const { id } = req.params;
   
   // Validate that id is a valid integer
@@ -431,15 +431,72 @@ router.delete("/sources/:id", writeLimiter, (req, res) => {
       return res.status(404).json({ error: "Source not found" });
     }
     
-    // Set source_id to NULL on any related terms and term_fields
-    // This is done explicitly since we don't have FK constraints with CASCADE
-    db.prepare("UPDATE terms SET source_id = NULL WHERE source_id = ?").run(sourceId);
-    db.prepare("UPDATE term_fields SET source_id = NULL WHERE source_id = ?").run(sourceId);
+    // Count related items before deletion
+    const termCount = db.prepare("SELECT COUNT(*) as count FROM terms WHERE source_id = ?").get(sourceId).count;
+    const fieldCount = db.prepare("SELECT COUNT(*) as count FROM term_fields WHERE source_id = ?").get(sourceId).count;
+    
+    // Delete associated terms and term_fields (CASCADE)
+    // This will also cascade to translations and appeals through foreign keys
+    const termIds = db.prepare("SELECT id FROM terms WHERE source_id = ?").all(sourceId).map(t => t.id);
+    
+    if (termIds.length > 0) {
+      const placeholders = termIds.map(() => '?').join(',');
+      // Delete term_fields associated with these terms
+      db.prepare(`DELETE FROM term_fields WHERE term_id IN (${placeholders})`).run(...termIds);
+      // Delete the terms themselves
+      db.prepare(`DELETE FROM terms WHERE id IN (${placeholders})`).run(...termIds);
+    }
     
     // Delete the source
     db.prepare("DELETE FROM sources WHERE source_id = ?").run(sourceId);
     
-    res.json({ message: "Source deleted successfully" });
+    // Attempt to delete the named graph from GraphDB if graph_name is specified
+    let graphdbDeleted = false;
+    let graphdbError = null;
+    
+    if (existing.graph_name) {
+      try {
+        const graphdbUrl = config.graphdb.url;
+        const repository = config.graphdb.repository;
+        const endpoint = `${graphdbUrl}/repositories/${repository}/rdf-graphs/service`;
+        
+        await axios.delete(endpoint, {
+          params: { graph: existing.graph_name },
+          timeout: 30000 // 30 second timeout
+        });
+        
+        graphdbDeleted = true;
+      } catch (graphdbErr) {
+        // Log error but don't fail the deletion
+        console.error('Failed to delete graph from GraphDB:', graphdbErr.message);
+        graphdbError = graphdbErr.message;
+      }
+    }
+    
+    // Delete the file if it's a static file
+    let fileDeleted = false;
+    if (existing.source_type === 'Static_file' && existing.source_path) {
+      try {
+        const filePath = existing.source_path;
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          fileDeleted = true;
+        }
+      } catch (fileErr) {
+        console.error('Failed to delete file:', fileErr.message);
+      }
+    }
+    
+    res.json({ 
+      message: "Source deleted successfully",
+      deleted: {
+        terms: termCount,
+        term_fields: fieldCount,
+        graphdb_graph: graphdbDeleted,
+        file: fileDeleted
+      },
+      warnings: graphdbError ? [graphdbError] : []
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
