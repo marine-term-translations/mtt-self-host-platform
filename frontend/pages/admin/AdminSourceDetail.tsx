@@ -40,6 +40,7 @@ interface PredicateObject {
   value: string;
   type: string;
   count: number;
+  language?: string; // Language tag if present
 }
 
 interface PredicatePath {
@@ -59,6 +60,7 @@ interface TranslationConfig {
   labelField?: string; // New
   referenceFields?: string[]; // New
   translatableFields?: string[]; // New
+  languageTag?: string; // New
 }
 
 export default function AdminSourceDetail() {
@@ -71,9 +73,10 @@ export default function AdminSourceDetail() {
   const [labelField, setLabelField] = useState<string | null>(null);
   const [referenceFields, setReferenceFields] = useState<string[]>([]);
   const [translatableFields, setTranslatableFields] = useState<string[]>([]);
-  const [noTranslateFields, setNoTranslateFields] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [nestedPredicates, setNestedPredicates] = useState<Map<string, Predicate[]>>(new Map());
+  const [languageTag, setLanguageTag] = useState<string>('@en');
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [loadingTypes, setLoadingTypes] = useState(false);
@@ -125,12 +128,9 @@ export default function AdminSourceDetail() {
           setReferenceFields(config.referenceFields);
         }
         
-        // Calculate noTranslateFields: paths that are not in translatableFields
-        if (config.types && config.types.length > 0) {
-          const allPaths = (config.types[0].paths || []).map((p: PredicatePath) => p.path);
-          const translatable = config.translatableFields || [];
-          const noTranslate = allPaths.filter((path: string) => !translatable.includes(path));
-          setNoTranslateFields(noTranslate);
+        // Load language tag if set
+        if (config.languageTag) {
+          setLanguageTag(config.languageTag);
         }
       }
     } catch (err: any) {
@@ -179,8 +179,22 @@ export default function AdminSourceDetail() {
     
     try {
       const response = await axios.get(`${API_URL}/sources/${id}/predicate-objects`, {
-        params: { type: selectedType, predicate }
+        params: { type: selectedType, predicate, languageTag }
       });
+      
+      // Extract language tags from response
+      const languages = new Set<string>();
+      response.data.objects.forEach((obj: PredicateObject) => {
+        if (obj.language) {
+          languages.add('@' + obj.language);
+        }
+      });
+      
+      if (languages.size > 0) {
+        setAvailableLanguages(Array.from(languages));
+      } else {
+        setAvailableLanguages([]);
+      }
       
       return response.data;
     } catch (err: any) {
@@ -236,10 +250,8 @@ export default function AdminSourceDetail() {
     setSuccess('');
     
     try {
-      // Build translatable fields list: all paths except those marked as noTranslate
-      const actualTranslatableFields = selectedPaths
-        .map(p => p.path)
-        .filter(path => !noTranslateFields.includes(path));
+      // All selected paths are translatable (no "no translation" option)
+      const actualTranslatableFields = selectedPaths.map(p => p.path);
       
       const config: TranslationConfig = {
         types: [{
@@ -248,7 +260,8 @@ export default function AdminSourceDetail() {
         }],
         labelField: labelField || undefined,
         referenceFields: referenceFields.length > 0 ? referenceFields : undefined,
-        translatableFields: actualTranslatableFields.length > 0 ? actualTranslatableFields : undefined
+        translatableFields: actualTranslatableFields.length > 0 ? actualTranslatableFields : undefined,
+        languageTag: languageTag !== '@en' ? languageTag : undefined
       };
       
       await axios.put(`${API_URL}/sources/${id}/config`, { config });
@@ -297,8 +310,6 @@ export default function AdminSourceDetail() {
 
   const handleSetAsLabel = (path: string) => {
     setLabelField(path);
-    // Remove from no-translate when setting as label
-    setNoTranslateFields(noTranslateFields.filter(f => f !== path));
   };
 
   const handleToggleReference = (path: string) => {
@@ -306,18 +317,6 @@ export default function AdminSourceDetail() {
       setReferenceFields(referenceFields.filter(f => f !== path));
     } else {
       setReferenceFields([...referenceFields, path]);
-    }
-  };
-
-  const handleToggleNoTranslate = (path: string) => {
-    if (path === labelField) {
-      // Cannot mark label field as no-translate
-      return;
-    }
-    if (noTranslateFields.includes(path)) {
-      setNoTranslateFields(noTranslateFields.filter(f => f !== path));
-    } else {
-      setNoTranslateFields([...noTranslateFields, path]);
     }
   };
 
@@ -400,6 +399,41 @@ export default function AdminSourceDetail() {
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Graph Name:</span>
             <span className="ml-2 text-blue-600 dark:text-blue-400 font-mono break-all">{source.graph_name || 'N/A'}</span>
+          </div>
+          <div className="col-span-2">
+            <label className="text-gray-600 dark:text-gray-400 block mb-2">
+              Language Tag for Translation:
+            </label>
+            {availableLanguages.length > 0 ? (
+              <select
+                value={languageTag}
+                onChange={(e) => setLanguageTag(e.target.value)}
+                className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              >
+                {availableLanguages.map(lang => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={languageTag}
+                  onChange={(e) => setLanguageTag(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-mono"
+                  placeholder="@en"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  No language tags detected
+                </span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {availableLanguages.length > 0 
+                ? 'Select which language to use as example for translation'
+                : 'Enter language tag (e.g., @en, @fr) or leave as @en for default'
+              }
+            </p>
           </div>
         </div>
       </div>
@@ -515,7 +549,7 @@ export default function AdminSourceDetail() {
             Selected Translation Paths ({selectedPaths.length})
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Configure each field: <strong>Label</strong> (term identifier), <strong>Reference</strong> (additional info), <strong>Translatable</strong> (needs translation), or <strong>No Translation</strong> (keep as-is). Fields can be both reference and translatable.
+            Configure each field: <strong>Label</strong> (term identifier) and <strong>Reference</strong> (additional info to help translators). All selected fields are translatable.
           </p>
           
           <div className="space-y-2">
@@ -539,15 +573,9 @@ export default function AdminSourceDetail() {
                         REFERENCE
                       </span>
                     )}
-                    {noTranslateFields.includes(path.path) ? (
-                      <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 rounded font-semibold">
-                        NO TRANSLATION
-                      </span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-semibold">
-                        TRANSLATABLE
-                      </span>
-                    )}
+                    <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-semibold">
+                      TRANSLATABLE
+                    </span>
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {path.path}
@@ -574,19 +602,6 @@ export default function AdminSourceDetail() {
                     }`}
                   >
                     {referenceFields.includes(path.path) ? 'Unmark Ref' : 'Mark as Ref'}
-                  </button>
-                  <button
-                    onClick={() => handleToggleNoTranslate(path.path)}
-                    disabled={path.path === labelField}
-                    className={`text-xs px-2 py-1 rounded transition-colors ${
-                      path.path === labelField
-                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                        : noTranslateFields.includes(path.path)
-                        ? 'bg-gray-200 dark:bg-gray-900/50 text-gray-900 dark:text-gray-200'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900/30'
-                    }`}
-                  >
-                    {noTranslateFields.includes(path.path) ? 'Make Translatable' : 'No Translation'}
                   </button>
                   <button
                     onClick={() => handleRemovePath(path.path)}

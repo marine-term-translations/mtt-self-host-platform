@@ -143,10 +143,11 @@ router.get("/sources/:id/predicates", apiLimiter, async (req, res) => {
 
 /**
  * Check if objects for a predicate are all URIs or literals
+ * Also detects and returns language tags
  */
 router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
   const { id } = req.params;
-  const { type, predicate } = req.query;
+  const { type, predicate, languageTag } = req.query;
   const sourceId = parseInt(id, 10);
   
   if (isNaN(sourceId) || sourceId < 1) {
@@ -169,17 +170,17 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
       return res.status(400).json({ error: "Source has no graph_name specified" });
     }
     
-    // SPARQL query to get sample objects and their types
+    // SPARQL query to get sample objects and their types (including language tags)
     const sparqlQuery = `
       PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-      SELECT ?object (COUNT(*) as ?count)
+      SELECT ?object (LANG(?object) as ?lang) (COUNT(*) as ?count)
       WHERE {
         GRAPH <${source.graph_name}> {
           ?subject rdf:type <${type}> .
           ?subject <${predicate}> ?object .
         }
       }
-      GROUP BY ?object
+      GROUP BY ?object ?lang
       ORDER BY DESC(?count)
       LIMIT 20
     `;
@@ -199,6 +200,7 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
     const objects = response.data.results.bindings.map(binding => ({
       value: binding.object.value,
       type: binding.object.type, // 'uri' or 'literal'
+      language: binding.lang ? binding.lang.value : undefined,
       count: parseInt(binding.count.value, 10)
     }));
     
@@ -330,6 +332,7 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
     const labelFieldUri = source.label_field_uri;
     const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
     const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
+    const languageTag = translationConfig.languageTag || '@en';
     
     // Helper function to determine field role
     const getFieldRole = (fieldUri) => {
@@ -400,7 +403,7 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
           const fieldRole = getFieldRole(predicatePath);
           
           // Query for the value at this predicate path
-          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath);
+          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, languageTag);
           
           if (valueQuery && valueQuery.length > 0) {
             for (const value of valueQuery) {
@@ -447,12 +450,16 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
 /**
  * Helper function to get values for a predicate path
  * Supports nested paths like "ex:hasAuthor/foaf:name"
+ * Filters by language tag if provided
  */
-async function getValueForPath(graphName, subjectUri, predicatePath) {
+async function getValueForPath(graphName, subjectUri, predicatePath, languageTag = '@en') {
   const pathParts = predicatePath.split('/').map(p => p.trim());
   
   // Build SPARQL property path
   const propertyPath = pathParts.map(p => `<${p}>`).join(' / ');
+  
+  // Remove @ prefix from language tag for SPARQL
+  const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
   
   const sparqlQuery = `
     SELECT DISTINCT ?value
@@ -460,6 +467,7 @@ async function getValueForPath(graphName, subjectUri, predicatePath) {
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
+        ${lang !== 'en' || languageTag !== '@en' ? `FILTER(!LANG(?value) || LANG(?value) = "${lang}")` : ''}
       }
     }
     LIMIT 100
