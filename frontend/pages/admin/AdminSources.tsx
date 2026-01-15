@@ -192,7 +192,12 @@ const AdminSources: React.FC = () => {
                 {sources.map((source) => (
                   <tr key={source.source_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
-                      #{source.source_id}
+                      <Link
+                        to={`/admin/sources/${source.source_id}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        #{source.source_id}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(source.source_type)}`}>

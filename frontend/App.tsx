@@ -22,6 +22,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
 import AdminHarvest from './pages/admin/AdminHarvest';
 import AdminSources from './pages/admin/AdminSources';
+import AdminSourceDetail from './pages/admin/AdminSourceDetail';
 import AdminQuery from './pages/admin/AdminQuery';
 import AdminTriplestore from './pages/admin/AdminTriplestore';
 import NotFound from './pages/NotFound';
@@ -136,6 +137,11 @@ const App: React.FC = () => {
         <Route path="/admin/sources" element={
           <AdminRoute>
             <AdminSources />
+          </AdminRoute>
+        } />
+        <Route path="/admin/sources/:id" element={
+          <AdminRoute>
+            <AdminSourceDetail />
           </AdminRoute>
         } />
         <Route path="/admin/query" element={

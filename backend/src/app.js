@@ -16,6 +16,7 @@ const userRoutes = require("./routes/user.routes");
 const flowRoutes = require("./routes/flow.routes");
 const browseRoutes = require("./routes/browse.routes");
 const sourcesRoutes = require("./routes/sources.routes");
+const sourceDetailRoutes = require("./routes/source-detail.routes");
 const queryRoutes = require("./routes/query.routes");
 const sparqlRoutes = require("./routes/sparql.routes");
 
@@ -83,6 +84,7 @@ app.use("/", appealsRoutes);
 app.use("/", flowRoutes);
 app.use("/", browseRoutes);
 app.use("/", sourcesRoutes);
+app.use("/", sourceDetailRoutes);
 app.use("/", queryRoutes);
 app.use("/", sparqlRoutes);
 
