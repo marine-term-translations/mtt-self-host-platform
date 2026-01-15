@@ -76,6 +76,8 @@ export default function AdminSourceDetail() {
   const [labelField, setLabelField] = useState<string | null>(null);
   const [referenceFields, setReferenceFields] = useState<string[]>([]);
   const [translatableFields, setTranslatableFields] = useState<string[]>([]);
+  const [languageTag, setLanguageTag] = useState<string | null>(null);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [nestedPredicates, setNestedPredicates] = useState<Map<string, Predicate[]>>(new Map());
   
@@ -614,6 +616,7 @@ export default function AdminSourceDetail() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

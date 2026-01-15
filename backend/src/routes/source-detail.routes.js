@@ -217,11 +217,12 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
     // SPARQL query to get sample objects and their types (including language tags)
     const sparqlQuery = `
       PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-      SELECT ?object (LANG(?object) as ?lang) (COUNT(*) as ?count)
+      SELECT ?object ?lang (COUNT(*) as ?count)
       WHERE {
         GRAPH <${source.graph_name}> {
           ?subject rdf:type <${type}> .
           ?subject <${predicate}> ?object .
+          BIND(LANG(?object) as ?lang)
         }
       }
       GROUP BY ?object ?lang
@@ -500,16 +501,47 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
  * Filters by language tag if provided
  */
 async function getValueForPath(graphName, subjectUri, predicatePath, languageTag) {
-  const pathParts = predicatePath.split('/').map(p => p.trim());
+  // Validate inputs
+  if (!graphName || !subjectUri || !predicatePath) {
+    console.error('Invalid parameters for getValueForPath:', { graphName, subjectUri, predicatePath });
+    return [];
+  }
   
-  // Build SPARQL property path
-  const propertyPath = pathParts.map(p => `<${p}>`).join(' / ');
+  let pathParts;
+  
+  // Check if this is a full URI (contains ://) or starts with common URI schemes
+  // If so, treat it as a single predicate, not a path to split
+  if (predicatePath.includes('://') || 
+      predicatePath.startsWith('http:') || 
+      predicatePath.startsWith('https:') ||
+      predicatePath.startsWith('urn:')) {
+    // This is a full URI - don't split it
+    pathParts = [predicatePath];
+  } else {
+    // This might be a property path like "ex:hasAuthor/foaf:name" - split on /
+    pathParts = predicatePath.split('/').map(p => p.trim()).filter(p => p.length > 0);
+  }
+  
+  if (pathParts.length === 0) {
+    console.error('Empty predicate path after splitting:', predicatePath);
+    return [];
+  }
+  
+  // Build SPARQL property path - only wrap if not already wrapped
+  const propertyPath = pathParts.map(p => {
+    // If already wrapped in <>, use as-is
+    if (p.startsWith('<') && p.endsWith('>')) {
+      return p;
+    }
+    // Otherwise wrap it
+    return `<${p}>`;
+  }).join(' / ');
   
   // Determine language filter
   let languageFilter = '';
   if (languageTag && languageTag !== '@en') {
     const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
-    languageFilter = `FILTER(!LANG(?value) || LANG(?value) = "${lang}")`;
+    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
   }
   
   const sparqlQuery = `
@@ -523,6 +555,8 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     }
     LIMIT 100
   `;
+
+  console.log('SPARQL Query for getValueForPath:', sparqlQuery);
   
   try {
     const graphdbUrl = config.graphdb.url;
@@ -540,6 +574,9 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     return response.data.results.bindings.map(b => b.value.value);
   } catch (err) {
     console.error(`Error querying path ${predicatePath}:`, err.message);
+    if (err.response && err.response.data) {
+      console.error('GraphDB error details:', err.response.data);
+    }
     return [];
   }
 }
