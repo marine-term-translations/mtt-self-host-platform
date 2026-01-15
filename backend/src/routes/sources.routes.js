@@ -112,12 +112,12 @@ async function uploadToGraphDB(filePath, graphName) {
 }
 
 /**
- * Update or create ldes-feeds.yml configuration file
+ * Update or create ldes-feeds.yaml configuration file
  */
 function updateLdesFeedsYaml(graphName, url) {
   const ldesFeedsPath = process.env.NODE_ENV === 'production' 
-    ? '/data/ldes-feeds.yml' 
-    : path.join(__dirname, '../../data/ldes-feeds.yml');
+    ? '/data/ldes-feeds.yaml' 
+    : path.join(__dirname, '../../data/ldes-feeds.yaml');
   
   let feedsConfig = { feeds: {} };
   
@@ -127,7 +127,7 @@ function updateLdesFeedsYaml(graphName, url) {
       const fileContent = fs.readFileSync(ldesFeedsPath, 'utf8');
       feedsConfig = yaml.load(fileContent) || { feeds: {} };
     } catch (error) {
-      console.error('Error reading ldes-feeds.yml:', error.message);
+      console.error('Error reading ldes-feeds.yaml:', error.message);
       // Continue with empty config
     }
   }
@@ -144,7 +144,15 @@ function updateLdesFeedsYaml(graphName, url) {
       MATERIALIZE: "true"
     }
   };
-  
+
+  //graphname is urn:kgap:ldes-consumer:P02 where P02 is the last part of the url after the second to last part url/P02/latest.ttl
+  // extract the feed name from the url
+  // e.g. url = "http://example.com/ldes/P02/latest.ttl" -> urn:kgap:ldes-consumer:P02
+  let graphNameNew = "urn:kgap:ldes-consumer:" + graphName;
+
+  // change the entry for the source in the database to point to the new graph name
+  const db = getDatabase();
+  db.prepare("UPDATE sources SET graph_name = ? WHERE source_path = ?").run(graphNameNew, url);
   // Write the updated configuration
   try {
     const yamlContent = yaml.dump(feedsConfig, {
@@ -159,10 +167,10 @@ function updateLdesFeedsYaml(graphName, url) {
     }
     
     fs.writeFileSync(ldesFeedsPath, yamlContent, 'utf8');
-    console.log(`Updated ldes-feeds.yml with feed: ${graphName}`);
+    console.log(`Updated ldes-feeds.yaml with feed: ${graphName}`);
     return true;
   } catch (error) {
-    console.error('Error writing ldes-feeds.yml:', error.message);
+    console.error('Error writing ldes-feeds.yaml:', error.message);
     throw error;
   }
 }
@@ -229,12 +237,12 @@ router.post("/sources", writeLimiter, (req, res) => {
     );
     const info = stmt.run(source_path, graph_name || null, source_type || 'Static_file');
     
-    // If this is an LDES feed and a graph_name is provided, update ldes-feeds.yml
+    // If this is an LDES feed and a graph_name is provided, update ldes-feeds.yaml
     if (source_type === 'LDES' && graph_name) {
       try {
         updateLdesFeedsYaml(graph_name, source_path);
       } catch (error) {
-        console.error('Failed to update ldes-feeds.yml:', error.message);
+        console.error('Failed to update ldes-feeds.yaml:', error.message);
         // Continue - source is still created in database
       }
     }
