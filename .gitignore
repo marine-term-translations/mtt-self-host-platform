@@ -46,3 +46,5 @@ Thumbs.db
 # runner instance data
 runner/.runner
 backend/gitea_token.secret
+
+data/
