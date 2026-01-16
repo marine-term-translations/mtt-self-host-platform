@@ -231,7 +231,13 @@ const AdminTaskDetail: React.FC = () => {
             Metadata
           </h2>
           <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-mono bg-slate-50 dark:bg-slate-900 p-4 rounded overflow-x-auto">
-            {JSON.stringify(JSON.parse(task.metadata), null, 2)}
+            {(() => {
+              try {
+                return JSON.stringify(JSON.parse(task.metadata), null, 2);
+              } catch (e) {
+                return task.metadata; // Show raw metadata if JSON parsing fails
+              }
+            })()}
           </pre>
         </div>
       )}
