@@ -9,7 +9,8 @@ interface TermCardProps {
 }
 
 const TermCard: React.FC<TermCardProps> = ({ term }) => {
-  const hasPlainEnglish = !!term.translations.en_plain;
+  // Always display English translation if available
+  const translationText = term.translations['en'] || null;
   const encodedId = encodeURIComponent(term.id);
   const stats = term.stats;
 
@@ -22,20 +23,20 @@ const TermCard: React.FC<TermCardProps> = ({ term }) => {
         <span className="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 truncate max-w-[85%]" title={term.category}>
           {term.category}
         </span>
-        {hasPlainEnglish ? (
+        {translationText ? (
           <CheckCircle className="text-teal-500 w-5 h-5 flex-shrink-0" />
         ) : (
           <AlertCircle className="text-amber-400 w-5 h-5 flex-shrink-0" />
         )}
       </div>
-      
+
       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-marine-600 dark:group-hover:text-marine-400 transition-colors">
         {term.prefLabel}
       </h3>
-      
+
       <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3 mb-4 flex-grow">
-        {hasPlainEnglish ? (
-          <span className="italic text-slate-600 dark:text-slate-300">"{term.translations.en_plain}"</span>
+        {translationText ? (
+          <span className="italic text-slate-600 dark:text-slate-300">"{translationText}" <span className="ml-1 text-xs text-slate-400">[en]</span></span>
         ) : (
           <span className="opacity-70">{term.definition}</span>
         )}
@@ -78,7 +79,7 @@ const TermCard: React.FC<TermCardProps> = ({ term }) => {
 
       <div className="flex items-center text-xs text-marine-600 dark:text-marine-400 font-medium">
         <BookOpen className="w-4 h-4 mr-1.5" />
-        {hasPlainEnglish ? 'View details' : 'Help translate'}
+        {translationText ? 'View details' : 'Help translate'}
       </div>
     </Link>
   );
