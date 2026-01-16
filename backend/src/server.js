@@ -11,15 +11,15 @@ const yaml = require("js-yaml");
 dbInit.bootstrap();
 
 // Initialize LDES feeds YAML file if it doesn't exist
-const ldesFeedsPath = path.join(__dirname, "../../data/ldes-feeds.yml");
+const ldesFeedsPath = path.join(__dirname, "../../data/ldes-feeds.yaml");
 if (!fs.existsSync(ldesFeedsPath)) {
-  console.log("Creating empty ldes-feeds.yml file...");
+  console.log("Creating empty ldes-feeds.yaml file...");
   try {
     const emptyConfig = { feeds: {} };
     fs.writeFileSync(ldesFeedsPath, yaml.dump(emptyConfig), "utf8");
-    console.log("ldes-feeds.yml created successfully");
+    console.log("ldes-feeds.yaml created successfully");
   } catch (error) {
-    console.error("Failed to create ldes-feeds.yml:", error);
+    console.error("Failed to create ldes-feeds.yaml:", error);
   }
 }
 
