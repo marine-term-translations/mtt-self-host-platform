@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import { backendApi } from '../../services/api';
 import {
   ArrowLeft,
   Database,
@@ -16,7 +17,7 @@ import {
   Clock
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = backendApi.baseUrl;
 
 interface Source {
   source_id: number;
@@ -672,7 +673,6 @@ export default function AdminSourceDetail() {
           </div>
         </div>
       )}
-    </div>
     </div>
   );
 }
