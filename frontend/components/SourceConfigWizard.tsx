@@ -96,6 +96,7 @@ export default function SourceConfigWizard({
   const [filterValuesTotal, setFilterValuesTotal] = useState(0);
   const [loadingFilterValues, setLoadingFilterValues] = useState(false);
   const [regexPattern, setRegexPattern] = useState('');
+  const [selectedFilterValues, setSelectedFilterValues] = useState<string[]>([]); // NEW: Track selected values
 
   // Step 4: Select Translatable Predicates
   const [filteredPredicates, setFilteredPredicates] = useState<Predicate[]>([]);
@@ -171,6 +172,7 @@ export default function SourceConfigWizard({
     
     setLoadingFilterValues(true);
     setError('');
+    setSelectedFilterValues([]); // Reset selections when loading new values
     try {
       const response = await axios.get(`${API_URL}/sources/${sourceId}/filter-values`, {
         params: { type: selectedType, predicate, limit: 100 }
@@ -242,13 +244,13 @@ export default function SourceConfigWizard({
   };
 
   // Handle adding a class filter
-  const handleAddClassFilter = (selectedValues: string[]) => {
-    if (!selectedFilterPredicate || selectedValues.length === 0) return;
+  const handleAddClassFilter = (values: string[]) => {
+    if (!selectedFilterPredicate || values.length === 0) return;
     
     const newFilter: FilterRule = {
       predicate: selectedFilterPredicate,
       type: 'class',
-      values: selectedValues
+      values: values
     };
     
     // Remove existing filter for this predicate if any
@@ -256,8 +258,18 @@ export default function SourceConfigWizard({
     setFilterRules([...updatedFilters, newFilter]);
     setSelectedFilterPredicate(null);
     setFilterValues([]);
+    setSelectedFilterValues([]);
     setSuccess('Filter added successfully');
     setTimeout(() => setSuccess(''), 3000);
+  };
+
+  // Handle toggling a filter value
+  const handleToggleFilterValue = (value: string) => {
+    if (selectedFilterValues.includes(value)) {
+      setSelectedFilterValues(selectedFilterValues.filter(v => v !== value));
+    } else {
+      setSelectedFilterValues([...selectedFilterValues, value]);
+    }
   };
 
   // Handle adding a regex filter
@@ -286,9 +298,15 @@ export default function SourceConfigWizard({
 
   // Handle predicate selection for translation
   const handlePredicateSelect = async (predicate: Predicate) => {
+    // Extract label from URI - handle both '/' and '#' separators
+    const getUriLabel = (uri: string): string => {
+      const parts = uri.split(/[/#]/);
+      return parts.filter(p => p).pop() || uri;
+    };
+    
     const newPath: PredicatePath = {
       path: predicate.predicate,
-      label: predicate.predicate.split('/').pop() || predicate.predicate,
+      label: getUriLabel(predicate.predicate),
       isTranslatable: true,
       languageTag: predicate.languages && predicate.languages.length > 0 ? predicate.languages[0] : undefined,
       availableLanguages: predicate.languages
@@ -545,7 +563,8 @@ export default function SourceConfigWizard({
                         <label key={index} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
                           <input
                             type="checkbox"
-                            id={`filter-${index}`}
+                            checked={selectedFilterValues.includes(fv.value)}
+                            onChange={() => handleToggleFilterValue(fv.value)}
                             className="rounded"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">{fv.value}</span>
@@ -554,14 +573,9 @@ export default function SourceConfigWizard({
                       ))}
                     </div>
                     <button
-                      onClick={() => {
-                        const checkboxes = document.querySelectorAll<HTMLInputElement>('input[id^="filter-"]');
-                        const selectedValues = Array.from(checkboxes)
-                          .filter(cb => cb.checked)
-                          .map((cb, index) => filterValues[index].value);
-                        handleAddClassFilter(selectedValues);
-                      }}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      onClick={() => handleAddClassFilter(selectedFilterValues)}
+                      disabled={selectedFilterValues.length === 0}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Add Class Filter
                     </button>

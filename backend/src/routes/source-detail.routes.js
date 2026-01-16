@@ -8,6 +8,42 @@ const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 const config = require("../config");
 
 /**
+ * Utility: Escape string for safe use in SPARQL queries
+ * Handles quotes, backslashes, newlines, and other special characters
+ */
+function escapeSparqlString(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/"/g, '\\"')    // Escape double quotes
+    .replace(/\n/g, '\\n')   // Escape newlines
+    .replace(/\r/g, '\\r')   // Escape carriage returns
+    .replace(/\t/g, '\\t');  // Escape tabs
+}
+
+/**
+ * Utility: Validate URI format
+ * Returns true if the string looks like a valid URI
+ */
+function isValidUri(str) {
+  if (typeof str !== 'string' || str.length === 0) return false;
+  // Check for common URI schemes or URI patterns
+  return /^(https?|urn|file|ftp):/.test(str) || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(str);
+}
+
+/**
+ * Utility: Validate regex pattern for SPARQL FILTER
+ * Ensures the pattern won't break SPARQL syntax
+ */
+function validateRegexPattern(pattern) {
+  if (typeof pattern !== 'string') return false;
+  // Check for potentially dangerous characters that could break SPARQL
+  // This is a basic check - in production, consider using a proper SPARQL query builder
+  const dangerousPatterns = /["\\\n\r]/;
+  return !dangerousPatterns.test(pattern);
+}
+
+/**
  * Get all RDF types from a source's graph
  */
 router.get("/sources/:id/types", apiLimiter, async (req, res) => {
@@ -330,23 +366,42 @@ router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
       }
     }
     
-    // Build filter conditions for SPARQL
+    // Validate type URI
+    if (!isValidUri(type)) {
+      return res.status(400).json({ error: "Invalid RDF type URI" });
+    }
+    
+    // Build filter conditions for SPARQL with proper validation and escaping
     let filterConditions = '';
     if (filterRules && filterRules.length > 0) {
       const conditions = filterRules.map((rule, index) => {
+        // Validate predicate URI
+        if (!isValidUri(rule.predicate)) {
+          console.error(`Invalid predicate URI in filter: ${rule.predicate}`);
+          return '';
+        }
+        
         const varName = `filter${index}`;
         if (rule.type === 'class' && rule.values && rule.values.length > 0) {
-          // Class filter: match specific values
-          const valueList = rule.values.map(v => `"${v.replace(/"/g, '\\"')}"`).join(', ');
+          // Class filter: match specific values with proper escaping
+          const valueList = rule.values
+            .map(v => `"${escapeSparqlString(v)}"`)
+            .join(', ');
           return `
             ?subject <${rule.predicate}> ?${varName} .
             FILTER(?${varName} IN (${valueList}))
           `;
         } else if (rule.type === 'regex' && rule.pattern) {
-          // Regex filter
+          // Validate and escape regex pattern
+          if (!validateRegexPattern(rule.pattern)) {
+            console.error(`Invalid regex pattern in filter: ${rule.pattern}`);
+            return '';
+          }
+          // For regex, we escape the pattern more carefully
+          const escapedPattern = escapeSparqlString(rule.pattern);
           return `
             ?subject <${rule.predicate}> ?${varName} .
-            FILTER(REGEX(STR(?${varName}), "${rule.pattern.replace(/"/g, '\\"')}", "i"))
+            FILTER(REGEX(STR(?${varName}), "${escapedPattern}", "i"))
           `;
         }
         return '';
@@ -677,23 +732,36 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
           const selectedPaths = typeConfig.paths || [];
           const filters = typeConfig.filters || [];
           
-          // Build filter conditions for SPARQL
+          // Build filter conditions for SPARQL with proper validation and escaping
           let filterConditions = '';
           if (filters && filters.length > 0) {
             const conditions = filters.map((rule, index) => {
+              // Validate predicate URI
+              if (!isValidUri(rule.predicate)) {
+                console.error(`Invalid predicate URI in filter during sync: ${rule.predicate}`);
+                return '';
+              }
+              
               const varName = `filter${index}`;
               if (rule.type === 'class' && rule.values && rule.values.length > 0) {
-                // Class filter: match specific values
-                const valueList = rule.values.map(v => `"${v.replace(/"/g, '\\"')}"`).join(', ');
+                // Class filter: match specific values with proper escaping
+                const valueList = rule.values
+                  .map(v => `"${escapeSparqlString(v)}"`)
+                  .join(', ');
                 return `
                   ?subject <${rule.predicate}> ?${varName} .
                   FILTER(?${varName} IN (${valueList}))
                 `;
               } else if (rule.type === 'regex' && rule.pattern) {
-                // Regex filter
+                // Validate and escape regex pattern
+                if (!validateRegexPattern(rule.pattern)) {
+                  console.error(`Invalid regex pattern in filter during sync: ${rule.pattern}`);
+                  return '';
+                }
+                const escapedPattern = escapeSparqlString(rule.pattern);
                 return `
                   ?subject <${rule.predicate}> ?${varName} .
-                  FILTER(REGEX(STR(?${varName}), "${rule.pattern.replace(/"/g, '\\"')}", "i"))
+                  FILTER(REGEX(STR(?${varName}), "${escapedPattern}", "i"))
                 `;
               }
               return '';
