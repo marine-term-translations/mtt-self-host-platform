@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     completed_at DATETIME,
     error_message TEXT,
     metadata TEXT, -- JSON string for additional task-specific data
+    logs TEXT, -- Execution logs captured during task processing
     created_by TEXT,
     FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE SET NULL,
     FOREIGN KEY(created_by) REFERENCES users(username) ON DELETE SET NULL

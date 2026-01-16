@@ -3,6 +3,7 @@
 const { getDatabase } = require('../db/database');
 const axios = require('axios');
 const config = require('../config');
+const parser = require('cron-parser');
 
 /**
  * Check for tasks that need to be dispatched based on schedulers
@@ -99,13 +100,19 @@ function calculateNextRun(scheduleConfig) {
       }
     }
     
-    // If cron expression is specified
-    // For now, we'll just add a default interval of 1 hour
-    // In production, you'd use a cron parser library
+    // If cron expression is specified, parse it properly
     if (scheduleConfig.cron) {
-      const now = new Date();
-      now.setHours(now.getHours() + 1); // Simple hourly default
-      return now.toISOString().replace('T', ' ').substring(0, 19);
+      try {
+        const interval = parser.parseExpression(scheduleConfig.cron);
+        const nextDate = interval.next().toDate();
+        return nextDate.toISOString().replace('T', ' ').substring(0, 19);
+      } catch (cronErr) {
+        console.error('Error parsing cron expression:', cronErr.message);
+        // Fallback to 1 hour if cron parsing fails
+        const now = new Date();
+        now.setHours(now.getHours() + 1);
+        return now.toISOString().replace('T', ' ').substring(0, 19);
+      }
     }
     
     return null;
@@ -120,6 +127,15 @@ function calculateNextRun(scheduleConfig) {
  */
 async function executeTask(taskId) {
   const db = getDatabase();
+  const logs = [];
+  
+  // Helper to add log entries
+  const addLog = (message) => {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message}`;
+    logs.push(logEntry);
+    console.log(`Task ${taskId}: ${message}`);
+  };
   
   try {
     const task = db.prepare("SELECT * FROM tasks WHERE task_id = ?").get(taskId);
@@ -134,94 +150,94 @@ async function executeTask(taskId) {
       return;
     }
     
+    addLog(`Starting task execution (type: ${task.task_type})`);
+    
     // Update task to running
     db.prepare(
       "UPDATE tasks SET status = 'running', started_at = datetime('now') WHERE task_id = ?"
     ).run(taskId);
     
-    console.log(`Executing task ${taskId} (type: ${task.task_type})`);
-    
     // Execute based on task type
     switch (task.task_type) {
       case 'file_upload':
-        await executeFileUploadTask(task);
+        await executeFileUploadTask(task, addLog);
         break;
       case 'triplestore_sync':
-        await executeSyncTask(task);
+        await executeSyncTask(task, addLog);
         break;
       case 'ldes_sync':
-        await executeLdesSyncTask(task);
+        await executeLdesSyncTask(task, addLog);
         break;
       case 'harvest':
-        await executeHarvestTask(task);
+        await executeHarvestTask(task, addLog);
         break;
       default:
         throw new Error(`Unknown task type: ${task.task_type}`);
     }
     
-    // Mark task as completed
-    db.prepare(
-      "UPDATE tasks SET status = 'completed', completed_at = datetime('now') WHERE task_id = ?"
-    ).run(taskId);
+    addLog('Task completed successfully');
     
-    console.log(`Task ${taskId} completed successfully`);
+    // Mark task as completed with logs
+    db.prepare(
+      "UPDATE tasks SET status = 'completed', completed_at = datetime('now'), logs = ? WHERE task_id = ?"
+    ).run(logs.join('\n'), taskId);
     
   } catch (err) {
-    console.error(`Task ${taskId} failed:`, err.message);
+    addLog(`Task failed with error: ${err.message}`);
     
     db.prepare(
-      "UPDATE tasks SET status = 'failed', completed_at = datetime('now'), error_message = ? WHERE task_id = ?"
-    ).run(err.message, taskId);
+      "UPDATE tasks SET status = 'failed', completed_at = datetime('now'), error_message = ?, logs = ? WHERE task_id = ?"
+    ).run(err.message, logs.join('\n'), taskId);
   }
 }
 
 /**
  * Execute a file upload task
  */
-async function executeFileUploadTask(task) {
-  console.log(`Executing file upload task for source ${task.source_id}`);
+async function executeFileUploadTask(task, addLog) {
+  addLog(`Executing file upload task for source ${task.source_id}`);
   
   // File upload tasks are handled inline in the upload endpoint
   // This is here for completeness in case we need to retry failed uploads
+  addLog('File upload task completed (processed inline)');
 }
 
 /**
  * Execute a triplestore sync task
  */
-async function executeSyncTask(task) {
+async function executeSyncTask(task, addLog) {
+  addLog(`Executing triplestore sync for source ${task.source_id}`);
+  
   // This would be implemented similar to the sync-terms endpoint
   // For now, we'll just log it
-  console.log(`Executing triplestore sync for source ${task.source_id}`);
-  
-  // In a real implementation, you would:
-  // 1. Get the source configuration
-  // 2. Query the triplestore
-  // 3. Sync terms to the database
-  // 4. Update task metadata with results
+  addLog('Triplestore sync task execution placeholder');
+  addLog('In production, this would query GraphDB and sync terms to database');
 }
 
 /**
  * Execute an LDES sync task
  */
-async function executeLdesSyncTask(task) {
-  console.log(`Executing LDES sync for source ${task.source_id}`);
+async function executeLdesSyncTask(task, addLog) {
+  addLog(`Executing LDES sync for source ${task.source_id}`);
   
   // In a real implementation, you would:
   // 1. Fetch the LDES feed
   // 2. Process new items
   // 3. Update the database
+  addLog('LDES sync task execution placeholder');
 }
 
 /**
  * Execute a harvest task
  */
-async function executeHarvestTask(task) {
-  console.log(`Executing harvest task for source ${task.source_id}`);
+async function executeHarvestTask(task, addLog) {
+  addLog(`Executing harvest task for source ${task.source_id}`);
   
   // In a real implementation, you would:
   // 1. Connect to the harvest source
   // 2. Fetch new data
   // 3. Process and store it
+  addLog('Harvest task execution placeholder');
 }
 
 /**

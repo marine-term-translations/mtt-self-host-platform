@@ -422,7 +422,9 @@ const AdminTasks: React.FC = () => {
                   {tasks.map((task) => (
                     <tr key={task.task_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">
-                        #{task.task_id}
+                        <Link to={`/admin/tasks/${task.task_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                          #{task.task_id}
+                        </Link>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                         {task.task_type}
