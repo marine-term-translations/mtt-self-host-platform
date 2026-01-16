@@ -3,7 +3,7 @@
 const { getDatabase } = require('../db/database');
 const axios = require('axios');
 const config = require('../config');
-const parser = require('cron-parser');
+const cronParser = require('cron-parser');
 
 /**
  * Check for tasks that need to be dispatched based on schedulers
@@ -103,7 +103,7 @@ function calculateNextRun(scheduleConfig) {
     // If cron expression is specified, parse it properly
     if (scheduleConfig.cron) {
       try {
-        const interval = parser.parseExpression(scheduleConfig.cron);
+        const interval = cronParser.parseExpression(scheduleConfig.cron);
         const nextDate = interval.next().toDate();
         return nextDate.toISOString().replace('T', ' ').substring(0, 19);
       } catch (cronErr) {
@@ -208,10 +208,241 @@ async function executeFileUploadTask(task, addLog) {
 async function executeSyncTask(task, addLog) {
   addLog(`Executing triplestore sync for source ${task.source_id}`);
   
-  // This would be implemented similar to the sync-terms endpoint
-  // For now, we'll just log it
-  addLog('Triplestore sync task execution placeholder');
-  addLog('In production, this would query GraphDB and sync terms to database');
+  const db = getDatabase();
+  
+  try {
+    // Get source information
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(task.source_id);
+    
+    if (!source) {
+      throw new Error(`Source ${task.source_id} not found`);
+    }
+    
+    if (!source.translation_config) {
+      throw new Error('Source has no translation configuration');
+    }
+    
+    if (!source.graph_name) {
+      throw new Error('Source has no graph_name specified');
+    }
+    
+    addLog(`Connected to source: ${source.graph_name}`);
+    
+    const translationConfig = JSON.parse(source.translation_config);
+    
+    // Parse field role configurations
+    const labelFieldUri = source.label_field_uri;
+    const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
+    const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
+    const languageTag = translationConfig.languageTag || '@en';
+    
+    // Helper function to determine field role
+    const getFieldRole = (fieldUri) => {
+      if (fieldUri === labelFieldUri) return 'label';
+      if (referenceFieldUris.includes(fieldUri)) return 'reference';
+      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
+      return 'translatable'; // default
+    };
+    
+    // Process each configured type and its predicates
+    let termsCreated = 0;
+    let termsUpdated = 0;
+    let fieldsCreated = 0;
+    
+    addLog(`Found ${translationConfig.types?.length || 0} RDF types to process`);
+    
+    for (const typeConfig of translationConfig.types || []) {
+      const rdfType = typeConfig.type;
+      const selectedPaths = typeConfig.paths || [];
+      
+      addLog(`Processing type: ${rdfType}`);
+      
+      // Query GraphDB for all subjects of this type
+      const sparqlQuery = `
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        SELECT DISTINCT ?subject
+        WHERE {
+          GRAPH <${source.graph_name}> {
+            ?subject rdf:type <${rdfType}> .
+          }
+        }
+      `;
+      
+      const graphdbUrl = config.graphdb.url;
+      const repository = config.graphdb.repository;
+      const endpoint = `${graphdbUrl}/repositories/${repository}`;
+      
+      const response = await axios.post(endpoint, sparqlQuery, {
+        headers: {
+          'Content-Type': 'application/sparql-query',
+          'Accept': 'application/sparql-results+json'
+        },
+        timeout: 30000
+      });
+      
+      const subjects = response.data.results.bindings.map(b => b.subject.value);
+      addLog(`Found ${subjects.length} subjects for type ${rdfType}`);
+      
+      // For each subject, create or update term
+      for (const subjectUri of subjects) {
+        // Check if term exists
+        let term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(subjectUri);
+        
+        if (!term) {
+          // Create new term
+          const insertTerm = db.prepare(
+            "INSERT INTO terms (uri, source_id) VALUES (?, ?)"
+          );
+          const info = insertTerm.run(subjectUri, task.source_id);
+          term = db.prepare("SELECT * FROM terms WHERE id = ?").get(info.lastInsertRowid);
+          termsCreated++;
+        } else if (term.source_id !== task.source_id) {
+          // Update existing term's source_id
+          db.prepare("UPDATE terms SET source_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .run(task.source_id, term.id);
+          termsUpdated++;
+        }
+        
+        // For each selected predicate path, create term_field
+        for (const pathConfig of selectedPaths) {
+          const predicatePath = pathConfig.path;
+          const fieldTerm = pathConfig.label || predicatePath;
+          const fieldRole = getFieldRole(predicatePath);
+          
+          // Use per-path language tag, fallback to global, then to '@en'
+          const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
+          
+          // Query for the value at this predicate path
+          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
+          
+          if (valueQuery && valueQuery.length > 0) {
+            for (const value of valueQuery) {
+              // Check if term_field exists
+              const existingField = db.prepare(
+                "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
+              ).get(term.id, predicatePath, value);
+              
+              if (!existingField) {
+                // Create new term_field with field_role
+                db.prepare(
+                  "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
+                ).run(term.id, predicatePath, fieldTerm, value, task.source_id, fieldRole);
+                fieldsCreated++;
+              } else if (!existingField.field_role) {
+                // Update existing field with role if not set
+                db.prepare(
+                  "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                ).run(fieldRole, existingField.id);
+              }
+            }
+          }
+        }
+      }
+      
+      addLog(`Created ${termsCreated} new terms, updated ${termsUpdated} terms`);
+    }
+    
+    addLog(`Sync completed: ${termsCreated} terms created, ${termsUpdated} terms updated, ${fieldsCreated} fields created`);
+    
+    // Update task metadata with results
+    const currentMetadata = task.metadata ? JSON.parse(task.metadata) : {};
+    const updatedMetadata = {
+      ...currentMetadata,
+      termsCreated,
+      termsUpdated,
+      fieldsCreated,
+      completed: new Date().toISOString()
+    };
+    
+    db.prepare("UPDATE tasks SET metadata = ? WHERE task_id = ?")
+      .run(JSON.stringify(updatedMetadata), task.task_id);
+      
+  } catch (error) {
+    addLog(`Error during sync: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Helper function to get values for a predicate path
+ * Supports nested paths like "ex:hasAuthor/foaf:name"
+ * Filters by language tag if provided
+ */
+async function getValueForPath(graphName, subjectUri, predicatePath, languageTag) {
+  // Validate inputs
+  if (!graphName || !subjectUri || !predicatePath) {
+    console.error('Invalid parameters for getValueForPath:', { graphName, subjectUri, predicatePath });
+    return [];
+  }
+  
+  let pathParts;
+  
+  // Check if this is a full URI (contains ://) or starts with common URI schemes
+  // If so, treat it as a single predicate, not a path to split
+  if (predicatePath.includes('://') || 
+      predicatePath.startsWith('http:') || 
+      predicatePath.startsWith('https:') ||
+      predicatePath.startsWith('urn:')) {
+    // This is a full URI - don't split it
+    pathParts = [predicatePath];
+  } else {
+    // This might be a property path like "ex:hasAuthor/foaf:name" - split on /
+    pathParts = predicatePath.split('/').map(p => p.trim()).filter(p => p.length > 0);
+  }
+  
+  if (pathParts.length === 0) {
+    console.error('Empty predicate path after splitting:', predicatePath);
+    return [];
+  }
+  
+  // Build SPARQL property path - only wrap if not already wrapped
+  const propertyPath = pathParts.map(p => {
+    // If already wrapped in <>, use as-is
+    if (p.startsWith('<') && p.endsWith('>')) {
+      return p;
+    }
+    // Otherwise wrap it
+    return `<${p}>`;
+  }).join(' / ');
+  
+  // Determine language filter
+  let languageFilter = '';
+  if (languageTag && languageTag !== '@en') {
+    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
+    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
+  }
+  
+  const sparqlQuery = `
+    SELECT DISTINCT ?value
+    WHERE {
+      GRAPH <${graphName}> {
+        <${subjectUri}> ${propertyPath} ?value .
+        FILTER(isLiteral(?value))
+        ${languageFilter}
+      }
+    }
+    LIMIT 100
+  `;
+
+  try {
+    const graphdbUrl = config.graphdb.url;
+    const repository = config.graphdb.repository;
+    const endpoint = `${graphdbUrl}/repositories/${repository}`;
+    
+    const response = await axios.post(endpoint, sparqlQuery, {
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        'Accept': 'application/sparql-results+json'
+      },
+      timeout: 30000
+    });
+    
+    const values = response.data.results.bindings.map(b => b.value.value);
+    return values;
+  } catch (error) {
+    console.error('Error querying GraphDB:', error.message);
+    return [];
+  }
 }
 
 /**
