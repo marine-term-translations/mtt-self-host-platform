@@ -42,21 +42,23 @@ const Landing: React.FC = () => {
         }).slice(0, 3);
 
         const mappedTerms: Term[] = sortedTerms.map((apiTerm: ApiTerm) => {
-            const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-            const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
+            // Use API-provided labelField and referenceFields (field_role based)
+            const labelField = apiTerm.labelField 
+              || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+            const referenceField = apiTerm.referenceFields?.[0]
+              || apiTerm.fields.find(f => f.field_term === 'skos:definition');
             
             // Extract Translations just for display text
             const translations: Record<string, string | null> = {
                 en_plain: null, es: null, fr: null, nl: null
             };
             
-            apiTerm.fields.forEach(field => {
-                if (field.field_term === 'skos:definition' && field.translations) {
-                    field.translations.forEach(t => {
-                        if (t.language) translations[t.language] = t.value;
-                    });
-                }
-            });
+            // Get translations from reference field if available
+            if (referenceField?.translations) {
+                referenceField.translations.forEach(t => {
+                    if (t.language) translations[t.language] = t.value;
+                });
+            }
 
             const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
             const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
@@ -64,8 +66,8 @@ const Landing: React.FC = () => {
 
             return {
                 id: apiTerm.uri,
-                prefLabel: prefLabelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term',
-                definition: definitionField?.original_value || 'No definition available.',
+                prefLabel: labelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term',
+                definition: referenceField?.original_value || 'No definition available.',
                 category: collectionName,
                 translations: translations,
                 contributors: [],
