@@ -270,6 +270,10 @@ export default function AdminSourceDetail() {
       
       await axios.put(`${API_URL}/sources/${id}/config`, { config });
       setSuccess('Configuration saved successfully');
+      
+      // Reload source details to reflect updated configuration
+      await loadSource();
+      
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to save configuration');

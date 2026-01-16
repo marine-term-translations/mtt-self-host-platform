@@ -154,8 +154,11 @@ const Browse: React.FC = () => {
         const response = await backendApi.getTerms(pageSize, offset);
         
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
-          const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-          const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
+          // Use field_role to find label and reference fields, with fallback to SKOS
+          const labelField = apiTerm.fields.find(f => f.field_role === 'label') 
+            || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+          const refField = apiTerm.fields.find(f => f.field_role === 'reference')
+            || apiTerm.fields.find(f => f.field_term === 'skos:definition');
           
           const translations: Record<string, string | null> = {
             en_plain: null,
@@ -181,7 +184,8 @@ const Browse: React.FC = () => {
           apiTerm.fields.forEach(field => {
             if (field.translations) {
               field.translations.forEach(t => {
-                if (field.field_term === 'skos:definition' && t.language) {
+                // Use reference field for translations display
+                if ((field.field_role === 'reference' || field.field_term === 'skos:definition') && t.language) {
                    translations[t.language] = t.value;
                 }
                 if (t.status) {
@@ -200,10 +204,15 @@ const Browse: React.FC = () => {
              ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
              : collectionCode;
 
+          // Use label field for prefLabel, fallback to URI
+          const prefLabel = labelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term';
+          // Use reference field for definition, fallback to prefLabel
+          const definition = refField?.original_value || prefLabel;
+
           return {
             id: apiTerm.uri,
-            prefLabel: prefLabelField?.original_value || 'Unknown Term',
-            definition: definitionField?.original_value || 'No definition available.',
+            prefLabel: prefLabel,
+            definition: definition,
             category: collectionName, 
             translations: translations,
             contributors: [], 

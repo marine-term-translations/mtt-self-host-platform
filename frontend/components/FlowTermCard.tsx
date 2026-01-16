@@ -118,16 +118,26 @@ Original Text (${task.field_term}): "${task.original_value}"`;
     }
   };
 
-  // Extract term information from task
-  const getTermField = (fieldTerm: string) => {
+  // Extract term information from task using field_role with fallback
+  const getTermField = (fieldRole: string, fallbackFieldTerm?: string) => {
     if (!task.term_fields || !Array.isArray(task.term_fields)) return null;
-    return task.term_fields.find((f: any) => 
-      f.field_term && f.field_term.includes(fieldTerm)
-    );
+    // First try to find by field_role
+    const fieldByRole = task.term_fields.find((f: any) => f.field_role === fieldRole);
+    if (fieldByRole) return fieldByRole;
+    // Fallback to field_term if provided
+    if (fallbackFieldTerm) {
+      return task.term_fields.find((f: any) => 
+        f.field_term && f.field_term.includes(fallbackFieldTerm)
+      );
+    }
+    return null;
   };
 
-  const prefLabel = getTermField('prefLabel')?.original_value || 'Unknown Term';
-  const definition = getTermField('definition')?.original_value || 'No definition available';
+  const labelField = getTermField('label', 'prefLabel');
+  const refField = getTermField('reference', 'definition');
+  
+  const prefLabel = labelField?.original_value || task.term_uri || task.uri || 'Unknown Term';
+  const definition = refField?.original_value || prefLabel;
   
   // Try to find URI
   const termUri = task.term_uri || task.uri || null;

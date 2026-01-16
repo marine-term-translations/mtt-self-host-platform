@@ -50,6 +50,7 @@ services:
   ldes-consumer:
     image: ghcr.io/vliz-be-opsci/kgap/kgap_ldes-consumer:latest
     container_name: marine_ldes_consumer
+    restart: unless-stopped
     volumes:
       - "./data:/data"
       - "/var/run/docker.sock:/var/run/docker.sock" # Required to spawn docker containers
