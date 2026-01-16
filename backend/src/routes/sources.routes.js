@@ -762,4 +762,91 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
   }
 });
 
+/**
+ * @openapi
+ * /api/sources/{id}/tasks:
+ *   get:
+ *     summary: Get all tasks associated with a source
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The source ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, running, completed, failed, cancelled]
+ *         description: Filter by task status
+ *     responses:
+ *       200:
+ *         description: Returns tasks associated with the source
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tasks:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 running_task:
+ *                   type: object
+ *                   description: Currently running task, if any
+ *       400:
+ *         description: Invalid source ID
+ *       404:
+ *         description: Source not found
+ */
+router.get("/sources/:id/tasks", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  const sourceId = parseInt(id, 10);
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if source exists
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    if (!source) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    // Build WHERE clause based on filters
+    const filters = ["source_id = ?"];
+    const params = [sourceId];
+    
+    if (req.query.status) {
+      filters.push("status = ?");
+      params.push(req.query.status);
+    }
+    
+    const whereClause = filters.join(' AND ');
+    
+    // Get tasks for this source
+    const tasks = db.prepare(
+      `SELECT * FROM tasks WHERE ${whereClause} ORDER BY created_at DESC`
+    ).all(...params);
+    
+    // Get currently running task if any
+    const runningTask = db.prepare(
+      "SELECT * FROM tasks WHERE source_id = ? AND status = 'running' ORDER BY started_at DESC LIMIT 1"
+    ).get(sourceId);
+    
+    res.json({
+      source_id: sourceId,
+      tasks,
+      running_task: runningTask || null,
+      total: tasks.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

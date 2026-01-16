@@ -9,7 +9,11 @@ import {
   Loader2,
   AlertCircle,
   Save,
-  RefreshCw
+  RefreshCw,
+  PlayCircle,
+  CheckCircle2,
+  XCircle,
+  Clock
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -66,6 +70,16 @@ interface TranslationConfig {
   languageTag?: string; // Global fallback (deprecated, use per-path instead)
 }
 
+interface Task {
+  task_id: number;
+  task_type: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+}
+
 export default function AdminSourceDetail() {
   const { id } = useParams<{ id: string }>();
   const [source, setSource] = useState<Source | null>(null);
@@ -80,6 +94,7 @@ export default function AdminSourceDetail() {
   const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [nestedPredicates, setNestedPredicates] = useState<Map<string, Predicate[]>>(new Map());
+  const [runningTask, setRunningTask] = useState<Task | null>(null);
   
   const [loading, setLoading] = useState(true);
   const [loadingTypes, setLoadingTypes] = useState(false);
@@ -111,6 +126,14 @@ export default function AdminSourceDetail() {
     try {
       const response = await axios.get(`${API_URL}/sources/${id}`);
       setSource(response.data);
+      
+      // Load running tasks for this source
+      try {
+        const tasksResponse = await axios.get(`${API_URL}/sources/${id}/tasks?status=running`);
+        setRunningTask(tasksResponse.data.running_task || null);
+      } catch (taskErr) {
+        console.error('Failed to load tasks:', taskErr);
+      }
       
       // Load existing configuration
       if (response.data.translation_config) {
@@ -409,12 +432,41 @@ export default function AdminSourceDetail() {
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Path:</span>
             <span className="ml-2 text-gray-900 dark:text-white font-mono break-all">{source.source_path}</span>
+          </div>
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Graph Name:</span>
             <span className="ml-2 text-blue-600 dark:text-blue-400 font-mono break-all">{source.graph_name || 'N/A'}</span>
           </div>
         </div>
       </div>
+
+      {/* Running Task Status */}
+      {runningTask && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <PlayCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                Task Running
+              </h3>
+              <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                <p>
+                  <span className="font-medium">Type:</span> {runningTask.task_type}
+                </p>
+                <p>
+                  <span className="font-medium">Started:</span> {new Date(runningTask.started_at || runningTask.created_at).toLocaleString()}
+                </p>
+                <Link 
+                  to="/admin/tasks" 
+                  className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline mt-2"
+                >
+                  View all tasks →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!source.graph_name ? (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
