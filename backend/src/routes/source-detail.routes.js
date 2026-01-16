@@ -41,10 +41,21 @@ function validateRegexPattern(pattern) {
   if (pattern.length > 500) return false; // Prevent extremely long patterns
   
   // Block patterns that could break out of the SPARQL string literal
-  // We need to be careful here - we want to allow backslashes for regex escapes
-  // but not sequences that could break the SPARQL query
-  const dangerousPatterns = /(?<!\\)["]/; // Unescaped quotes
-  if (dangerousPatterns.test(pattern)) return false;
+  // Check for unescaped quotes by looking for quotes not preceded by backslash
+  // Using a more compatible approach for older JS environments
+  for (let i = 0; i < pattern.length; i++) {
+    if (pattern[i] === '"') {
+      // Check if this quote is escaped (preceded by odd number of backslashes)
+      let backslashCount = 0;
+      for (let j = i - 1; j >= 0 && pattern[j] === '\\'; j--) {
+        backslashCount++;
+      }
+      // If even number of backslashes (including 0), the quote is unescaped
+      if (backslashCount % 2 === 0) {
+        return false;
+      }
+    }
+  }
   
   // Block newlines and carriage returns
   if (/[\n\r]/.test(pattern)) return false;

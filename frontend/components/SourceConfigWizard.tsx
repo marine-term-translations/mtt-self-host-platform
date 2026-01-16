@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { backendApi } from '../services/api';
 import {
@@ -134,11 +134,7 @@ export default function SourceConfigWizard({
   }, [existingConfig]);
 
   // Load RDF types
-  useEffect(() => {
-    loadRDFTypes();
-  }, [sourceId]);
-
-  const loadRDFTypes = async () => {
+  const loadRDFTypes = useCallback(async () => {
     setLoadingTypes(true);
     setError('');
     try {
@@ -149,7 +145,11 @@ export default function SourceConfigWizard({
     } finally {
       setLoadingTypes(false);
     }
-  };
+  }, [sourceId]);
+
+  useEffect(() => {
+    loadRDFTypes();
+  }, [loadRDFTypes]);
 
   // Load initial predicates for step 2
   const loadInitialPredicates = async (rdfType: string) => {
@@ -746,7 +746,7 @@ export default function SourceConfigWizard({
                         Language:
                       </label>
                       <select
-                        value={path.languageTag || (path.availableLanguages && path.availableLanguages.length > 0 ? path.availableLanguages[0] : '')}
+                        value={path.languageTag || path.availableLanguages?.[0] || ''}
                         onChange={(e) => handleLanguageChange(path.path, e.target.value)}
                         className="text-xs px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white font-mono"
                       >
