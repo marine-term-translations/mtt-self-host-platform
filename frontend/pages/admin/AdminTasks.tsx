@@ -88,6 +88,50 @@ const TASK_TYPE_DEFINITIONS = {
   }
 };
 
+// Schedule presets with user-friendly labels
+const SCHEDULE_PRESETS = {
+  'every_minute': {
+    label: 'Every Minute',
+    config: '{"cron": "* * * * *"}',
+    description: 'Runs every minute'
+  },
+  'every_5_minutes': {
+    label: 'Every 5 Minutes',
+    config: '{"cron": "*/5 * * * *"}',
+    description: 'Runs every 5 minutes'
+  },
+  'every_15_minutes': {
+    label: 'Every 15 Minutes',
+    config: '{"cron": "*/15 * * * *"}',
+    description: 'Runs every 15 minutes'
+  },
+  'hourly': {
+    label: 'Every Hour',
+    config: '{"cron": "0 * * * *"}',
+    description: 'Runs at the top of every hour'
+  },
+  'every_6_hours': {
+    label: 'Every 6 Hours',
+    config: '{"cron": "0 */6 * * *"}',
+    description: 'Runs every 6 hours'
+  },
+  'daily': {
+    label: 'Daily',
+    config: '{"cron": "0 0 * * *"}',
+    description: 'Runs once per day at midnight'
+  },
+  'weekly': {
+    label: 'Weekly',
+    config: '{"cron": "0 0 * * 0"}',
+    description: 'Runs once per week on Sunday at midnight'
+  },
+  'monthly': {
+    label: 'Monthly',
+    config: '{"cron": "0 0 1 * *"}',
+    description: 'Runs once per month on the 1st at midnight'
+  }
+};
+
 const AdminTasks: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [schedulers, setSchedulers] = useState<TaskScheduler[]>([]);
@@ -101,6 +145,7 @@ const AdminTasks: React.FC = () => {
   const [schedulerForm, setSchedulerForm] = useState({
     name: '',
     task_type: 'triplestore_sync',
+    schedule_preset: 'daily', // Use preset instead of raw config
     schedule_config: '{"cron": "0 0 * * *"}', // Daily at midnight
     enabled: true,
     source_id: ''
@@ -225,6 +270,18 @@ const AdminTasks: React.FC = () => {
     }
   };
 
+  // Handle schedule preset change
+  const handleSchedulePresetChange = (preset: string) => {
+    const presetConfig = SCHEDULE_PRESETS[preset as keyof typeof SCHEDULE_PRESETS];
+    if (presetConfig) {
+      setSchedulerForm(prev => ({
+        ...prev,
+        schedule_preset: preset,
+        schedule_config: presetConfig.config
+      }));
+    }
+  };
+
   const toggleScheduler = async (schedulerId: number) => {
     try {
       const response = await fetch(`${backendApi.baseUrl}/task-schedulers/${schedulerId}/toggle`, {
@@ -283,6 +340,7 @@ const AdminTasks: React.FC = () => {
       setSchedulerForm({
         name: '',
         task_type: 'triplestore_sync',
+        schedule_preset: 'daily',
         schedule_config: '{"cron": "0 0 * * *"}',
         enabled: true,
         source_id: ''
@@ -529,25 +587,39 @@ const AdminTasks: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Schedule Config (JSON)
+                    Schedule
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    value={schedulerForm.schedule_config}
-                    onChange={(e) => setSchedulerForm({ ...schedulerForm, schedule_config: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-mono text-sm"
-                    placeholder='{"cron": "0 0 * * *"}'
-                  />
+                    value={schedulerForm.schedule_preset}
+                    onChange={(e) => handleSchedulePresetChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  >
+                    {Object.entries(SCHEDULE_PRESETS).map(([key, preset]) => (
+                      <option key={key} value={key}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                  {schedulerForm.schedule_preset && (
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      {SCHEDULE_PRESETS[schedulerForm.schedule_preset as keyof typeof SCHEDULE_PRESETS].description}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Schedule Examples
+                    Schedule Config (Generated)
                   </label>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                    <div>Daily: <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded">{`{"cron": "0 0 * * *"}`}</code></div>
-                    <div>Hourly: <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded">{`{"interval": 3600}`}</code></div>
-                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={schedulerForm.schedule_config}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono text-sm cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    This configuration is automatically generated based on your schedule selection
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
