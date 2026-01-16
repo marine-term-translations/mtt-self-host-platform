@@ -186,6 +186,265 @@ router.get("/sources/:id/predicates", apiLimiter, async (req, res) => {
 });
 
 /**
+ * Get unique values for a predicate (for filtering)
+ * Returns unique literal values (non-URIs) up to a limit
+ */
+router.get("/sources/:id/filter-values", apiLimiter, async (req, res) => {
+  const { id } = req.params;
+  const { type, predicate, limit = 100 } = req.query;
+  const sourceId = parseInt(id, 10);
+  const maxValues = Math.min(parseInt(limit, 10), 100);
+  
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  if (!type || !predicate) {
+    return res.status(400).json({ error: "Missing 'type' or 'predicate' query parameter" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    
+    if (!source) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    if (!source.graph_name) {
+      return res.status(400).json({ error: "Source has no graph_name specified" });
+    }
+    
+    // SPARQL query to get distinct literal values for this predicate
+    const sparqlQuery = `
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT DISTINCT ?value (COUNT(*) as ?count)
+      WHERE {
+        GRAPH <${source.graph_name}> {
+          ?subject rdf:type <${type}> .
+          ?subject <${predicate}> ?value .
+          FILTER(isLiteral(?value))
+        }
+      }
+      GROUP BY ?value
+      ORDER BY DESC(?count)
+      LIMIT ${maxValues}
+    `;
+    
+    const graphdbUrl = config.graphdb.url;
+    const repository = config.graphdb.repository;
+    const endpoint = `${graphdbUrl}/repositories/${repository}`;
+    
+    const response = await axios.post(endpoint, sparqlQuery, {
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        'Accept': 'application/sparql-results+json'
+      },
+      timeout: 30000
+    });
+    
+    const values = response.data.results.bindings.map(binding => ({
+      value: binding.value.value,
+      count: parseInt(binding.count.value, 10)
+    }));
+    
+    // Get total count of distinct values
+    const countQuery = `
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT (COUNT(DISTINCT ?value) as ?total)
+      WHERE {
+        GRAPH <${source.graph_name}> {
+          ?subject rdf:type <${type}> .
+          ?subject <${predicate}> ?value .
+          FILTER(isLiteral(?value))
+        }
+      }
+    `;
+    
+    const countResponse = await axios.post(endpoint, countQuery, {
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        'Accept': 'application/sparql-results+json'
+      },
+      timeout: 30000
+    });
+    
+    const totalCount = countResponse.data.results.bindings.length > 0 
+      ? parseInt(countResponse.data.results.bindings[0].total.value, 10)
+      : values.length;
+    
+    res.json({
+      source_id: sourceId,
+      rdf_type: type,
+      predicate,
+      values,
+      totalCount,
+      hasMore: totalCount > values.length
+    });
+  } catch (err) {
+    console.error('Error fetching filter values:', err.message);
+    if (err.response) {
+      return res.status(500).json({ error: `GraphDB error: ${err.response.statusText}` });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Get predicates with filters applied
+ * Filters parameter should be a JSON array like:
+ * [{ "predicate": "uri", "type": "class", "values": ["value1", "value2"] }, { "predicate": "uri2", "type": "regex", "pattern": ".*test.*" }]
+ */
+router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
+  const { id } = req.params;
+  const { type, filters } = req.query;
+  const sourceId = parseInt(id, 10);
+  
+  if (isNaN(sourceId) || sourceId < 1) {
+    return res.status(400).json({ error: "Invalid source ID" });
+  }
+  
+  if (!type) {
+    return res.status(400).json({ error: "Missing 'type' query parameter" });
+  }
+  
+  try {
+    const db = getDatabase();
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
+    
+    if (!source) {
+      return res.status(404).json({ error: "Source not found" });
+    }
+    
+    if (!source.graph_name) {
+      return res.status(400).json({ error: "Source has no graph_name specified" });
+    }
+    
+    // Parse filters if provided
+    let filterRules = [];
+    if (filters) {
+      try {
+        filterRules = JSON.parse(filters);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid filters JSON" });
+      }
+    }
+    
+    // Build filter conditions for SPARQL
+    let filterConditions = '';
+    if (filterRules && filterRules.length > 0) {
+      const conditions = filterRules.map((rule, index) => {
+        const varName = `filter${index}`;
+        if (rule.type === 'class' && rule.values && rule.values.length > 0) {
+          // Class filter: match specific values
+          const valueList = rule.values.map(v => `"${v.replace(/"/g, '\\"')}"`).join(', ');
+          return `
+            ?subject <${rule.predicate}> ?${varName} .
+            FILTER(?${varName} IN (${valueList}))
+          `;
+        } else if (rule.type === 'regex' && rule.pattern) {
+          // Regex filter
+          return `
+            ?subject <${rule.predicate}> ?${varName} .
+            FILTER(REGEX(STR(?${varName}), "${rule.pattern.replace(/"/g, '\\"')}", "i"))
+          `;
+        }
+        return '';
+      }).filter(c => c).join('\n');
+      
+      filterConditions = conditions;
+    }
+    
+    // SPARQL query to get all predicates with filters applied
+    const sparqlQuery = `
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT DISTINCT ?predicate (COUNT(?subject) as ?count) (SAMPLE(?object) as ?sample)
+      WHERE {
+        GRAPH <${source.graph_name}> {
+          ?subject rdf:type <${type}> .
+          ${filterConditions}
+          ?subject ?predicate ?object .
+        }
+      }
+      GROUP BY ?predicate
+      ORDER BY DESC(?count)
+    `;
+    
+    const graphdbUrl = config.graphdb.url;
+    const repository = config.graphdb.repository;
+    const endpoint = `${graphdbUrl}/repositories/${repository}`;
+    
+    const response = await axios.post(endpoint, sparqlQuery, {
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        'Accept': 'application/sparql-results+json'
+      },
+      timeout: 30000
+    });
+    
+    const predicates = [];
+    
+    // For each predicate, detect language tags
+    for (const binding of response.data.results.bindings) {
+      const predicateUri = binding.predicate.value;
+      const count = parseInt(binding.count.value, 10);
+      const sampleValue = binding.sample.value;
+      const sampleType = binding.sample.type;
+      
+      let languages = [];
+      
+      // If sample is a literal, check for language tags
+      if (sampleType === 'literal' || sampleType === 'typed-literal') {
+        const langQuery = `
+          PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+          SELECT DISTINCT (LANG(?object) as ?lang)
+          WHERE {
+            GRAPH <${source.graph_name}> {
+              ?subject rdf:type <${type}> .
+              ${filterConditions}
+              ?subject <${predicateUri}> ?object .
+              FILTER(isLiteral(?object) && LANG(?object) != "")
+            }
+          }
+        `;
+        
+        try {
+          const langResponse = await axios.post(endpoint, langQuery, {
+            headers: {
+              'Content-Type': 'application/sparql-query',
+              'Accept': 'application/sparql-results+json'
+            },
+            timeout: 15000
+          });
+          
+          languages = langResponse.data.results.bindings
+            .map(b => b.lang.value)
+            .filter(lang => lang);
+        } catch (err) {
+          console.error(`Failed to detect languages for ${predicateUri}:`, err.message);
+        }
+      }
+      
+      predicates.push({
+        predicate: predicateUri,
+        count,
+        sampleValue,
+        sampleType,
+        languages: languages.length > 0 ? languages : undefined
+      });
+    }
+    
+    res.json({ source_id: sourceId, rdf_type: type, predicates, filters: filterRules });
+  } catch (err) {
+    console.error('Error fetching filtered predicates:', err.message);
+    if (err.response) {
+      return res.status(500).json({ error: `GraphDB error: ${err.response.statusText}` });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Check if objects for a predicate are all URIs or literals
  * Also detects and returns language tags
  */
@@ -416,14 +675,41 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
         for (const typeConfig of translationConfig.types || []) {
           const rdfType = typeConfig.type;
           const selectedPaths = typeConfig.paths || [];
+          const filters = typeConfig.filters || [];
           
-          // Query GraphDB for all subjects of this type
+          // Build filter conditions for SPARQL
+          let filterConditions = '';
+          if (filters && filters.length > 0) {
+            const conditions = filters.map((rule, index) => {
+              const varName = `filter${index}`;
+              if (rule.type === 'class' && rule.values && rule.values.length > 0) {
+                // Class filter: match specific values
+                const valueList = rule.values.map(v => `"${v.replace(/"/g, '\\"')}"`).join(', ');
+                return `
+                  ?subject <${rule.predicate}> ?${varName} .
+                  FILTER(?${varName} IN (${valueList}))
+                `;
+              } else if (rule.type === 'regex' && rule.pattern) {
+                // Regex filter
+                return `
+                  ?subject <${rule.predicate}> ?${varName} .
+                  FILTER(REGEX(STR(?${varName}), "${rule.pattern.replace(/"/g, '\\"')}", "i"))
+                `;
+              }
+              return '';
+            }).filter(c => c).join('\n');
+            
+            filterConditions = conditions;
+          }
+          
+          // Query GraphDB for all subjects of this type with filters applied
           const sparqlQuery = `
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             SELECT DISTINCT ?subject
             WHERE {
               GRAPH <${source.graph_name}> {
                 ?subject rdf:type <${rdfType}> .
+                ${filterConditions}
               }
             }
           `;
