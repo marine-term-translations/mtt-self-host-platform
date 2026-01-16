@@ -49,6 +49,7 @@ function dispatchTaskFromScheduler(scheduler) {
       schedule_config: scheduleConfig
     });
     
+    // Use NULL for created_by instead of 'system' to avoid FOREIGN KEY constraint
     const taskStmt = db.prepare(
       "INSERT INTO tasks (task_type, source_id, metadata, created_by, status) VALUES (?, ?, ?, ?, ?)"
     );
@@ -56,7 +57,7 @@ function dispatchTaskFromScheduler(scheduler) {
       scheduler.task_type,
       scheduler.source_id,
       metadata,
-      'system',
+      null, // NULL instead of 'system' to avoid FOREIGN KEY constraint
       'pending'
     );
     const taskId = taskInfo.lastInsertRowid;

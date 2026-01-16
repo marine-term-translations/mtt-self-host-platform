@@ -52,10 +52,47 @@ interface TaskStats {
   recent_tasks: Task[];
 }
 
+interface Source {
+  source_id: number;
+  source_path: string;
+  source_type: 'LDES' | 'Static_file';
+  graph_name: string | null;
+}
+
+// Task type definitions with descriptions
+const TASK_TYPE_DEFINITIONS = {
+  'file_upload': {
+    label: 'File Upload',
+    description: 'Upload and process static RDF files to GraphDB triplestore',
+    compatibleSourceTypes: ['Static_file']
+  },
+  'ldes_sync': {
+    label: 'LDES Sync',
+    description: 'Synchronize data from LDES (Linked Data Event Streams) feeds',
+    compatibleSourceTypes: ['LDES']
+  },
+  'triplestore_sync': {
+    label: 'Triplestore Sync',
+    description: 'Sync terms from GraphDB triplestore to SQL database',
+    compatibleSourceTypes: ['LDES', 'Static_file']
+  },
+  'harvest': {
+    label: 'Harvest',
+    description: 'Harvest data from external SPARQL endpoints',
+    compatibleSourceTypes: ['LDES', 'Static_file']
+  },
+  'other': {
+    label: 'Other',
+    description: 'Custom or miscellaneous task',
+    compatibleSourceTypes: ['LDES', 'Static_file']
+  }
+};
+
 const AdminTasks: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [schedulers, setSchedulers] = useState<TaskScheduler[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'tasks' | 'schedulers'>('tasks');
   
@@ -68,6 +105,7 @@ const AdminTasks: React.FC = () => {
     enabled: true,
     source_id: ''
   });
+  const [selectedSource, setSelectedSource] = useState<Source | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -76,19 +114,22 @@ const AdminTasks: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tasksRes, schedulersRes, statsRes] = await Promise.all([
+      const [tasksRes, schedulersRes, statsRes, sourcesRes] = await Promise.all([
         fetch(`${backendApi.baseUrl}/tasks?limit=100`, { credentials: 'include' }),
         fetch(`${backendApi.baseUrl}/task-schedulers`, { credentials: 'include' }),
-        fetch(`${backendApi.baseUrl}/tasks/stats`, { credentials: 'include' })
+        fetch(`${backendApi.baseUrl}/tasks/stats`, { credentials: 'include' }),
+        fetch(`${backendApi.baseUrl}/sources`, { credentials: 'include' })
       ]);
 
       const tasksData = await tasksRes.json();
       const schedulersData = await schedulersRes.json();
       const statsData = await statsRes.json();
+      const sourcesData = await sourcesRes.json();
 
       setTasks(tasksData.tasks || []);
       setSchedulers(schedulersData.schedulers || []);
       setStats(statsData);
+      setSources(sourcesData.sources || []);
     } catch (error: any) {
       console.error('Failed to fetch tasks data', error);
       toast.error(`Failed to load tasks: ${error.message}`);
@@ -148,6 +189,40 @@ const AdminTasks: React.FC = () => {
     if (hours > 0) return `${hours}h ${minutes % 60}m`;
     if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
     return `${seconds}s`;
+  };
+
+  // Get available task types based on selected source
+  const getAvailableTaskTypes = () => {
+    if (!selectedSource) {
+      return Object.keys(TASK_TYPE_DEFINITIONS);
+    }
+    
+    return Object.entries(TASK_TYPE_DEFINITIONS)
+      .filter(([_, def]) => def.compatibleSourceTypes.includes(selectedSource.source_type))
+      .map(([type, _]) => type);
+  };
+
+  // Handle source selection change
+  const handleSourceChange = (sourceId: string) => {
+    setSchedulerForm({ ...schedulerForm, source_id: sourceId });
+    
+    if (sourceId) {
+      const source = sources.find(s => s.source_id === parseInt(sourceId));
+      setSelectedSource(source || null);
+      
+      // Reset task type if current one is not compatible with new source
+      if (source) {
+        const compatibleTypes = Object.entries(TASK_TYPE_DEFINITIONS)
+          .filter(([_, def]) => def.compatibleSourceTypes.includes(source.source_type))
+          .map(([type, _]) => type);
+        
+        if (!compatibleTypes.includes(schedulerForm.task_type)) {
+          setSchedulerForm(prev => ({ ...prev, task_type: compatibleTypes[0] || 'other' }));
+        }
+      }
+    } else {
+      setSelectedSource(null);
+    }
   };
 
   const toggleScheduler = async (schedulerId: number) => {
@@ -212,6 +287,7 @@ const AdminTasks: React.FC = () => {
         enabled: true,
         source_id: ''
       });
+      setSelectedSource(null);
       fetchData();
     } catch (error: any) {
       toast.error(`Failed to create scheduler: ${error.message}`);
@@ -413,6 +489,23 @@ const AdminTasks: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Source (optional)
+                  </label>
+                  <select
+                    value={schedulerForm.source_id}
+                    onChange={(e) => handleSourceChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  >
+                    <option value="">No specific source</option>
+                    {sources.map((source) => (
+                      <option key={source.source_id} value={source.source_id}>
+                        #{source.source_id} - {source.source_type} - {source.source_path.substring(0, 40)}...
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Task Type
                   </label>
                   <select
@@ -420,12 +513,17 @@ const AdminTasks: React.FC = () => {
                     onChange={(e) => setSchedulerForm({ ...schedulerForm, task_type: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                   >
-                    <option value="triplestore_sync">Triplestore Sync</option>
-                    <option value="ldes_sync">LDES Sync</option>
-                    <option value="harvest">Harvest</option>
-                    <option value="file_upload">File Upload</option>
-                    <option value="other">Other</option>
+                    {getAvailableTaskTypes().map((taskType) => (
+                      <option key={taskType} value={taskType}>
+                        {TASK_TYPE_DEFINITIONS[taskType as keyof typeof TASK_TYPE_DEFINITIONS].label}
+                      </option>
+                    ))}
                   </select>
+                  {schedulerForm.task_type && (
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      {TASK_TYPE_DEFINITIONS[schedulerForm.task_type as keyof typeof TASK_TYPE_DEFINITIONS].description}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -442,14 +540,12 @@ const AdminTasks: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Source ID (optional)
+                    Schedule Examples
                   </label>
-                  <input
-                    type="number"
-                    value={schedulerForm.source_id}
-                    onChange={(e) => setSchedulerForm({ ...schedulerForm, source_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                  />
+                  <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                    <div>Daily: <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded">{`{"cron": "0 0 * * *"}`}</code></div>
+                    <div>Hourly: <code className="bg-slate-100 dark:bg-slate-600 px-1 rounded">{`{"interval": 3600}`}</code></div>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
