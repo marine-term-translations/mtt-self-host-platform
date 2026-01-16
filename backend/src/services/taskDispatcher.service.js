@@ -142,6 +142,9 @@ async function executeTask(taskId) {
     
     // Execute based on task type
     switch (task.task_type) {
+      case 'file_upload':
+        await executeFileUploadTask(task);
+        break;
       case 'triplestore_sync':
         await executeSyncTask(task);
         break;
@@ -169,6 +172,16 @@ async function executeTask(taskId) {
       "UPDATE tasks SET status = 'failed', completed_at = datetime('now'), error_message = ? WHERE task_id = ?"
     ).run(err.message, taskId);
   }
+}
+
+/**
+ * Execute a file upload task
+ */
+async function executeFileUploadTask(task) {
+  console.log(`Executing file upload task for source ${task.source_id}`);
+  
+  // File upload tasks are handled inline in the upload endpoint
+  // This is here for completeness in case we need to retry failed uploads
 }
 
 /**

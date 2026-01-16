@@ -747,14 +747,16 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     const taskStmt = db.prepare(
       "INSERT INTO tasks (task_type, source_id, metadata, created_by, status) VALUES (?, ?, ?, ?, ?)"
     );
-    const taskInfo = taskStmt.run('file_upload', source.source_id, taskMetadata, created_by, 'running');
+    const taskInfo = taskStmt.run('file_upload', source.source_id, taskMetadata, created_by, 'pending');
     const taskId = taskInfo.lastInsertRowid;
     
     // Start the upload task asynchronously
     (async () => {
       try {
         // Update task to running with start time
-        db.prepare("UPDATE tasks SET started_at = CURRENT_TIMESTAMP WHERE task_id = ?").run(taskId);
+        db.prepare(
+          "UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP WHERE task_id = ?"
+        ).run(taskId);
         
         // Upload file to GraphDB triplestore
         const uploadResult = await uploadToGraphDB(req.file.path, graph_name);

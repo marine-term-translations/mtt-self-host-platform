@@ -381,14 +381,16 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
     const taskStmt = db.prepare(
       "INSERT INTO tasks (task_type, source_id, metadata, created_by, status) VALUES (?, ?, ?, ?, ?)"
     );
-    const taskInfo = taskStmt.run('triplestore_sync', sourceId, taskMetadata, created_by, 'running');
+    const taskInfo = taskStmt.run('triplestore_sync', sourceId, taskMetadata, created_by, 'pending');
     const taskId = taskInfo.lastInsertRowid;
     
     // Start the sync task asynchronously
     (async () => {
       try {
         // Update task to running with start time
-        db.prepare("UPDATE tasks SET started_at = CURRENT_TIMESTAMP WHERE task_id = ?").run(taskId);
+        db.prepare(
+          "UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP WHERE task_id = ?"
+        ).run(taskId);
         
         const translationConfig = JSON.parse(source.translation_config);
         
