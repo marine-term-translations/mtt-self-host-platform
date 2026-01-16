@@ -168,8 +168,9 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
   }
   
   // Validate schedule_config is valid JSON
+  let parsedConfig;
   try {
-    JSON.parse(schedule_config);
+    parsedConfig = JSON.parse(schedule_config);
   } catch (e) {
     return res.status(400).json({ error: "schedule_config must be valid JSON" });
   }
@@ -180,11 +181,18 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
     const created_by = req.session?.user?.username || null;
     const enabledValue = enabled !== undefined ? (enabled ? 1 : 0) : 1;
     
+    // Calculate initial next_run time if scheduler is enabled
+    let next_run = null;
+    if (enabledValue === 1) {
+      // Set next_run to now so it triggers immediately on first check
+      next_run = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    }
+    
     const stmt = db.prepare(
-      `INSERT INTO task_schedulers (name, task_type, schedule_config, enabled, source_id, created_by) 
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO task_schedulers (name, task_type, schedule_config, enabled, source_id, created_by, next_run) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
-    const info = stmt.run(name, task_type, schedule_config, enabledValue, source_id || null, created_by);
+    const info = stmt.run(name, task_type, schedule_config, enabledValue, source_id || null, created_by, next_run);
     
     const scheduler = db.prepare(
       "SELECT * FROM task_schedulers WHERE scheduler_id = ?"
@@ -389,9 +397,18 @@ router.post("/task-schedulers/:id/toggle", writeLimiter, (req, res) => {
     
     const newEnabled = existing.enabled === 1 ? 0 : 1;
     
-    db.prepare(
-      "UPDATE task_schedulers SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE scheduler_id = ?"
-    ).run(newEnabled, schedulerId);
+    // If enabling the scheduler, set next_run to now so it triggers on next check
+    if (newEnabled === 1) {
+      const next_run = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      db.prepare(
+        "UPDATE task_schedulers SET enabled = ?, next_run = ?, updated_at = CURRENT_TIMESTAMP WHERE scheduler_id = ?"
+      ).run(newEnabled, next_run, schedulerId);
+    } else {
+      // If disabling, just update enabled flag
+      db.prepare(
+        "UPDATE task_schedulers SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE scheduler_id = ?"
+      ).run(newEnabled, schedulerId);
+    }
     
     const updated = db.prepare(
       "SELECT * FROM task_schedulers WHERE scheduler_id = ?"

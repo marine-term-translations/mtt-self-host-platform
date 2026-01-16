@@ -43,6 +43,34 @@ function dispatchTaskFromScheduler(scheduler) {
     // Parse schedule config
     const scheduleConfig = JSON.parse(scheduler.schedule_config);
     
+    // Check if there's already a running or pending task for this source
+    if (scheduler.source_id) {
+      const existingTask = db.prepare(`
+        SELECT * FROM tasks 
+        WHERE source_id = ? 
+        AND task_type = ?
+        AND status IN ('pending', 'running')
+        LIMIT 1
+      `).get(scheduler.source_id, scheduler.task_type);
+      
+      if (existingTask) {
+        console.log(`Postponing scheduler ${scheduler.scheduler_id} (${scheduler.name}) - task ${existingTask.task_id} is already ${existingTask.status} for source ${scheduler.source_id}`);
+        
+        // Postpone by calculating next run and adding a small delay (1 minute)
+        const nextRun = calculateNextRun(scheduleConfig);
+        if (nextRun) {
+          // Add 1 minute to the next run to retry after current task might be done
+          const postponedDate = new Date(nextRun);
+          postponedDate.setMinutes(postponedDate.getMinutes() + 1);
+          const postponedRun = postponedDate.toISOString().replace('T', ' ').substring(0, 19);
+          
+          db.prepare("UPDATE task_schedulers SET next_run = ? WHERE scheduler_id = ?")
+            .run(postponedRun, scheduler.scheduler_id);
+        }
+        return; // Don't create a new task
+      }
+    }
+    
     // Create a task
     const metadata = JSON.stringify({
       scheduler_id: scheduler.scheduler_id,
@@ -74,6 +102,9 @@ function dispatchTaskFromScheduler(scheduler) {
     if (nextRun) {
       db.prepare("UPDATE task_schedulers SET next_run = ? WHERE scheduler_id = ?")
         .run(nextRun, scheduler.scheduler_id);
+      console.log(`Scheduler ${scheduler.scheduler_id} next run scheduled for: ${nextRun}`);
+    } else {
+      console.warn(`Could not calculate next run for scheduler ${scheduler.scheduler_id}`);
     }
     
     // Execute the task asynchronously
