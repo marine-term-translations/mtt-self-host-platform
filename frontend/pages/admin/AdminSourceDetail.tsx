@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { backendApi } from '../../services/api';
+import SourceConfigWizard from '../../components/SourceConfigWizard';
 import {
   ArrowLeft,
   Database,
@@ -104,6 +105,7 @@ export default function AdminSourceDetail() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     loadSource();
@@ -390,23 +392,41 @@ export default function AdminSourceDetail() {
           </div>
           
           <div className="flex gap-2">
-            <button
-              onClick={handleSaveConfiguration}
-              disabled={saving || selectedPaths.length === 0}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save Configuration
-            </button>
-            
-            <button
-              onClick={handleSyncTerms}
-              disabled={syncing || !source.translation_config}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Sync Terms
-            </button>
+            {source.translation_config && !showWizard && (
+              <>
+                <button
+                  onClick={() => setShowWizard(true)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                >
+                  Reconfigure
+                </button>
+                <button
+                  onClick={handleSaveConfiguration}
+                  disabled={saving || selectedPaths.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Configuration
+                </button>
+                
+                <button
+                  onClick={handleSyncTerms}
+                  disabled={syncing || !source.translation_config}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Sync Terms
+                </button>
+              </>
+            )}
+            {showWizard && (
+              <button
+                onClick={() => setShowWizard(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+              >
+                Cancel Reconfiguration
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -483,6 +503,17 @@ export default function AdminSourceDetail() {
             This source has no graph name specified. Translation configuration requires a graph name.
           </p>
         </div>
+      ) : (!source.translation_config || showWizard) ? (
+        /* Show wizard when no configuration exists or user requests reconfiguration */
+        <SourceConfigWizard
+          sourceId={source.source_id}
+          graphName={source.graph_name}
+          existingConfig={source.translation_config}
+          onConfigSaved={() => {
+            setShowWizard(false);
+            loadSource();
+          }}
+        />
       ) : (
         <div className="grid grid-cols-2 gap-6">
           {/* Left Panel: RDF Types */}
