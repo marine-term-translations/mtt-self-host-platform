@@ -66,6 +66,7 @@ export interface ApiField {
   translations: ApiTranslation[];
   created_at?: string;
   updated_at?: string;
+  field_role?: 'label' | 'reference' | 'translatable'; // New field role
 }
 
 export interface ApiTerm {
@@ -74,6 +75,8 @@ export interface ApiTerm {
   created_at: string;
   updated_at: string;
   fields: ApiField[];
+  labelField?: ApiField | null;  // New: identified label field
+  referenceFields?: ApiField[];  // New: identified reference fields
 }
 
 export interface ApiUserActivity {

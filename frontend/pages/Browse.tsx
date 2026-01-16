@@ -83,6 +83,14 @@ const Browse: React.FC = () => {
           value: string;
           status: string;
         }>;
+        labelField?: {
+          field_term?: string;
+          original_value?: string;
+        } | null;
+        referenceField?: {
+          field_term?: string;
+          original_value?: string;
+        } | null;
       }
       
       // Map browse results to Term format
@@ -128,10 +136,14 @@ const Browse: React.FC = () => {
            ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
            : collectionCode;
 
+        // Use labelField and referenceField from API response
+        const prefLabel = result.labelField?.original_value || result.uri?.split('/').pop() || 'Unknown Term';
+        const definition = result.referenceField?.original_value || prefLabel;
+
         return {
           id: result.uri || 'unknown',
-          prefLabel: result.original_value || result.uri?.split('/').pop() || 'Unknown Term',
-          definition: result.original_value || 'No definition available.',
+          prefLabel: prefLabel,
+          definition: definition,
           category: collectionName, 
           translations: translations,
           contributors: [], 
@@ -154,8 +166,13 @@ const Browse: React.FC = () => {
         const response = await backendApi.getTerms(pageSize, offset);
         
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
-          const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-          const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
+          // Use labelField and referenceFields from API response with fallback
+          const labelField = apiTerm.labelField 
+            || apiTerm.fields.find(f => f.field_role === 'label') 
+            || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+          const refField = (apiTerm.referenceFields && apiTerm.referenceFields[0])
+            || apiTerm.fields.find(f => f.field_role === 'reference')
+            || apiTerm.fields.find(f => f.field_term === 'skos:definition');
           
           const translations: Record<string, string | null> = {
             en_plain: null,
@@ -181,7 +198,8 @@ const Browse: React.FC = () => {
           apiTerm.fields.forEach(field => {
             if (field.translations) {
               field.translations.forEach(t => {
-                if (field.field_term === 'skos:definition' && t.language) {
+                // Use reference field for translations display
+                if ((field.field_role === 'reference' || field.field_term === 'skos:definition') && t.language) {
                    translations[t.language] = t.value;
                 }
                 if (t.status) {
@@ -200,10 +218,15 @@ const Browse: React.FC = () => {
              ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
              : collectionCode;
 
+          // Use label field for prefLabel, fallback to URI
+          const prefLabel = labelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term';
+          // Use reference field for definition, fallback to prefLabel
+          const definition = refField?.original_value || prefLabel;
+
           return {
             id: apiTerm.uri,
-            prefLabel: prefLabelField?.original_value || 'Unknown Term',
-            definition: definitionField?.original_value || 'No definition available.',
+            prefLabel: prefLabel,
+            definition: definition,
             category: collectionName, 
             translations: translations,
             contributors: [], 

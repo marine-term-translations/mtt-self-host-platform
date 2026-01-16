@@ -42,36 +42,40 @@ const Landing: React.FC = () => {
         }).slice(0, 3);
 
         const mappedTerms: Term[] = sortedTerms.map((apiTerm: ApiTerm) => {
-            const prefLabelField = apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-            const definitionField = apiTerm.fields.find(f => f.field_term === 'skos:definition');
-            
-            // Extract Translations just for display text
-            const translations: Record<string, string | null> = {
-                en_plain: null, es: null, fr: null, nl: null
-            };
-            
-            apiTerm.fields.forEach(field => {
-                if (field.field_term === 'skos:definition' && field.translations) {
-                    field.translations.forEach(t => {
-                        if (t.language) translations[t.language] = t.value;
-                    });
-                }
-            });
+            // Use API-provided labelField and referenceFields (field_role based)
+            const labelField = apiTerm.labelField 
+              || apiTerm.fields.find(f => f.field_role === 'label');
+            const referenceField = apiTerm.referenceFields?.[0]
+              || apiTerm.fields.find(f => f.field_role === 'reference');
+
+            // Find first available translation (any language)
+            let translationText: string | null = null;
+            let translationLang: string | null = null;
+            if (referenceField?.translations && referenceField.translations.length > 0) {
+              const firstTranslation = referenceField.translations[0];
+              translationText = firstTranslation.value;
+              translationLang = firstTranslation.language;
+            }
+
+            const translations: Record<string, string | null> = {};
+            if (translationLang && translationText) {
+              translations[translationLang] = translationText;
+            }
 
             const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
             const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
             const collectionName = getCollectionName(collectionCode);
 
             return {
-                id: apiTerm.uri,
-                prefLabel: prefLabelField?.original_value || 'Unknown Term',
-                definition: definitionField?.original_value || 'No definition available.',
-                category: collectionName,
-                translations: translations,
-                contributors: [],
-                stats: undefined // Explicitly undefined to hide status bar as requested
+              id: apiTerm.uri,
+              prefLabel: labelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term',
+              definition: referenceField?.original_value || 'No definition available.',
+              category: collectionName,
+              translations: translations,
+              contributors: [],
+              stats: undefined // Explicitly undefined to hide status bar as requested
             };
-        });
+          });
         setFeaturedTerms(mappedTerms);
 
         // --- 2. Process Contributors ---

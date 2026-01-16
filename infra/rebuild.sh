@@ -10,7 +10,8 @@ docker compose down
 
 if [[ $WIPE -eq 1 ]]; then
   echo "⚠️  WARNING: Wiping database..."
-  rm -rf backend/data
+  sudo rm -rf backend/data
+  sudo rm -rf data
 fi
 
 docker rmi mtt-self-host-platform-backend mtt-self-host-platform-frontend || true

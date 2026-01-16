@@ -12,6 +12,7 @@ services:
       - SQLITE_DB_PATH=/app/backend/data/translations.db
     volumes:
       - ./backend/data:/app/backend/data
+      - ./data:/data
     ports:
       - "5000:5000"
 
@@ -29,3 +30,34 @@ services:
       - "4173:4173"
     depends_on:
       - backend
+
+  graphdb:
+    image: ghcr.io/vliz-be-opsci/kgap/kgap_graphdb:latest
+    container_name: marine_graphdb
+    env_file:
+      - ./.env
+    environment:
+      - GDB_JAVA_OPTS=-Xms8g -Xmx16g -Dcom.ontotext.graphdb.monitoring.jmx=true
+      # GDB_REPO: kgap
+      # GDB_HOME_FOLDER: /opt/graphdb/home/
+    ports:
+      - 7200:7200 # HTTP
+    cpus: 4
+    volumes:
+      - ./data:/data
+      - ./data/graphdb-import:/root/graphdb-import/data
+
+  ldes-consumer:
+    image: ghcr.io/vliz-be-opsci/kgap/kgap_ldes-consumer:latest
+    container_name: marine_ldes_consumer
+    restart: unless-stopped
+    volumes:
+      - "./data:/data"
+      - "/var/run/docker.sock:/var/run/docker.sock" # Required to spawn docker containers
+    env_file:
+      - ./.env
+    environment:
+      - DOCKER_NETWORK=${COMPOSE_PROJECT_NAME:-kgap}_default
+    depends_on:
+      graphdb:
+        condition: service_healthy
