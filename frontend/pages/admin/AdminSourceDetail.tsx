@@ -313,10 +313,18 @@ export default function AdminSourceDetail() {
     
     try {
       const response = await axios.post(`${API_URL}/sources/${id}/sync-terms`);
-      setSuccess(response.data.message);
+      
+      if (response.data.task_id) {
+        setSuccess(`Synchronization task #${response.data.task_id} started. Check the Tasks page for progress.`);
+        // Reload the source to show the running task
+        loadSource();
+      } else {
+        setSuccess(response.data.message || 'Synchronization started');
+      }
+      
       setTimeout(() => setSuccess(''), 5000);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to synchronize terms');
+      setError(err.response?.data?.error || 'Failed to start synchronization task');
     } finally {
       setSyncing(false);
     }

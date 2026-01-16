@@ -202,7 +202,14 @@ const AdminHarvest: React.FC = () => {
       setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ File uploaded successfully`]);
       setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Source ID: ${source.source_id}`]);
       setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] File saved at: ${source.source_path}`]);
-      toast.success("File uploaded and source created successfully");
+      
+      if (source.task_id) {
+        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 📋 Processing task #${source.task_id} started`]);
+        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Status: ${source.task_status}`]);
+        toast.success("File uploaded! Processing in background...");
+      } else {
+        toast.success("File uploaded and source created successfully");
+      }
       
       // Reset form
       setSelectedFile(null);

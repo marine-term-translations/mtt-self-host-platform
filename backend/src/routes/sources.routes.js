@@ -726,17 +726,7 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
       ? `/data/uploads/${req.file.filename}`
       : req.file.path;
     
-    // Upload file to GraphDB triplestore
-    try {
-      const uploadResult = await uploadToGraphDB(req.file.path, graph_name);
-      console.log('GraphDB upload successful:', uploadResult.message);
-    } catch (graphdbError) {
-      console.error('GraphDB upload failed:', graphdbError.message);
-      // Note: We continue creating the source even if GraphDB upload fails
-      // The file is still saved locally for later processing
-    }
-    
-    // Create source entry in database
+    // Create source entry in database first
     const db = getDatabase();
     const stmt = db.prepare(
       "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
@@ -746,10 +736,49 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     // Fetch the created source
     const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
     
+    // Create a task for the file upload processing
+    const created_by = req.session?.user?.username || null;
+    const taskMetadata = JSON.stringify({
+      filename: req.file.originalname,
+      size: req.file.size,
+      graph_name: graph_name || null
+    });
+    
+    const taskStmt = db.prepare(
+      "INSERT INTO tasks (task_type, source_id, metadata, created_by, status) VALUES (?, ?, ?, ?, ?)"
+    );
+    const taskInfo = taskStmt.run('file_upload', source.source_id, taskMetadata, created_by, 'running');
+    const taskId = taskInfo.lastInsertRowid;
+    
+    // Start the upload task asynchronously
+    (async () => {
+      try {
+        // Update task to running with start time
+        db.prepare("UPDATE tasks SET started_at = CURRENT_TIMESTAMP WHERE task_id = ?").run(taskId);
+        
+        // Upload file to GraphDB triplestore
+        const uploadResult = await uploadToGraphDB(req.file.path, graph_name);
+        console.log('GraphDB upload successful:', uploadResult.message);
+        
+        // Mark task as completed
+        db.prepare(
+          "UPDATE tasks SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE task_id = ?"
+        ).run(taskId);
+      } catch (graphdbError) {
+        console.error('GraphDB upload failed:', graphdbError.message);
+        
+        // Mark task as failed
+        db.prepare(
+          "UPDATE tasks SET status = 'failed', completed_at = CURRENT_TIMESTAMP, error_message = ? WHERE task_id = ?"
+        ).run(graphdbError.message, taskId);
+      }
+    })();
+    
     res.status(201).json({
       ...source,
       original_filename: req.file.originalname,
-      graphdb_upload: 'success' // Could be enhanced to return actual status
+      task_id: taskId,
+      task_status: 'running'
     });
   } catch (err) {
     // Clean up uploaded file on error

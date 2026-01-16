@@ -2,6 +2,7 @@
 
 const config = require("./config");
 const dbInit = require("./services/dbInit.service");
+const taskDispatcher = require("./services/taskDispatcher.service");
 const app = require("./app");
 const fs = require("fs");
 const path = require("path");
@@ -22,6 +23,12 @@ if (!fs.existsSync(ldesFeedsPath)) {
     console.error("Failed to create ldes-feeds.yaml:", error);
   }
 }
+
+// Start the task dispatcher (checks every minute for scheduled tasks)
+taskDispatcher.startTaskDispatcher(60000);
+
+// Process any pending tasks on startup
+taskDispatcher.processPendingTasks();
 
 // Start the server
 app.listen(config.port, () => {
