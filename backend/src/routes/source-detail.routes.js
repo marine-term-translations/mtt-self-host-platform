@@ -371,126 +371,166 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
       return res.status(400).json({ error: "Source has no graph_name specified" });
     }
     
-    const translationConfig = JSON.parse(source.translation_config);
+    // Create a task for the synchronization
+    const created_by = req.session?.user?.username || null;
+    const taskMetadata = JSON.stringify({
+      graph_name: source.graph_name,
+      source_path: source.source_path
+    });
     
-    // Parse field role configurations
-    const labelFieldUri = source.label_field_uri;
-    const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
-    const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
-    const languageTag = translationConfig.languageTag || '@en';
+    const taskStmt = db.prepare(
+      "INSERT INTO tasks (task_type, source_id, metadata, created_by, status) VALUES (?, ?, ?, ?, ?)"
+    );
+    const taskInfo = taskStmt.run('triplestore_sync', sourceId, taskMetadata, created_by, 'pending');
+    const taskId = taskInfo.lastInsertRowid;
     
-    // Helper function to determine field role
-    const getFieldRole = (fieldUri) => {
-      if (fieldUri === labelFieldUri) return 'label';
-      if (referenceFieldUris.includes(fieldUri)) return 'reference';
-      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
-      return 'translatable'; // default
-    };
-    
-    // Process each configured type and its predicates
-    let termsCreated = 0;
-    let termsUpdated = 0;
-    let fieldsCreated = 0;
-    
-    for (const typeConfig of translationConfig.types || []) {
-      const rdfType = typeConfig.type;
-      const selectedPaths = typeConfig.paths || [];
-      
-      // Query GraphDB for all subjects of this type
-      const sparqlQuery = `
-        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        SELECT DISTINCT ?subject
-        WHERE {
-          GRAPH <${source.graph_name}> {
-            ?subject rdf:type <${rdfType}> .
-          }
-        }
-      `;
-      
-      const graphdbUrl = config.graphdb.url;
-      const repository = config.graphdb.repository;
-      const endpoint = `${graphdbUrl}/repositories/${repository}`;
-      
-      const response = await axios.post(endpoint, sparqlQuery, {
-        headers: {
-          'Content-Type': 'application/sparql-query',
-          'Accept': 'application/sparql-results+json'
-        },
-        timeout: 30000
-      });
-      
-      const subjects = response.data.results.bindings.map(b => b.subject.value);
-      
-      // For each subject, create or update term
-      for (const subjectUri of subjects) {
-        // Check if term exists
-        let term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(subjectUri);
+    // Start the sync task asynchronously
+    (async () => {
+      try {
+        // Update task to running with start time
+        db.prepare(
+          "UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP WHERE task_id = ?"
+        ).run(taskId);
         
-        if (!term) {
-          // Create new term
-          const insertTerm = db.prepare(
-            "INSERT INTO terms (uri, source_id) VALUES (?, ?)"
-          );
-          const info = insertTerm.run(subjectUri, sourceId);
-          term = db.prepare("SELECT * FROM terms WHERE id = ?").get(info.lastInsertRowid);
-          termsCreated++;
-        } else if (term.source_id !== sourceId) {
-          // Update existing term's source_id
-          db.prepare("UPDATE terms SET source_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-            .run(sourceId, term.id);
-          termsUpdated++;
-        }
+        const translationConfig = JSON.parse(source.translation_config);
         
-        // For each selected predicate path, create term_field
-        for (const pathConfig of selectedPaths) {
-          const predicatePath = pathConfig.path;
-          const fieldTerm = pathConfig.label || predicatePath;
-          const fieldRole = getFieldRole(predicatePath);
+        // Parse field role configurations
+        const labelFieldUri = source.label_field_uri;
+        const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
+        const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
+        const languageTag = translationConfig.languageTag || '@en';
+        
+        // Helper function to determine field role
+        const getFieldRole = (fieldUri) => {
+          if (fieldUri === labelFieldUri) return 'label';
+          if (referenceFieldUris.includes(fieldUri)) return 'reference';
+          if (translatableFieldUris.includes(fieldUri)) return 'translatable';
+          return 'translatable'; // default
+        };
+        
+        // Process each configured type and its predicates
+        let termsCreated = 0;
+        let termsUpdated = 0;
+        let fieldsCreated = 0;
+        
+        for (const typeConfig of translationConfig.types || []) {
+          const rdfType = typeConfig.type;
+          const selectedPaths = typeConfig.paths || [];
           
-          // Use per-path language tag, fallback to global, then to '@en'
-          const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
+          // Query GraphDB for all subjects of this type
+          const sparqlQuery = `
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            SELECT DISTINCT ?subject
+            WHERE {
+              GRAPH <${source.graph_name}> {
+                ?subject rdf:type <${rdfType}> .
+              }
+            }
+          `;
           
-          // Query for the value at this predicate path
-          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
+          const graphdbUrl = config.graphdb.url;
+          const repository = config.graphdb.repository;
+          const endpoint = `${graphdbUrl}/repositories/${repository}`;
           
-          if (valueQuery && valueQuery.length > 0) {
-            for (const value of valueQuery) {
-              // Check if term_field exists
-              const existingField = db.prepare(
-                "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
-              ).get(term.id, predicatePath, value);
+          const response = await axios.post(endpoint, sparqlQuery, {
+            headers: {
+              'Content-Type': 'application/sparql-query',
+              'Accept': 'application/sparql-results+json'
+            },
+            timeout: 30000
+          });
+          
+          const subjects = response.data.results.bindings.map(b => b.subject.value);
+          
+          // For each subject, create or update term
+          for (const subjectUri of subjects) {
+            // Check if term exists
+            let term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(subjectUri);
+            
+            if (!term) {
+              // Create new term
+              const insertTerm = db.prepare(
+                "INSERT INTO terms (uri, source_id) VALUES (?, ?)"
+              );
+              const info = insertTerm.run(subjectUri, sourceId);
+              term = db.prepare("SELECT * FROM terms WHERE id = ?").get(info.lastInsertRowid);
+              termsCreated++;
+            } else if (term.source_id !== sourceId) {
+              // Update existing term's source_id
+              db.prepare("UPDATE terms SET source_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+                .run(sourceId, term.id);
+              termsUpdated++;
+            }
+            
+            // For each selected predicate path, create term_field
+            for (const pathConfig of selectedPaths) {
+              const predicatePath = pathConfig.path;
+              const fieldTerm = pathConfig.label || predicatePath;
+              const fieldRole = getFieldRole(predicatePath);
               
-              if (!existingField) {
-                // Create new term_field with field_role
-                db.prepare(
-                  "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
-                ).run(term.id, predicatePath, fieldTerm, value, sourceId, fieldRole);
-                fieldsCreated++;
-              } else if (!existingField.field_role) {
-                // Update existing field with role if not set
-                db.prepare(
-                  "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).run(fieldRole, existingField.id);
+              // Use per-path language tag, fallback to global, then to '@en'
+              const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
+              
+              // Query for the value at this predicate path
+              const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
+              
+              if (valueQuery && valueQuery.length > 0) {
+                for (const value of valueQuery) {
+                  // Check if term_field exists
+                  const existingField = db.prepare(
+                    "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
+                  ).get(term.id, predicatePath, value);
+                  
+                  if (!existingField) {
+                    // Create new term_field with field_role
+                    db.prepare(
+                      "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
+                    ).run(term.id, predicatePath, fieldTerm, value, sourceId, fieldRole);
+                    fieldsCreated++;
+                  } else if (!existingField.field_role) {
+                    // Update existing field with role if not set
+                    db.prepare(
+                      "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                    ).run(fieldRole, existingField.id);
+                  }
+                }
               }
             }
           }
         }
+        
+        // Update task metadata with results
+        const resultMetadata = JSON.stringify({
+          graph_name: source.graph_name,
+          source_path: source.source_path,
+          termsCreated,
+          termsUpdated,
+          fieldsCreated
+        });
+        
+        db.prepare(
+          "UPDATE tasks SET status = 'completed', completed_at = CURRENT_TIMESTAMP, metadata = ? WHERE task_id = ?"
+        ).run(resultMetadata, taskId);
+        
+        console.log(`Task ${taskId}: Synchronized ${termsCreated} new terms, updated ${termsUpdated} terms, created ${fieldsCreated} fields`);
+      } catch (err) {
+        console.error(`Task ${taskId} failed:`, err.message);
+        db.prepare(
+          "UPDATE tasks SET status = 'failed', completed_at = CURRENT_TIMESTAMP, error_message = ? WHERE task_id = ?"
+        ).run(err.message, taskId);
       }
-    }
+    })();
     
+    // Return immediately with task info
     res.json({
       success: true,
-      source_id: sourceId,
-      termsCreated,
-      termsUpdated,
-      fieldsCreated,
-      message: `Synchronized ${termsCreated} new terms, updated ${termsUpdated} terms, and created ${fieldsCreated} term fields`
+      message: 'Term synchronization task started',
+      task_id: taskId,
+      task_status: 'running',
+      source_id: sourceId
     });
   } catch (err) {
-    console.error('Error synchronizing terms:', err.message);
-    if (err.response) {
-      return res.status(500).json({ error: `GraphDB error: ${err.response.statusText}` });
-    }
+    console.error('Error creating sync task:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

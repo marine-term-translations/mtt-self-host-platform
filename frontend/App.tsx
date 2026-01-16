@@ -25,6 +25,8 @@ import AdminSources from './pages/admin/AdminSources';
 import AdminSourceDetail from './pages/admin/AdminSourceDetail';
 import AdminQuery from './pages/admin/AdminQuery';
 import AdminTriplestore from './pages/admin/AdminTriplestore';
+import AdminTasks from './pages/admin/AdminTasks';
+import AdminTaskDetail from './pages/admin/AdminTaskDetail';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -152,6 +154,16 @@ const App: React.FC = () => {
         <Route path="/admin/triplestore" element={
           <AdminRoute>
             <AdminTriplestore />
+          </AdminRoute>
+        } />
+        <Route path="/admin/tasks" element={
+          <AdminRoute>
+            <AdminTasks />
+          </AdminRoute>
+        } />
+        <Route path="/admin/tasks/:id" element={
+          <AdminRoute>
+            <AdminTaskDetail />
           </AdminRoute>
         } />
 

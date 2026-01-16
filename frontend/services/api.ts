@@ -9,7 +9,7 @@ interface RequestOptions extends RequestInit {
 }
 
 class ApiService {
-  private baseUrl: string;
+  public baseUrl: string;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash if present
