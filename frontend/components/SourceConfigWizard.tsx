@@ -15,6 +15,12 @@ import {
 
 const API_URL = backendApi.baseUrl;
 
+// Utility: Extract label from URI - handles both '/' and '#' separators
+function getUriLabel(uri: string): string {
+  const parts = uri.split(/[/#]/);
+  return parts.filter(p => p).pop() || uri;
+}
+
 interface RDFType {
   type: string;
   count: number;
@@ -298,12 +304,6 @@ export default function SourceConfigWizard({
 
   // Handle predicate selection for translation
   const handlePredicateSelect = async (predicate: Predicate) => {
-    // Extract label from URI - handle both '/' and '#' separators
-    const getUriLabel = (uri: string): string => {
-      const parts = uri.split(/[/#]/);
-      return parts.filter(p => p).pop() || uri;
-    };
-    
     const newPath: PredicatePath = {
       path: predicate.predicate,
       label: getUriLabel(predicate.predicate),
@@ -559,8 +559,8 @@ export default function SourceConfigWizard({
                       Class Filter: Select Values ({filterValuesTotal} unique)
                     </h3>
                     <div className="space-y-1 max-h-48 overflow-y-auto mb-4">
-                      {filterValues.map((fv, index) => (
-                        <label key={index} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                      {filterValues.map((fv) => (
+                        <label key={fv.value} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
                           <input
                             type="checkbox"
                             checked={selectedFilterValues.includes(fv.value)}
@@ -746,11 +746,11 @@ export default function SourceConfigWizard({
                         Language:
                       </label>
                       <select
-                        value={path.languageTag || path.availableLanguages[0]}
+                        value={path.languageTag || (path.availableLanguages && path.availableLanguages.length > 0 ? path.availableLanguages[0] : '')}
                         onChange={(e) => handleLanguageChange(path.path, e.target.value)}
                         className="text-xs px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white font-mono"
                       >
-                        {path.availableLanguages.map(lang => (
+                        {path.availableLanguages && path.availableLanguages.map(lang => (
                           <option key={lang} value={lang}>{lang}</option>
                         ))}
                       </select>

@@ -34,13 +34,22 @@ function isValidUri(str) {
 /**
  * Utility: Validate regex pattern for SPARQL FILTER
  * Ensures the pattern won't break SPARQL syntax
+ * Allows common regex metacharacters but blocks dangerous quote/newline combinations
  */
 function validateRegexPattern(pattern) {
   if (typeof pattern !== 'string') return false;
-  // Check for potentially dangerous characters that could break SPARQL
-  // This is a basic check - in production, consider using a proper SPARQL query builder
-  const dangerousPatterns = /["\\\n\r]/;
-  return !dangerousPatterns.test(pattern);
+  if (pattern.length > 500) return false; // Prevent extremely long patterns
+  
+  // Block patterns that could break out of the SPARQL string literal
+  // We need to be careful here - we want to allow backslashes for regex escapes
+  // but not sequences that could break the SPARQL query
+  const dangerousPatterns = /(?<!\\)["]/; // Unescaped quotes
+  if (dangerousPatterns.test(pattern)) return false;
+  
+  // Block newlines and carriage returns
+  if (/[\n\r]/.test(pattern)) return false;
+  
+  return true;
 }
 
 /**
@@ -229,7 +238,8 @@ router.get("/sources/:id/filter-values", apiLimiter, async (req, res) => {
   const { id } = req.params;
   const { type, predicate, limit = 100 } = req.query;
   const sourceId = parseInt(id, 10);
-  const maxValues = Math.min(parseInt(limit, 10), 100);
+  const parsedLimit = parseInt(limit, 10);
+  const maxValues = !isNaN(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 100;
   
   if (isNaN(sourceId) || sourceId < 1) {
     return res.status(400).json({ error: "Invalid source ID" });
