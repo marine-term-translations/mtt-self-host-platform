@@ -75,6 +75,8 @@ export interface ApiTerm {
   created_at: string;
   updated_at: string;
   fields: ApiField[];
+  labelField?: ApiField | null;  // New: identified label field
+  referenceFields?: ApiField[];  // New: identified reference fields
 }
 
 export interface ApiUserActivity {

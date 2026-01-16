@@ -120,7 +120,19 @@ router.get("/terms", apiLimiter, (req, res) => {
           .all(field.id);
         return { ...field, translations };
       });
-      return { ...term, fields: fieldsWithTranslations };
+      
+      // Identify label and reference fields
+      const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
+        || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+      const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
+        || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      
+      return { 
+        ...term, 
+        fields: fieldsWithTranslations,
+        labelField: labelField || null,
+        referenceFields: referenceFields || []
+      };
     });
     
     res.json({
@@ -215,7 +227,18 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       translations: translationsByField[field.id] || []
     }));
     
-    res.json({ ...term, fields: fieldsWithTranslations });
+    // Identify label and reference fields
+    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
+      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+    const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
+      || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    
+    res.json({ 
+      ...term, 
+      fields: fieldsWithTranslations,
+      labelField: labelField || null,
+      referenceFields: referenceFields || []
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

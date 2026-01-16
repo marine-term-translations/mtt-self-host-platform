@@ -187,6 +187,10 @@ router.get("/browse", apiLimiter, (req, res) => {
       }));
       
       // Find key fields for simplified result format
+      const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
+        || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+      const referenceField = fieldsWithTranslations.find(f => f.field_role === 'reference')
+        || fieldsWithTranslations.find(f => f.field_term === 'skos:definition');
       const prefLabelField = fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
       const definitionField = fieldsWithTranslations.find(f => f.field_term === 'skos:definition');
       
@@ -198,7 +202,10 @@ router.get("/browse", apiLimiter, (req, res) => {
           language: t.language,
           value: t.value,
           status: t.status
-        }))
+        })),
+        // Include label and reference field information
+        labelField: labelField || null,
+        referenceField: referenceField || null
       };
     });
     

@@ -83,6 +83,14 @@ const Browse: React.FC = () => {
           value: string;
           status: string;
         }>;
+        labelField?: {
+          field_term?: string;
+          original_value?: string;
+        } | null;
+        referenceField?: {
+          field_term?: string;
+          original_value?: string;
+        } | null;
       }
       
       // Map browse results to Term format
@@ -128,10 +136,14 @@ const Browse: React.FC = () => {
            ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
            : collectionCode;
 
+        // Use labelField and referenceField from API response
+        const prefLabel = result.labelField?.original_value || result.uri?.split('/').pop() || 'Unknown Term';
+        const definition = result.referenceField?.original_value || prefLabel;
+
         return {
           id: result.uri || 'unknown',
-          prefLabel: result.original_value || result.uri?.split('/').pop() || 'Unknown Term',
-          definition: result.original_value || 'No definition available.',
+          prefLabel: prefLabel,
+          definition: definition,
           category: collectionName, 
           translations: translations,
           contributors: [], 
@@ -154,10 +166,12 @@ const Browse: React.FC = () => {
         const response = await backendApi.getTerms(pageSize, offset);
         
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
-          // Use field_role to find label and reference fields, with fallback to SKOS
-          const labelField = apiTerm.fields.find(f => f.field_role === 'label') 
+          // Use labelField and referenceFields from API response with fallback
+          const labelField = apiTerm.labelField 
+            || apiTerm.fields.find(f => f.field_role === 'label') 
             || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-          const refField = apiTerm.fields.find(f => f.field_role === 'reference')
+          const refField = (apiTerm.referenceFields && apiTerm.referenceFields[0])
+            || apiTerm.fields.find(f => f.field_role === 'reference')
             || apiTerm.fields.find(f => f.field_term === 'skos:definition');
           
           const translations: Record<string, string | null> = {
