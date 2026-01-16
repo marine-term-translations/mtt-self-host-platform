@@ -73,7 +73,7 @@ router.get("/tasks", apiLimiter, (req, res) => {
     
     if (req.query.source_id) {
       const sourceId = parseInt(req.query.source_id);
-      if (!isNaN(sourceId)) {
+      if (!isNaN(sourceId) && sourceId > 0) {
         filters.push("source_id = ?");
         params.push(sourceId);
       }
