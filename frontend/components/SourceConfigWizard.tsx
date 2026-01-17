@@ -723,7 +723,7 @@ WHERE {
                       <p className="font-semibold">Test Results:</p>
                       <p>Subjects after filtering: {testQueryResults.subjectCount}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        The predicate counts above have been updated to reflect your filters.
+                        This shows how many subjects match your filter criteria. The predicate counts above have also been updated.
                       </p>
                     </div>
                   )}
