@@ -510,7 +510,36 @@ router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
       });
     }
     
-    res.json({ source_id: sourceId, rdf_type: type, predicates, filters: filterRules });
+    // Count distinct subjects matching the filters
+    const subjectCountQuery = `
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+      SELECT (COUNT(DISTINCT ?subject) as ?subjectCount)
+      WHERE {
+        GRAPH <${source.graph_name}> {
+          ?subject rdf:type <${type}> .
+          ${filterConditions}
+        }
+      }
+    `;
+    
+    let subjectCount = 0;
+    try {
+      const subjectCountResponse = await axios.post(endpoint, subjectCountQuery, {
+        headers: {
+          'Content-Type': 'application/sparql-query',
+          'Accept': 'application/sparql-results+json'
+        },
+        timeout: 15000
+      });
+      
+      if (subjectCountResponse.data.results.bindings.length > 0) {
+        subjectCount = parseInt(subjectCountResponse.data.results.bindings[0].subjectCount.value, 10);
+      }
+    } catch (err) {
+      console.error('Failed to count subjects:', err.message);
+    }
+    
+    res.json({ source_id: sourceId, rdf_type: type, predicates, filters: filterRules, subjectCount });
   } catch (err) {
     console.error('Error fetching filtered predicates:', err.message);
     if (err.response) {
