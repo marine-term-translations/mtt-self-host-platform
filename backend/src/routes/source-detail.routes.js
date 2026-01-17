@@ -532,9 +532,9 @@ router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
         timeout: 15000
       });
       
-      if (subjectCountResponse.data.results.bindings.length > 0 && 
-          subjectCountResponse.data.results.bindings[0].subjectCount?.value !== undefined) {
-        const countValue = parseInt(subjectCountResponse.data.results.bindings[0].subjectCount.value, 10);
+      const binding = subjectCountResponse.data.results.bindings[0];
+      if (binding?.subjectCount?.value !== undefined) {
+        const countValue = parseInt(binding.subjectCount.value, 10);
         subjectCount = isNaN(countValue) ? 0 : countValue;
       }
     } catch (err) {
