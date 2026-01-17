@@ -533,8 +533,9 @@ router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
       });
       
       if (subjectCountResponse.data.results.bindings.length > 0 && 
-          subjectCountResponse.data.results.bindings[0].subjectCount?.value) {
-        subjectCount = parseInt(subjectCountResponse.data.results.bindings[0].subjectCount.value, 10);
+          subjectCountResponse.data.results.bindings[0].subjectCount?.value !== undefined) {
+        const countValue = parseInt(subjectCountResponse.data.results.bindings[0].subjectCount.value, 10);
+        subjectCount = isNaN(countValue) ? 0 : countValue;
       }
     } catch (err) {
       console.error('Failed to count subjects:', err.message);
