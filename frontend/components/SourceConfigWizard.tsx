@@ -222,17 +222,28 @@ export default function SourceConfigWizard({
   const buildSparqlQuery = (): string => {
     if (!selectedType || !graphName) return '';
     
+    // Helper to escape SPARQL string literals
+    const escapeSparqlLiteral = (str: string): string => {
+      return str
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t');
+    };
+    
     let filterConditions = '';
     if (filterRules && filterRules.length > 0) {
       const conditions = filterRules.map((rule, index) => {
         const varName = `filter${index}`;
         if (rule.type === 'class' && rule.values && rule.values.length > 0) {
-          const valueList = rule.values.map(v => `"${v}"`).join(', ');
+          const valueList = rule.values.map(v => `"${escapeSparqlLiteral(v)}"`).join(', ');
           return `    ?subject <${rule.predicate}> ?${varName} .
     FILTER(?${varName} IN (${valueList}))`;
         } else if (rule.type === 'regex' && rule.pattern) {
+          const escapedPattern = escapeSparqlLiteral(rule.pattern);
           return `    ?subject <${rule.predicate}> ?${varName} .
-    FILTER(REGEX(STR(?${varName}), "${rule.pattern}", "i"))`;
+    FILTER(REGEX(STR(?${varName}), "${escapedPattern}", "i"))`;
         }
         return '';
       }).filter(c => c).join('\n');
@@ -266,14 +277,8 @@ WHERE {
         }
       });
       
-      // Count subjects by making a simple query
-      // For now, we'll use the predicate counts as a proxy
-      const totalSubjects = response.data.predicates.length > 0 
-        ? Math.max(...response.data.predicates.map((p: Predicate) => p.count))
-        : 0;
-      
       setTestQueryResults({
-        subjectCount: totalSubjects,
+        subjectCount: response.data.predicates.length, // Number of distinct predicates
         predicates: response.data.predicates
       });
       
