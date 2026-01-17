@@ -83,7 +83,7 @@ export default function SourceConfigWizard({
 }: SourceConfigWizardProps) {
   // Wizard state
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5;
+  const totalSteps = 4; // Reduced from 5 after merging steps 2 and 3
 
   // Step 1: RDF Type Selection
   const [types, setTypes] = useState<RDFType[]>([]);
@@ -103,6 +103,11 @@ export default function SourceConfigWizard({
   const [loadingFilterValues, setLoadingFilterValues] = useState(false);
   const [regexPattern, setRegexPattern] = useState('');
   const [selectedFilterValues, setSelectedFilterValues] = useState<string[]>([]); // NEW: Track selected values
+  
+  // SPARQL test query state
+  const [showSparqlQuery, setShowSparqlQuery] = useState(false);
+  const [testingQuery, setTestingQuery] = useState(false);
+  const [testQueryResults, setTestQueryResults] = useState<{ subjectCount: number; predicates: Predicate[] } | null>(null);
 
   // Step 4: Select Translatable Predicates
   const [filteredPredicates, setFilteredPredicates] = useState<Predicate[]>([]);
@@ -213,6 +218,74 @@ export default function SourceConfigWizard({
     }
   };
 
+  // Build SPARQL query string for display
+  const buildSparqlQuery = (): string => {
+    if (!selectedType || !graphName) return '';
+    
+    let filterConditions = '';
+    if (filterRules && filterRules.length > 0) {
+      const conditions = filterRules.map((rule, index) => {
+        const varName = `filter${index}`;
+        if (rule.type === 'class' && rule.values && rule.values.length > 0) {
+          const valueList = rule.values.map(v => `"${v}"`).join(', ');
+          return `    ?subject <${rule.predicate}> ?${varName} .
+    FILTER(?${varName} IN (${valueList}))`;
+        } else if (rule.type === 'regex' && rule.pattern) {
+          return `    ?subject <${rule.predicate}> ?${varName} .
+    FILTER(REGEX(STR(?${varName}), "${rule.pattern}", "i"))`;
+        }
+        return '';
+      }).filter(c => c).join('\n');
+      
+      if (conditions) {
+        filterConditions = '\n' + conditions;
+      }
+    }
+    
+    return `PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+SELECT DISTINCT ?subject
+WHERE {
+  GRAPH <${graphName}> {
+    ?subject rdf:type <${selectedType}> .${filterConditions}
+  }
+}`;
+  };
+
+  // Test the filter query to see how it affects predicate counts
+  const handleTestFilterQuery = async () => {
+    if (!selectedType) return;
+    
+    setTestingQuery(true);
+    setError('');
+    try {
+      // Get filtered predicates to see the counts
+      const response = await axios.get(`${API_URL}/sources/${sourceId}/predicates-filtered`, {
+        params: { 
+          type: selectedType,
+          filters: JSON.stringify(filterRules)
+        }
+      });
+      
+      // Count subjects by making a simple query
+      // For now, we'll use the predicate counts as a proxy
+      const totalSubjects = response.data.predicates.length > 0 
+        ? Math.max(...response.data.predicates.map((p: Predicate) => p.count))
+        : 0;
+      
+      setTestQueryResults({
+        subjectCount: totalSubjects,
+        predicates: response.data.predicates
+      });
+      
+      setSuccess('Test query executed successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to test filter query');
+    } finally {
+      setTestingQuery(false);
+    }
+  };
+
   // Handle step navigation
   const handleNext = async () => {
     setError('');
@@ -225,19 +298,16 @@ export default function SourceConfigWizard({
       await loadInitialPredicates(selectedType);
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      // Move to filter configuration
+      // Merged step - move to predicate selection
+      await loadFilteredPredicates();
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      // Load filtered predicates
-      await loadFilteredPredicates();
-      setCurrentStep(4);
-    } else if (currentStep === 4) {
       if (selectedPaths.length === 0) {
         setError('Please select at least one predicate for translation');
         return;
       }
-      setCurrentStep(5);
-    } else if (currentStep === 5) {
+      setCurrentStep(4);
+    } else if (currentStep === 4) {
       // This is handled by save button
     }
   };
@@ -434,47 +504,227 @@ export default function SourceConfigWizard({
         return (
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Step 2: Preview Predicates
+              Step 2: Preview Predicates & Configure Filters
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              This shows all predicates available for the selected type. In the next step, you can filter the instances.
+              Review predicates and optionally add filters to select a subset of instances.
             </p>
             
-            {loadingInitialPredicates ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {initialPredicates.map((pred) => (
-                  <div
-                    key={pred.predicate}
-                    className="px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-mono text-gray-900 dark:text-white truncate flex-1">
-                        {pred.predicate.split('/').pop() || pred.predicate}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
-                          {pred.count} values
+            {/* Predicate Preview */}
+            <div className="mb-6">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                Available Predicates {testQueryResults ? '(After Filtering)' : '(All Instances)'}
+              </h3>
+              {loadingInitialPredicates ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {(testQueryResults ? testQueryResults.predicates : initialPredicates).map((pred) => (
+                    <div
+                      key={pred.predicate}
+                      className="px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-mono text-gray-900 dark:text-white truncate flex-1">
+                          {getUriLabel(pred.predicate)}
                         </span>
-                        {pred.sampleType === 'literal' && (
-                          <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
-                            Literal
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
+                            {pred.count} values
                           </span>
-                        )}
-                        {pred.sampleType === 'uri' && (
-                          <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                            URI
-                          </span>
-                        )}
+                          {pred.sampleType === 'literal' && (
+                            <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                              Literal
+                            </span>
+                          )}
+                          {pred.sampleType === 'uri' && (
+                            <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                              URI
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Filter Configuration */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                Configure Filters (Optional)
+              </h3>
+              
+              {/* Active Filters */}
+              {filterRules.length > 0 && (
+                <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Active Filters</h4>
+                  <div className="space-y-2">
+                    {filterRules.map((rule, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2">
+                        <div className="flex-1">
+                          <span className="text-xs font-mono text-gray-600 dark:text-gray-400">
+                            {getUriLabel(rule.predicate)}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 mx-2">•</span>
+                          {rule.type === 'class' && (
+                            <span className="text-xs text-gray-700 dark:text-gray-300">
+                              Values: {rule.values?.join(', ')}
+                            </span>
+                          )}
+                          {rule.type === 'regex' && (
+                            <span className="text-xs text-gray-700 dark:text-gray-300">
+                              Pattern: {rule.pattern}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveFilter(rule.predicate)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+              
+              {/* Add New Filter */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Predicate to Filter
+                </label>
+                <select
+                  value={selectedFilterPredicate || ''}
+                  onChange={(e) => {
+                    setSelectedFilterPredicate(e.target.value);
+                    if (e.target.value) {
+                      loadFilterValues(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+                >
+                  <option value="">-- Select a predicate --</option>
+                  {filterablePredicates.map((pred) => (
+                    <option key={pred.predicate} value={pred.predicate}>
+                      {getUriLabel(pred.predicate)} ({pred.count} values)
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+              
+              {selectedFilterPredicate && (
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-4">
+                  {loadingFilterValues ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                    </div>
+                  ) : filterValuesTotal < 50 ? (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Class Filter: Select Values ({filterValuesTotal} unique)
+                      </h3>
+                      <div className="space-y-1 max-h-48 overflow-y-auto mb-4">
+                        {filterValues.map((fv) => (
+                          <label key={fv.value} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedFilterValues.includes(fv.value)}
+                              onChange={() => handleToggleFilterValue(fv.value)}
+                              className="rounded"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">{fv.value}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">({fv.count})</span>
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => handleAddClassFilter(selectedFilterValues)}
+                        disabled={selectedFilterValues.length === 0}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add Class Filter
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Regex Filter ({filterValuesTotal}+ unique values)
+                      </h3>
+                      <input
+                        type="text"
+                        value={regexPattern}
+                        onChange={(e) => setRegexPattern(e.target.value)}
+                        placeholder="Enter regex pattern (e.g., .*test.*)"
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white mb-2"
+                      />
+                      <button
+                        onClick={handleAddRegexFilter}
+                        disabled={!regexPattern}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add Regex Filter
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* SPARQL Query Viewer and Test */}
+              {filterRules.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Generated SPARQL Query
+                    </h4>
+                    <button
+                      onClick={() => setShowSparqlQuery(!showSparqlQuery)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {showSparqlQuery ? 'Hide' : 'Show'} Query
+                    </button>
+                  </div>
+                  
+                  {showSparqlQuery && (
+                    <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto mb-3 font-mono">
+                      {buildSparqlQuery()}
+                    </pre>
+                  )}
+                  
+                  <button
+                    onClick={handleTestFilterQuery}
+                    disabled={testingQuery}
+                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {testingQuery ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Testing Query...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Test Filter & Update Counts
+                      </>
+                    )}
+                  </button>
+                  
+                  {testQueryResults && (
+                    <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+                      <p className="font-semibold">Test Results:</p>
+                      <p>Predicates after filtering: {testQueryResults.predicates.length}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        The predicate counts above have been updated to reflect your filters.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         );
       
@@ -482,135 +732,7 @@ export default function SourceConfigWizard({
         return (
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Step 3: Configure Filters (Optional)
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Add filters to select a subset of instances. If fewer than 50 unique values exist, you can filter by specific values. Otherwise, use regex.
-            </p>
-            
-            {/* Active Filters */}
-            {filterRules.length > 0 && (
-              <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">Active Filters</h3>
-                <div className="space-y-2">
-                  {filterRules.map((rule, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2">
-                      <div className="flex-1">
-                        <span className="text-xs font-mono text-gray-600 dark:text-gray-400">
-                          {rule.predicate.split('/').pop()}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-500 mx-2">•</span>
-                        {rule.type === 'class' && (
-                          <span className="text-xs text-gray-700 dark:text-gray-300">
-                            Values: {rule.values?.join(', ')}
-                          </span>
-                        )}
-                        {rule.type === 'regex' && (
-                          <span className="text-xs text-gray-700 dark:text-gray-300">
-                            Pattern: {rule.pattern}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleRemoveFilter(rule.predicate)}
-                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Add New Filter */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Select Predicate to Filter
-              </label>
-              <select
-                value={selectedFilterPredicate || ''}
-                onChange={(e) => {
-                  setSelectedFilterPredicate(e.target.value);
-                  if (e.target.value) {
-                    loadFilterValues(e.target.value);
-                  }
-                }}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
-              >
-                <option value="">-- Select a predicate --</option>
-                {filterablePredicates.map((pred) => (
-                  <option key={pred.predicate} value={pred.predicate}>
-                    {pred.predicate.split('/').pop()} ({pred.count} values)
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {selectedFilterPredicate && (
-              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-                {loadingFilterValues ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                  </div>
-                ) : filterValuesTotal < 50 ? (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                      Class Filter: Select Values ({filterValuesTotal} unique)
-                    </h3>
-                    <div className="space-y-1 max-h-48 overflow-y-auto mb-4">
-                      {filterValues.map((fv) => (
-                        <label key={fv.value} className="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedFilterValues.includes(fv.value)}
-                            onChange={() => handleToggleFilterValue(fv.value)}
-                            className="rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{fv.value}</span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">({fv.count})</span>
-                        </label>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => handleAddClassFilter(selectedFilterValues)}
-                      disabled={selectedFilterValues.length === 0}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Add Class Filter
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                      Regex Filter ({filterValuesTotal}+ unique values)
-                    </h3>
-                    <input
-                      type="text"
-                      value={regexPattern}
-                      onChange={(e) => setRegexPattern(e.target.value)}
-                      placeholder="Enter regex pattern (e.g., .*test.*)"
-                      className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white mb-2"
-                    />
-                    <button
-                      onClick={handleAddRegexFilter}
-                      disabled={!regexPattern}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Add Regex Filter
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      
-      case 4:
-        return (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Step 4: Select Translatable Predicates
+              Step 3: Select Translatable Predicates
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Choose which predicates should be translatable. {filterRules.length > 0 && 'Counts reflect applied filters.'}
@@ -678,11 +800,11 @@ export default function SourceConfigWizard({
           </div>
         );
       
-      case 5:
+      case 4:
         return (
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Step 5: Assign Roles
+              Step 4: Assign Roles
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Assign roles to your selected predicates. Each path needs a role: Label (identifier), Reference (additional info), or Translatable.
