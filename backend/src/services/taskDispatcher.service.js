@@ -514,8 +514,8 @@ async function executeLdesFeedTask(task, addLog) {
   console.log('This is a placeholder function that will be implemented later.');
   console.log('='.repeat(60));
   
-  addLog('LDES feed creation task - PLACEHOLDER IMPLEMENTATION');
-  addLog('TODO: Implement LDES feed creation logic');
+  addLog('LDES feed creation task - Placeholder implementation');
+  addLog('This functionality will be implemented in a future update');
 }
 
 /**
