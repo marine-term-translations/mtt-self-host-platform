@@ -532,7 +532,8 @@ router.get("/sources/:id/predicates-filtered", apiLimiter, async (req, res) => {
         timeout: 15000
       });
       
-      if (subjectCountResponse.data.results.bindings.length > 0) {
+      if (subjectCountResponse.data.results.bindings.length > 0 && 
+          subjectCountResponse.data.results.bindings[0].subjectCount?.value) {
         subjectCount = parseInt(subjectCountResponse.data.results.bindings[0].subjectCount.value, 10);
       }
     } catch (err) {
