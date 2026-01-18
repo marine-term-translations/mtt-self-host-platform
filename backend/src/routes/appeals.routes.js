@@ -95,35 +95,56 @@ router.get("/appeals", apiLimiter, (req, res) => {
 
 /**
  * @openapi
- * /api/appeals/{id}:
- *   patch:
- *     summary: Update an appeal (status, resolution)
+ * /api/appeals/by-term/{termId}:
+ *   get:
+ *     summary: Get appeals for a specific term
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: termId
  *         required: true
  *         schema:
  *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               status:
- *                 type: string
- *               resolution:
- *                 type: string
+ *         description: The term ID
  *     responses:
  *       200:
- *         description: Appeal updated
+ *         description: Returns appeals for the specified term
  *         content:
  *           application/json:
  *             schema:
- *               type: object
+ *               type: array
+ *               items:
+ *                 type: object
  */
-router.patch("/appeals/:id", writeLimiter, (req, res) => {
+router.get("/appeals/by-term/:termId", apiLimiter, (req, res) => {
+  const { termId } = req.params;
+  
+  // Validate termId
+  const id = parseInt(termId, 10);
+  if (isNaN(id) || id < 1) {
+    return res.status(400).json({ error: "Invalid term ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Get appeals for translations belonging to this term
+    // We need to join through translations -> term_fields -> terms
+    const appeals = db.prepare(`
+      SELECT DISTINCT a.*
+      FROM appeals a
+      JOIN translations t ON a.translation_id = t.id
+      JOIN term_fields tf ON t.term_field_id = tf.id
+      WHERE tf.term_id = ?
+      ORDER BY a.opened_at DESC
+    `).all(id);
+    
+    res.json(appeals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
   const { id } = req.params;
   const { status, resolution, username } = req.body;
   if ((!status && !resolution) || !username) {

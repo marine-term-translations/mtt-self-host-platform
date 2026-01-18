@@ -21,54 +21,26 @@ const AdminDashboard: React.FC = () => {
     const fetchAdminData = async () => {
       setLoading(true);
       try {
-        const [users, termsResponse, appeals] = await Promise.all([
+        const [users, statsData, appeals] = await Promise.all([
            backendApi.getUsers(),
-           backendApi.getTerms(),
+           backendApi.getStats(),
            backendApi.getAppeals()
         ]);
 
         // 1. Counts
         const openAppeals = appeals.filter(a => a.status === 'open').length;
         
-        // 2. Term Stats & Status Distribution
-        let tCount = 0;
-        const dist: Record<string, number> = { merged: 0, approved: 0, review: 0, draft: 0, rejected: 0 };
-        const timestamps: number[] = [];
+        // 2. Status Distribution from stats endpoint
+        const dist = statsData.byStatus || { merged: 0, approved: 0, review: 0, draft: 0, rejected: 0 };
 
-        termsResponse.terms.forEach(term => {
-            term.fields.forEach(field => {
-                if (field.translations) {
-                    field.translations.forEach(t => {
-                        tCount++;
-                        const s = t.status || 'draft';
-                        if (dist[s] !== undefined) dist[s]++;
-                        if (t.created_at) timestamps.push(new Date(t.created_at).getTime());
-                    });
-                }
-            });
-        });
-
-        // 3. Prepare Time Series Data (Mocking buckets based on available timestamps)
-        const sortedTimestamps = timestamps.sort((a: number, b: number) => a - b);
-        
-        const buckets: Record<string, number> = {};
-        
-        // If no data, use empty
-        if (sortedTimestamps.length > 0) {
-             sortedTimestamps.forEach((ts: number) => {
-                 const d = new Date(ts);
-                 const key = `${d.getMonth()+1}/${d.getDate()}`; // Simple Day bucket
-                 buckets[key] = (buckets[key] || 0) + 1;
-             });
-        }
-        
-        // Convert to array
-        const graphData = Object.keys(buckets).map(date => ({ date, count: buckets[date] })).slice(-14); // Last 14 days
+        // 3. For time series, we'd need additional data - for now, use empty array
+        // In the future, we could add a time-series endpoint or fetch recent activity
+        const graphData: {date: string, count: number}[] = [];
 
         setStats({
             userCount: users.length,
-            termCount: termsResponse.total || termsResponse.terms.length,
-            translationCount: tCount,
+            termCount: statsData.totalTerms,
+            translationCount: statsData.totalTranslations,
             openAppeals
         });
         setStatusDist(dist);

@@ -90,12 +90,13 @@ const TermDetail: React.FC = () => {
         console.warn("Could not fetch term history", err);
       }
 
-      // 4. Fetch Appeals
+      // 4. Fetch Appeals for this specific term
       try {
-        const allAppeals = await backendApi.getAppeals(); 
+        const termAppeals = await backendApi.getAppealsByTerm(foundApiTerm.id);
         const appealsMap: Record<number, ApiAppeal[]> = {};
         
-        for (const appeal of allAppeals) {
+        // Fetch messages for each appeal
+        for (const appeal of termAppeals) {
             try {
                 const messages = await backendApi.getAppealMessages(appeal.id);
                 appeal.messages = messages;

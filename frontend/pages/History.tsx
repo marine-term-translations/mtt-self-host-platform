@@ -18,20 +18,22 @@ const History: React.FC = () => {
       if (!user?.id && !user?.user_id) return; // Check for user ID
       try {
         setLoading(true);
-        // Fetch user history and all terms to resolve names
-        const [historyData, termsResponse] = await Promise.all([
-          backendApi.getUserHistory(user.id || user.user_id!), // Use user ID
-          backendApi.getTerms() // Will use defaults
-        ]);
+        // Fetch user history first
+        const historyData = await backendApi.getUserHistory(user.id || user.user_id!); // Use user ID
 
-        // Create a map of term ID -> label (using field_role)
-        const tMap: Record<number, string> = {};
-        termsResponse.terms.forEach((t: ApiTerm) => {
-          const labelField = t.fields.find(f => f.field_role === 'label') 
-            || t.fields.find(f => f.field_term.includes('prefLabel'));
-          const prefLabel = labelField?.original_value || t.uri.split('/').pop() || 'Unknown Term';
-          tMap[t.id] = prefLabel;
-        });
+        // Extract unique term IDs from history and fetch only those terms
+        const termIds = [...new Set(historyData.map(h => h.term_id).filter(id => id != null))] as number[];
+        
+        let tMap: Record<number, string> = {};
+        if (termIds.length > 0) {
+          const terms = await backendApi.getTermsByIds(termIds);
+          terms.forEach((t: ApiTerm) => {
+            const labelField = t.labelField || t.fields.find(f => f.field_role === 'label') 
+              || t.fields.find(f => f.field_term.includes('prefLabel'));
+            const prefLabel = labelField?.original_value || t.uri.split('/').pop() || 'Unknown Term';
+            tMap[t.id] = prefLabel;
+          });
+        }
         setTermMap(tMap);
 
         // Sort history by date descending
