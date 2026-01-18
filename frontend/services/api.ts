@@ -141,9 +141,8 @@ class ApiService {
   }
 
   public async getTermByUri(uri: string): Promise<ApiTerm> {
-    // Use the new by-uri endpoint for direct lookup
-    const encodedUri = encodeURIComponent(uri);
-    return this.get<ApiTerm>(`/terms/by-uri/${encodedUri}`);
+    // Use the new term-by-uri endpoint with query parameter for direct lookup
+    return this.get<ApiTerm>('/term-by-uri', { uri });
   }
 
   public async getTermsByIds(ids: number[]): Promise<ApiTerm[]> {

@@ -22,19 +22,22 @@ The original implementation had several performance bottlenecks when working wit
 ### Backend Optimizations
 
 #### 1. Direct Term Lookup by URI
-**Endpoint**: `GET /api/terms/by-uri/:encodedUri`
+**Endpoint**: `GET /api/term-by-uri?uri={termUri}`
 
-Replaces the pagination loop with a direct database query:
+Replaces the pagination loop with a direct database query using query parameter:
 ```javascript
 // Before: Multiple paginated requests
-// After: Single query
-const term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(decodedUri);
+// After: Single query with URI as query parameter
+const term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri);
 ```
 
 **Usage**:
 ```typescript
 const term = await backendApi.getTermByUri('http://vocab.nerc.ac.uk/collection/P02/current/GP013/');
+// Internally calls: GET /api/term-by-uri?uri=http://vocab.nerc.ac.uk/collection/P02/current/GP013/
 ```
+
+**Note**: Changed from path parameter (`/terms/by-uri/:encodedUri`) to query parameter (`/term-by-uri?uri=...`) to avoid routing issues with complex URIs containing encoded slashes.
 
 #### 2. Batch Term Retrieval
 **Endpoint**: `POST /api/terms/by-ids`

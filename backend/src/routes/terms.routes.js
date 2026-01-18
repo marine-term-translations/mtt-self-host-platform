@@ -152,31 +152,29 @@ router.get("/terms", apiLimiter, (req, res) => {
 
 /**
  * @openapi
- * /api/terms/by-uri/{encodedUri}:
+ * /api/term-by-uri:
  *   get:
  *     summary: Get a single term by URI with all its fields and translations
  *     parameters:
- *       - in: path
- *         name: encodedUri
+ *       - in: query
+ *         name: uri
  *         required: true
  *         schema:
  *           type: string
- *         description: URL-encoded term URI
+ *         description: The term URI (will be automatically URL-decoded)
  *     responses:
  *       200:
  *         description: Returns the term with all fields and translations
+ *       400:
+ *         description: Missing URI parameter
  *       404:
  *         description: Term not found
  */
-router.get("/terms/by-uri/:encodedUri", apiLimiter, (req, res) => {
-  const { encodedUri } = req.params;
+router.get("/term-by-uri", apiLimiter, (req, res) => {
+  const { uri } = req.query;
   
-  // Decode the URI
-  let uri;
-  try {
-    uri = decodeURIComponent(encodedUri);
-  } catch (err) {
-    return res.status(400).json({ error: "Invalid URI encoding" });
+  if (!uri) {
+    return res.status(400).json({ error: "Missing uri query parameter" });
   }
   
   try {
