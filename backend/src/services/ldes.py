@@ -275,6 +275,7 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragme
         sink = SinkFactory.make_sink(str(output_file), False)
         inputs = {'qres': SourceFactory.make_source(str(temp_json))}
         settings = GeneratorSettings()
+        settings.iteration = False  # Use collection mode for full fragment generation
         
         # Generate the fragment
         service.process("ldes_fragment.ttl", inputs, settings, sink, vars_dict)
@@ -326,30 +327,40 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
     # Step 1: Detect existing LDES feed
     exists, latest_file = detect_existing_ldes(source_id)
     
+    latest_modified_in_ldes = None
+    
     if exists and latest_file:
         print(f"Existing LDES feed found at {latest_file}")
         
         # Step 2: Get latest modified date from existing fragment
-        latest_modified = get_latest_modified_from_fragment(latest_file)
+        latest_modified_in_ldes = get_latest_modified_from_fragment(latest_file)
         
-        if latest_modified:
-            print(f"Latest modified date in LDES: {latest_modified}")
+        if latest_modified_in_ldes:
+            print(f"Latest modified date in LDES: {latest_modified_in_ldes}")
             
             # Step 3: Query for new translations
-            # From latest_modified to latest_modified + 1 day
-            start_date = latest_modified
+            # From latest_modified to now
+            start_date = latest_modified_in_ldes
             end_date = datetime.now()
             
             print(f"Querying for translations from {start_date} to {end_date}")
             translations = query_translations_for_ldes(db_path, source_id, start_date, end_date)
             
-            if not translations:
+            # Filter out translations that are not strictly newer than latest_modified_in_ldes
+            new_translations = [
+                t for t in translations 
+                if datetime.fromisoformat(t['modified_at']) > latest_modified_in_ldes
+            ]
+            
+            if not new_translations:
                 print("No new translations found. Skipping fragment creation.")
                 return {
                     'status': 'skipped',
                     'message': 'No new translations to publish',
                     'fragment': None
                 }
+            
+            translations = new_translations
         else:
             print("Could not determine latest modified date. Querying all translations.")
             translations = query_translations_for_ldes(db_path, source_id)

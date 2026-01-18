@@ -20,7 +20,7 @@
     ldes:versionOfPath dcterms:isVersionOf ;
     tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}> .
 
-{% for item in qres %}
+{% for item in sets.qres %}
 <{{ item.concept }}> a skos:Concept ;
     dcterms:isVersionOf <{{ item.concept }}> ;
     dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
