@@ -1,0 +1,37 @@
+@prefix ldes: <https://w3id.org/ldes#> .
+@prefix tree: <https://w3id.org/tree#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
+    a tree:Node ;
+    tree:relation [
+        a tree:GreaterThanOrEqualToRelation ;
+        tree:node <{{ prefix_uri }}/{{ source_id }}/{{ next_fragment_timestamp }}> ;
+        tree:path dcterms:modified ;
+        tree:value "{{ next_fragment_time }}"^^xsd:dateTime
+    ] .
+
+<{{ prefix_uri }}/{{ source_id }}>
+    a ldes:EventStream ;
+    ldes:timestampPath dcterms:modified ;
+    ldes:versionOfPath dcterms:isVersionOf ;
+    tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}> .
+
+{% for item in qres %}
+<{{ item.concept }}> a skos:Concept ;
+    dcterms:isVersionOf <{{ item.concept }}> ;
+    dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
+{% if item.prefLabel %}
+    skos:prefLabel "{{ item.prefLabel }}"@en ;
+{% endif %}
+{% if item.altLabel %}
+    skos:altLabel "{{ item.altLabel }}"@en ;
+{% endif %}
+{% if item.definition %}
+    skos:definition "{{ item.definition }}"@en ;
+{% endif %}
+    .
+{% endfor %}
