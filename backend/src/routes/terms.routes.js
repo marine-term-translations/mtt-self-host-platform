@@ -180,8 +180,21 @@ router.get("/term-by-uri", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     
-    // Get the term by URI
-    const term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri);
+    // Normalize URI by removing trailing slashes for comparison
+    const normalizedUri = uri.replace(/\/+$/, '');
+    
+    // Try exact match first
+    let term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri);
+    
+    // If not found, try with normalized URI (without trailing slash)
+    if (!term && uri !== normalizedUri) {
+      term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(normalizedUri);
+    }
+    
+    // If still not found, try with trailing slash added
+    if (!term && !uri.endsWith('/')) {
+      term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri + '/');
+    }
     
     if (!term) {
       return res.status(404).json({ error: "Term not found" });
