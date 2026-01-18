@@ -537,7 +537,6 @@ router.get("/stats", apiLimiter, (req, res) => {
   }
 });
 
-module.exports = router;
 
 /**
  * @openapi
@@ -1348,3 +1347,5 @@ router.post("/harvest/stream", writeLimiter, async (req, res) => {
     res.end();
   }
 });
+
+module.exports = router;
