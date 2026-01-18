@@ -139,7 +139,7 @@ router.get("/task-schedulers/:id", apiLimiter, (req, res) => {
  *                 type: string
  *               task_type:
  *                 type: string
- *                 enum: [file_upload, ldes_sync, triplestore_sync, harvest, other]
+ *                 enum: [file_upload, ldes_sync, ldes_feed, triplestore_sync, harvest, other]
  *               schedule_config:
  *                 type: string
  *                 description: JSON string with cron expression or interval config
@@ -162,7 +162,7 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
     });
   }
   
-  const validTypes = ['file_upload', 'ldes_sync', 'triplestore_sync', 'harvest', 'other'];
+  const validTypes = ['file_upload', 'ldes_sync', 'ldes_feed', 'triplestore_sync', 'harvest', 'other'];
   if (!validTypes.includes(task_type)) {
     return res.status(400).json({ error: "Invalid task_type" });
   }
@@ -267,7 +267,7 @@ router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
     }
     
     if (task_type !== undefined) {
-      const validTypes = ['file_upload', 'ldes_sync', 'triplestore_sync', 'harvest', 'other'];
+      const validTypes = ['file_upload', 'ldes_sync', 'ldes_feed', 'triplestore_sync', 'harvest', 'other'];
       if (!validTypes.includes(task_type)) {
         return res.status(400).json({ error: "Invalid task_type" });
       }

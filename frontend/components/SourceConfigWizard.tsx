@@ -262,7 +262,7 @@ WHERE {
 }`;
   };
 
-  // Test the filter query to see how it affects predicate counts
+  // Test the filter query to see how it affects subject counts
   const handleTestFilterQuery = async () => {
     if (!selectedType) return;
     
@@ -278,7 +278,7 @@ WHERE {
       });
       
       setTestQueryResults({
-        subjectCount: response.data.predicates.length, // Number of distinct predicates
+        subjectCount: response.data.subjectCount || 0, // Number of subjects matching filters
         predicates: response.data.predicates
       });
       
@@ -721,9 +721,9 @@ WHERE {
                   {testQueryResults && (
                     <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
                       <p className="font-semibold">Test Results:</p>
-                      <p>Predicates after filtering: {testQueryResults.predicates.length}</p>
+                      <p>Subjects after filtering: {testQueryResults.subjectCount}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        The predicate counts above have been updated to reflect your filters.
+                        This shows how many subjects match your filter criteria. The predicate counts above have also been updated.
                       </p>
                     </div>
                   )}
