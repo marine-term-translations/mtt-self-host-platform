@@ -71,6 +71,11 @@ const TASK_TYPE_DEFINITIONS = {
     description: 'Synchronize data from LDES (Linked Data Event Streams) feeds',
     compatibleSourceTypes: ['LDES']
   },
+  'ldes_feed': {
+    label: 'LDES Feed Creation',
+    description: 'Generate LDES feed fragments from translations with status=review',
+    compatibleSourceTypes: ['LDES', 'Static_file']
+  },
   'triplestore_sync': {
     label: 'Triplestore Sync',
     description: 'Sync terms from GraphDB triplestore to SQL database',

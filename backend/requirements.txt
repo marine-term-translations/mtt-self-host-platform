@@ -1,2 +1,3 @@
 SPARQLWrapper==2.0.0
 rdflib==7.4.0
+git+https://github.com/vliz-be-opsci/py-sema.git

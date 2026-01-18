@@ -1,0 +1,41 @@
+@prefix ldes: <https://w3id.org/ldes#> .
+@prefix tree: <https://w3id.org/tree#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
+    a tree:Node ;
+{% for item in sets.qres %}
+    tree:member <{{ item.concept }}> ;
+{% endfor %}
+{% if has_previous %}
+    tree:relation [
+        a tree:GreaterThanOrEqualToRelation ;
+        tree:node <{{ prefix_uri }}/{{ source_id }}/{{ prev_fragment_timestamp }}> ;
+        tree:path dcterms:modified ;
+        tree:value "{{ prev_fragment_time }}"^^xsd:dateTime
+    ] .
+{% else %}
+    .
+{% endif %}
+
+<{{ prefix_uri }}/{{ source_id }}>
+    a ldes:EventStream ;
+    ldes:timestampPath dcterms:modified ;
+    ldes:versionOfPath dcterms:isVersionOf ;
+    tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}> .
+
+{% for item in sets.qres %}
+<{{ item.concept }}> 
+    a rdfs:Resource ;
+    dcterms:isVersionOf <{{ item.concept }}> ;
+    dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
+{% for field_uri, field_values in item.fields.items() %}
+{% for field_value in field_values %}
+    <{{ field_uri }}> "{{ field_value.value }}"@{{ field_value.language }} ;
+{% endfor %}
+{% endfor %}
+    .
+{% endfor %}

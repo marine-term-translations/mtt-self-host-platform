@@ -3,7 +3,7 @@
 const { getDatabase } = require('../db/database');
 const axios = require('axios');
 const config = require('../config');
-const cronParser = require('cron-parser');
+const { CronExpressionParser } = require('cron-parser');
 
 /**
  * Check for tasks that need to be dispatched based on schedulers
@@ -134,7 +134,7 @@ function calculateNextRun(scheduleConfig) {
     // If cron expression is specified, parse it properly
     if (scheduleConfig.cron) {
       try {
-        const interval = cronParser.parseExpression(scheduleConfig.cron);
+        const interval = CronExpressionParser.parse(scheduleConfig.cron);
         const nextDate = interval.next().toDate();
         return nextDate.toISOString().replace('T', ' ').substring(0, 19);
       } catch (cronErr) {
@@ -494,28 +494,77 @@ async function executeLdesSyncTask(task, addLog) {
 
 /**
  * Execute an LDES feed creation task
- * This is a placeholder function for creating an LDES feed
+ * Creates or updates an LDES feed for a source using py-sema
  */
 async function executeLdesFeedTask(task, addLog) {
   addLog(`Executing LDES feed creation for source ${task.source_id}`);
   
-  // PLACEHOLDER: This is a placeholder for LDES feed creation functionality
-  // In a real implementation, you would:
-  // 1. Fetch data from the source
-  // 2. Transform it into LDES format
-  // 3. Generate and publish the LDES feed
-  // 4. Update the database with feed metadata
+  const { spawn } = require('child_process');
+  const path = require('path');
   
-  console.log('='.repeat(60));
-  console.log('PLACEHOLDER: LDES Feed Creation Task');
-  console.log('='.repeat(60));
-  console.log(`Task ID: ${task.task_id}`);
-  console.log(`Source ID: ${task.source_id}`);
-  console.log('This is a placeholder function that will be implemented later.');
-  console.log('='.repeat(60));
+  // Get database path from config
+  const dbPath = path.resolve(config.translations.dbPath);
+  const ldesScriptPath = path.join(__dirname, 'ldes.py');
   
-  addLog('LDES feed creation task - Placeholder implementation');
-  addLog('This functionality will be implemented in a future update');
+  // Get prefix URI from task metadata or use default
+  let prefixUri = 'https://marine-term-translations.github.io';
+  if (task.metadata) {
+    try {
+      const metadata = JSON.parse(task.metadata);
+      if (metadata.prefix_uri) {
+        prefixUri = metadata.prefix_uri;
+      }
+    } catch (err) {
+      addLog(`Warning: Could not parse task metadata: ${err.message}`);
+    }
+  }
+  
+  addLog(`Database path: ${dbPath}`);
+  addLog(`LDES script: ${ldesScriptPath}`);
+  addLog(`Prefix URI: ${prefixUri}`);
+  
+  return new Promise((resolve, reject) => {
+    // Spawn Python process to execute LDES generation
+    const python = spawn('python3', [
+      ldesScriptPath,
+      task.source_id.toString(),
+      dbPath,
+      prefixUri
+    ]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    python.stdout.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      addLog(`[LDES] ${output.trim()}`);
+    });
+    
+    python.stderr.on('data', (data) => {
+      const output = data.toString();
+      stderr += output;
+      addLog(`[LDES Error] ${output.trim()}`);
+    });
+    
+    python.on('close', (code) => {
+      if (code === 0) {
+        addLog('LDES feed creation completed successfully');
+        resolve();
+      } else {
+        const error = new Error(`LDES generation failed with exit code ${code}`);
+        if (stderr) {
+          error.message += `\n${stderr}`;
+        }
+        reject(error);
+      }
+    });
+    
+    python.on('error', (err) => {
+      addLog(`Failed to start Python process: ${err.message}`);
+      reject(new Error(`Failed to execute LDES script: ${err.message}`));
+    });
+  });
 }
 
 /**
