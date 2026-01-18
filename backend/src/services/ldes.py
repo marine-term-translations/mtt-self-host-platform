@@ -8,6 +8,7 @@ import sys
 import sqlite3
 import os
 import json
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from sema.subyt import (
@@ -35,7 +36,16 @@ def get_ldes_directory(source_id):
     Returns:
         Path object for the LDES directory
     """
-    base_dir = Path("/home/runner/work/mtt-self-host-platform/mtt-self-host-platform/data/LDES")
+    # Use environment variable or default to /data/LDES relative to project root
+    ldes_base = os.environ.get('LDES_BASE_DIR')
+    if ldes_base:
+        base_dir = Path(ldes_base)
+    else:
+        # Default: find data/LDES relative to this script's location
+        # This script is in backend/src/services, so go up 3 levels to project root
+        project_root = Path(__file__).parent.parent.parent.parent
+        base_dir = project_root / "data" / "LDES"
+    
     ldes_dir = base_dir / str(source_id)
     return ldes_dir
 
@@ -91,7 +101,8 @@ def get_latest_modified_from_fragment(fragment_path):
                     dt = o.toPython()
                     if isinstance(dt, datetime):
                         modified_dates.append(dt)
-                except:
+                except Exception:
+                    # Skip invalid datetime literals
                     pass
         
         if modified_dates:
@@ -252,10 +263,12 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragme
         # Determine next fragment time
         # Parse fragment_timestamp to create next_fragment_time
         try:
-            dt = datetime.fromisoformat(fragment_timestamp.replace('_', ' ').replace('-', '-'))
+            # Fragment timestamp format: YYYY_MM_DD_HH_MM_SS
+            dt = datetime.strptime(fragment_timestamp, "%Y_%m_%d_%H_%M_%S")
             next_time = dt + timedelta(days=1)
             next_fragment_time = next_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except:
+        except Exception:
+            # Fallback to current time if parsing fails
             next_fragment_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         
         # Prepare variables for template
@@ -302,7 +315,6 @@ def update_latest_symlink(source_id, fragment_file):
     latest_file = ldes_dir / "latest.ttl"
     
     # Copy the content
-    import shutil
     shutil.copy2(fragment_file, latest_file)
     
     print(f"Updated latest.ttl -> {fragment_file.name}")
