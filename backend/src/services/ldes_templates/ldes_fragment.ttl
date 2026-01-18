@@ -7,6 +7,9 @@
 
 <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
     a tree:Node ;
+{% for item in sets.qres %}
+    tree:member <{{ item.concept }}> ;
+{% endfor %}
     tree:relation [
         a tree:GreaterThanOrEqualToRelation ;
         tree:node <{{ prefix_uri }}/{{ source_id }}/{{ next_fragment_timestamp }}> ;

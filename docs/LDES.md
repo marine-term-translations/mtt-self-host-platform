@@ -117,6 +117,7 @@ When an LDES feed already exists:
 Generated fragments comply with the LDES specification:
 
 - **tree:Node**: Each fragment is a tree:Node
+- **tree:member**: Node explicitly declares all member resources via `tree:member` relationships
 - **tree:relation**: Links to next fragment using tree:GreaterThanOrEqualToRelation
   - Next fragment timestamp is current epoch + 1 second
   - Ensures minimal gaps between fragment identifiers
@@ -127,6 +128,23 @@ Generated fragments comply with the LDES specification:
   - **Dynamic predicates**: Any predicate from `field_uri` in translations
     - Examples: `skos:prefLabel`, `skos:definition`, `rdfs:label`, `dcterms:description`
     - Language tags are preserved from translation data (e.g., `@nl`, `@fr`, `@de`)
+
+### Fragment Structure
+
+Each fragment follows this structure:
+
+```turtle
+<https://example.org/1/1768769839>
+    a tree:Node ;
+    tree:member <http://vocab.nerc.ac.uk/collection/P02/current/AAAA/> ;
+    tree:member <http://vocab.nerc.ac.uk/collection/P02/current/BBBB/> ;
+    tree:relation [
+        a tree:GreaterThanOrEqualToRelation ;
+        tree:node <https://example.org/1/1768769840> ;
+        tree:path dcterms:modified ;
+        tree:value "2026-01-18T20:57:20Z"^^xsd:dateTime
+    ] .
+```
 
 ### Dynamic Predicate Rendering
 
