@@ -141,32 +141,14 @@ class ApiService {
   }
 
   public async getTermByUri(uri: string): Promise<ApiTerm> {
-    // Normalize URI for comparison (remove trailing slashes)
-    const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
-    const normalizedSearchUri = normalizeUri(uri);
-    
-    // Fetch terms in pages until we find the matching URI
-    const pageSize = 100; // Fetch 100 at a time for efficiency
-    let offset = 0;
-    let total = 0;
-    
-    do {
-      const response = await this.getTerms(pageSize, offset);
-      total = response.total;
-      
-      // Search for matching URI in this page
-      const foundTerm = response.terms.find(
-        (t: ApiTerm) => normalizeUri(t.uri) === normalizedSearchUri
-      );
-      
-      if (foundTerm) {
-        return foundTerm;
-      }
-      
-      offset += pageSize;
-    } while (offset < total);
-    
-    throw new Error(`Term with URI "${uri}" not found`);
+    // Use the new term-by-uri endpoint with query parameter for direct lookup
+    return this.get<ApiTerm>('/term-by-uri', { uri });
+  }
+
+  public async getTermsByIds(ids: number[]): Promise<ApiTerm[]> {
+    // Use the new by-ids endpoint to fetch multiple terms efficiently
+    if (ids.length === 0) return [];
+    return this.post<ApiTerm[]>('/terms/by-ids', { ids });
   }
 
   public async getUserTeams(username: string, org: string): Promise<any[]> {
@@ -206,6 +188,10 @@ class ApiService {
     return this.get<ApiAppeal[]>('/appeals', params);
   }
 
+  public async getAppealsByTerm(termId: number): Promise<ApiAppeal[]> {
+    return this.get<ApiAppeal[]>(`/appeals/by-term/${termId}`);
+  }
+
   public async createAppeal(data: { translation_id: number; opened_by: string; resolution: string; token: string }): Promise<any> {
     return this.post<any>('/appeals', data);
   }
@@ -220,6 +206,18 @@ class ApiService {
   
   public async getAppealMessages(appealId: number): Promise<any[]> {
     return this.get<any[]>(`/appeals/${appealId}/messages`);
+  }
+
+  // --- Stats ---
+
+  public async getStats(): Promise<{
+    totalTerms: number;
+    totalTranslations: number;
+    byLanguage: Record<string, { total: number; byStatus: Record<string, number> }>;
+    byStatus: Record<string, number>;
+    byUser: Record<string, number>;
+  }> {
+    return this.get('/stats');
   }
 
   // --- Harvesting ---

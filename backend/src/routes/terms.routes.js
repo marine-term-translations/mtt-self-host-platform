@@ -124,14 +124,18 @@ router.get("/terms", apiLimiter, (req, res) => {
       // Identify label and reference fields
       const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
         || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-      const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
-        || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      
+      // Get reference fields: prefer field_role, fallback to field_term
+      let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+      if (referenceFields.length === 0) {
+        referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      }
       
       return { 
         ...term, 
         fields: fieldsWithTranslations,
         labelField: labelField || null,
-        referenceFields: referenceFields || []
+        referenceFields: referenceFields
       };
     });
     
@@ -140,6 +144,107 @@ router.get("/terms", apiLimiter, (req, res) => {
       total: totalCount,
       limit: limit,
       offset: offset
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/term-by-uri:
+ *   get:
+ *     summary: Get a single term by URI with all its fields and translations
+ *     parameters:
+ *       - in: query
+ *         name: uri
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The term URI (will be automatically URL-decoded)
+ *     responses:
+ *       200:
+ *         description: Returns the term with all fields and translations
+ *       400:
+ *         description: Missing URI parameter
+ *       404:
+ *         description: Term not found
+ */
+router.get("/term-by-uri", apiLimiter, (req, res) => {
+  const { uri } = req.query;
+  
+  if (!uri) {
+    return res.status(400).json({ error: "Missing uri query parameter" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Normalize URI by removing trailing slashes for comparison
+    const normalizedUri = uri.replace(/\/+$/, '');
+    
+    // Try exact match first
+    let term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri);
+    
+    // If not found, try with normalized URI (without trailing slash)
+    if (!term && uri !== normalizedUri) {
+      term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(normalizedUri);
+    }
+    
+    // If still not found, try with trailing slash added
+    if (!term && !uri.endsWith('/')) {
+      term = db.prepare("SELECT * FROM terms WHERE uri = ?").get(uri + '/');
+    }
+    
+    if (!term) {
+      return res.status(404).json({ error: "Term not found" });
+    }
+    
+    // Get fields for this term
+    const fields = db
+      .prepare("SELECT * FROM term_fields WHERE term_id = ?")
+      .all(term.id);
+    
+    // Get all translations for all fields in a single query to avoid N+1 problem
+    const fieldIds = fields.map(f => f.id);
+    let allTranslations = [];
+    
+    if (fieldIds.length > 0) {
+      const placeholders = fieldIds.map(() => '?').join(',');
+      allTranslations = db
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders})`)
+        .all(...fieldIds);
+    }
+    
+    // Group translations by field_id
+    const translationsByField = {};
+    for (const trans of allTranslations) {
+      if (!translationsByField[trans.term_field_id]) {
+        translationsByField[trans.term_field_id] = [];
+      }
+      translationsByField[trans.term_field_id].push(trans);
+    }
+    
+    // Attach translations to fields
+    const fieldsWithTranslations = fields.map((field) => ({
+      ...field,
+      translations: translationsByField[field.id] || []
+    }));
+    
+    // Identify label and reference fields
+    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
+      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+    // Get reference fields: prefer field_role, fallback to field_term
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    if (referenceFields.length === 0) {
+      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    }
+    
+    res.json({ 
+      ...term, 
+      fields: fieldsWithTranslations,
+      labelField: labelField || null,
+      referenceFields: referenceFields || []
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -230,8 +335,11 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     // Identify label and reference fields
     const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
       || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-    const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
-      || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    // Get reference fields: prefer field_role, fallback to field_term
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    if (referenceFields.length === 0) {
+      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    }
     
     res.json({ 
       ...term, 
@@ -244,7 +352,219 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * @openapi
+ * /api/terms/by-ids:
+ *   post:
+ *     summary: Get multiple terms by their IDs
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: Returns an array of terms with label fields only
+ */
+router.post("/terms/by-ids", apiLimiter, (req, res) => {
+  const { ids } = req.body;
+  
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Invalid or empty ids array" });
+  }
+  
+  // Validate all IDs are integers
+  const termIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+  
+  if (termIds.length === 0) {
+    return res.json([]);
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Get terms by IDs
+    const placeholders = termIds.map(() => '?').join(',');
+    const terms = db
+      .prepare(`SELECT * FROM terms WHERE id IN (${placeholders})`)
+      .all(...termIds);
+    
+    if (terms.length === 0) {
+      return res.json([]);
+    }
+    
+    // Get label fields for these terms
+    const termIdsFound = terms.map(t => t.id);
+    const labelFieldsPlaceholders = termIdsFound.map(() => '?').join(',');
+    const labelFields = db
+      .prepare(`
+        SELECT * FROM term_fields 
+        WHERE term_id IN (${labelFieldsPlaceholders}) 
+        AND (field_role = 'label' OR field_term = 'skos:prefLabel')
+      `)
+      .all(...termIdsFound);
+    
+    // Get translations for label fields
+    const labelFieldIds = labelFields.map(f => f.id);
+    let labelTranslations = [];
+    
+    if (labelFieldIds.length > 0) {
+      const translationPlaceholders = labelFieldIds.map(() => '?').join(',');
+      labelTranslations = db
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${translationPlaceholders})`)
+        .all(...labelFieldIds);
+    }
+    
+    // Build lookup maps
+    const labelFieldsByTermId = {};
+    for (const field of labelFields) {
+      labelFieldsByTermId[field.term_id] = field;
+    }
+    
+    const translationsByFieldId = {};
+    for (const trans of labelTranslations) {
+      if (!translationsByFieldId[trans.term_field_id]) {
+        translationsByFieldId[trans.term_field_id] = [];
+      }
+      translationsByFieldId[trans.term_field_id].push(trans);
+    }
+    
+    // Attach label fields to terms
+    const termsWithLabels = terms.map(term => {
+      const labelField = labelFieldsByTermId[term.id];
+      return {
+        ...term,
+        labelField: labelField ? {
+          ...labelField,
+          translations: translationsByFieldId[labelField.id] || []
+        } : null
+      };
+    });
+    
+    res.json(termsWithLabels);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/stats:
+ *   get:
+ *     summary: Get translation statistics
+ *     responses:
+ *       200:
+ *         description: Returns statistics about translations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalTerms:
+ *                   type: integer
+ *                 totalTranslations:
+ *                   type: integer
+ *                 byLanguage:
+ *                   type: object
+ *                 byStatus:
+ *                   type: object
+ */
+router.get("/stats", apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    // Get total terms count
+    const totalTerms = db.prepare("SELECT COUNT(*) as count FROM terms").get().count;
+    
+    // Get total translations count
+    const totalTranslations = db.prepare("SELECT COUNT(*) as count FROM translations").get().count;
+    
+    // Get translation counts by language and status
+    const byLanguageAndStatus = db.prepare(`
+      SELECT 
+        language,
+        status,
+        COUNT(*) as count
+      FROM translations
+      GROUP BY language, status
+      ORDER BY language, status
+    `).all();
+    
+    // Get translation counts by language (all statuses)
+    const byLanguage = db.prepare(`
+      SELECT 
+        language,
+        COUNT(*) as count
+      FROM translations
+      GROUP BY language
+      ORDER BY language
+    `).all();
+    
+    // Get translation counts by status (all languages)
+    const byStatus = db.prepare(`
+      SELECT 
+        status,
+        COUNT(*) as count
+      FROM translations
+      GROUP BY status
+      ORDER BY status
+    `).all();
+    
+    // Get user contribution counts
+    const byUser = db.prepare(`
+      SELECT 
+        u.username,
+        COUNT(t.id) as count
+      FROM users u
+      LEFT JOIN translations t ON u.id = t.created_by_id
+      GROUP BY u.id, u.username
+      ORDER BY count DESC
+    `).all();
+    
+    // Format results
+    const languageStats = {};
+    for (const row of byLanguage) {
+      languageStats[row.language] = {
+        total: row.count,
+        byStatus: {}
+      };
+    }
+    
+    // Add status breakdown per language
+    for (const row of byLanguageAndStatus) {
+      if (languageStats[row.language]) {
+        languageStats[row.language].byStatus[row.status] = row.count;
+      }
+    }
+    
+    const statusStats = {};
+    for (const row of byStatus) {
+      statusStats[row.status] = row.count;
+    }
+    
+    const userStats = {};
+    for (const row of byUser) {
+      userStats[row.username] = row.count;
+    }
+    
+    res.json({
+      totalTerms,
+      totalTranslations,
+      byLanguage: languageStats,
+      byStatus: statusStats,
+      byUser: userStats
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 /**
  * @openapi
@@ -1055,3 +1375,5 @@ router.post("/harvest/stream", writeLimiter, async (req, res) => {
     res.end();
   }
 });
+
+module.exports = router;

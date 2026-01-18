@@ -34,52 +34,12 @@ const Leaderboard: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [apiUsers, termsResponse] = await Promise.all([
+        const [apiUsers, statsData] = await Promise.all([
           backendApi.getUsers(),
-          backendApi.getTerms()
+          backendApi.getStats()
         ]);
 
-        // 1. Aggregate User Contributions from Terms
-        const usercontribCounts: Record<string, number> = {};
-        
-        // 2. Aggregate Language Stats
-        const lStats: Record<string, { total: number, status: Record<string, number> }> = {};
-
-        // 3. Aggregate Global Stats
-        const gStatus = { approved: 0, merged: 0, review: 0, draft: 0, rejected: 0 };
-        let gTotal = 0;
-
-        termsResponse.terms.forEach((term: ApiTerm) => {
-          term.fields.forEach(field => {
-            if (field.translations) {
-              field.translations.forEach(t => {
-                const lang = t.language.toLowerCase();
-                const status = t.status || 'draft';
-                const author = t.created_by || 'unknown';
-
-                // User Count
-                usercontribCounts[author] = (usercontribCounts[author] || 0) + 1;
-
-                // Global Count
-                gTotal++;
-                if ((gStatus as any)[status] !== undefined) {
-                    (gStatus as any)[status]++;
-                }
-
-                // Lang Count
-                if (!lStats[lang]) {
-                    lStats[lang] = { total: 0, status: { approved: 0, merged: 0, review: 0, draft: 0, rejected: 0 } };
-                }
-                lStats[lang].total++;
-                if ((lStats[lang].status as any)[status] !== undefined) {
-                    (lStats[lang].status as any)[status]++;
-                }
-              });
-            }
-          });
-        });
-
-        // Map users with real contribution counts
+        // Map users with contribution counts from stats endpoint
         const mappedUsers = apiUsers.map((u: ApiPublicUser) => {
             let displayName = u.name;
             // Prioritize name from extra if available to avoid showing ORCID
@@ -98,24 +58,25 @@ const Leaderboard: React.FC = () => {
             return {
                 ...u,
                 name: nameToUse,
-                contributions: usercontribCounts[u.username] || 0,
+                contributions: statsData.byUser[u.username] || 0,
                 // Fallback avatar if not provided
                 avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=0ea5e9&color=fff`
             };
         }).sort((a: any, b: any) => b.reputation - a.reputation);
 
-        // Transform Lang Stats to Array
-        const mappedLangStats = Object.keys(lStats).map(code => ({
+        // Transform Language Stats from stats endpoint
+        const mappedLangStats = Object.keys(statsData.byLanguage).map(code => ({
             code,
-            ...lStats[code],
+            total: statsData.byLanguage[code].total,
+            status: statsData.byLanguage[code].byStatus,
             config: LANG_CONFIG[code] || { name: code.toUpperCase(), color: 'bg-slate-400', baseClass: 'slate' }
         })).sort((a, b) => b.total - a.total);
 
         setUsers(mappedUsers);
         setGlobalStats({
-            total: gTotal,
+            total: statsData.totalTranslations,
             activeUsers: apiUsers.length,
-            byStatus: gStatus
+            byStatus: statsData.byStatus
         });
         setLangStats(mappedLangStats);
 

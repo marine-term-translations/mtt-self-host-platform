@@ -30,8 +30,7 @@ const Dashboard: React.FC = () => {
         setLoading(true);
 
         // Fetch data in parallel including user preferences
-        const [termsResponse, history, users, preferences] = await Promise.all([
-          backendApi.getTerms(100, 0), // Limit to 100 terms for dashboard stats
+        const [history, users, preferences] = await Promise.all([
           backendApi.getUserHistory(user.id || user.user_id!), // Use user ID
           backendApi.getUsers(),
           backendApi.get<{ nativeLanguage: string; translationLanguages: string[] }>('/user/preferences').catch(() => ({ nativeLanguage: '', translationLanguages: [] }))
@@ -44,20 +43,20 @@ const Dashboard: React.FC = () => {
           setSelectedFlowLanguage(languages[0]);
         }
 
-        // 1. Process Terms for quick stats
-        const termIdToLabel: Record<number, string> = {};
-        let needsTrans = 0;
-        termsResponse.terms.forEach((t: ApiTerm) => {
-          // Map ID to Label for activity feed lookup
-          const prefLabel = t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 'Unknown Term';
-          termIdToLabel[t.id] = prefLabel;
-
-          // Simple heuristic for "Needs Translation": if no translations exist on definition
-          const def = t.fields.find(f => f.field_term.includes('definition'));
-          if (!def || !def.translations || def.translations.length === 0) {
-            needsTrans++;
-          }
-        });
+        // 1. Extract unique term IDs from history and fetch only those terms
+        const termIds = [...new Set(history.map(h => h.term_id).filter(id => id != null))] as number[];
+        
+        let termIdToLabel: Record<number, string> = {};
+        if (termIds.length > 0) {
+          const terms = await backendApi.getTermsByIds(termIds);
+          terms.forEach((t: ApiTerm) => {
+            // Map ID to Label for activity feed lookup
+            const prefLabel = t.labelField?.original_value || 
+                             t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 
+                             'Unknown Term';
+            termIdToLabel[t.id] = prefLabel;
+          });
+        }
         setTermsMap(termIdToLabel);
 
         // 2. Process User Ranking & Reputation
@@ -76,7 +75,7 @@ const Dashboard: React.FC = () => {
           activityCount: history.length,
           reputation: currentUserData?.reputation || 0,
           rank: rank > 0 ? rank : users.length + 1,
-          needsTranslationCount: needsTrans
+          needsTranslationCount: 0 // This is now calculated server-side if needed
         });
 
       } catch (error) {
