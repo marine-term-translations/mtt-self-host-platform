@@ -314,6 +314,10 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
     """
     Main function to create or update LDES feed for a source.
     
+    This function works with all source types (LDES and Static_file sources).
+    It generates LDES fragments from translations with status='review', regardless
+    of whether the source was originally from an LDES feed or a static file import.
+    
     Args:
         source_id: Source identifier
         db_path: Path to SQLite database

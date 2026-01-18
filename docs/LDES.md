@@ -4,6 +4,12 @@
 
 This platform now supports automatic generation and updating of LDES (Linked Data Event Streams) for all sources. Each source produces its own isolated LDES feed that complies with the LDES specification.
 
+**The LDES service works with both source types:**
+- **LDES sources**: Sources originally from LDES feeds
+- **Static file sources**: Sources imported from static RDF files
+
+All sources with translations that have `status='review'` can generate LDES feeds, regardless of their original source type.
+
 ## Architecture
 
 ### Storage Structure
