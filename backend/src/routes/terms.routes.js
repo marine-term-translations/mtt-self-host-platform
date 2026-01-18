@@ -516,6 +516,17 @@ router.get("/stats", apiLimiter, (req, res) => {
       ORDER BY status
     `).all();
     
+    // Get user contribution counts
+    const byUser = db.prepare(`
+      SELECT 
+        u.username,
+        COUNT(t.id) as count
+      FROM users u
+      LEFT JOIN translations t ON u.id = t.created_by_id
+      GROUP BY u.id, u.username
+      ORDER BY count DESC
+    `).all();
+    
     // Format results
     const languageStats = {};
     for (const row of byLanguage) {
@@ -537,11 +548,17 @@ router.get("/stats", apiLimiter, (req, res) => {
       statusStats[row.status] = row.count;
     }
     
+    const userStats = {};
+    for (const row of byUser) {
+      userStats[row.username] = row.count;
+    }
+    
     res.json({
       totalTerms,
       totalTranslations,
       byLanguage: languageStats,
-      byStatus: statusStats
+      byStatus: statusStats,
+      byUser: userStats
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

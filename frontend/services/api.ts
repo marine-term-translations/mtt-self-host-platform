@@ -215,6 +215,7 @@ class ApiService {
     totalTranslations: number;
     byLanguage: Record<string, { total: number; byStatus: Record<string, number> }>;
     byStatus: Record<string, number>;
+    byUser: Record<string, number>;
   }> {
     return this.get('/stats');
   }

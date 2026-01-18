@@ -96,6 +96,10 @@ Returns complete statistics across ALL data:
     "draft": 1250,
     "approved": 2890,
     "rejected": 429
+  },
+  "byUser": {
+    "user1": 234,
+    "user2": 189
   }
 }
 ```
@@ -157,7 +161,7 @@ const termIds = activities
 const terms = await getTermsByIds(termIds);
 ```
 
-#### AdminDashboard.tsx
+#### AdminDashboard.tsx & Leaderboard.tsx
 **Before**: Incomplete statistics
 ```typescript
 // Only processes first page of terms
@@ -171,6 +175,7 @@ termsResponse.terms.forEach(term => {
 ```typescript
 // Server-side aggregation across all data
 const stats = await getStats();
+// Includes: totalTerms, totalTranslations, byLanguage, byStatus, byUser
 ```
 
 ## Performance Impact
