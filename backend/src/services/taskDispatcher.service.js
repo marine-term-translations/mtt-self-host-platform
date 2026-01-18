@@ -3,7 +3,7 @@
 const { getDatabase } = require('../db/database');
 const axios = require('axios');
 const config = require('../config');
-const cronParser = require('cron-parser');
+const { CronExpressionParser } = require('cron-parser');
 
 /**
  * Check for tasks that need to be dispatched based on schedulers
@@ -134,7 +134,7 @@ function calculateNextRun(scheduleConfig) {
     // If cron expression is specified, parse it properly
     if (scheduleConfig.cron) {
       try {
-        const interval = cronParser.parseExpression(scheduleConfig.cron);
+        const interval = CronExpressionParser.parse(scheduleConfig.cron);
         const nextDate = interval.next().toDate();
         return nextDate.toISOString().replace('T', ' ').substring(0, 19);
       } catch (cronErr) {
