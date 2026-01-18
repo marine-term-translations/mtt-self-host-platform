@@ -10,12 +10,16 @@
 {% for item in sets.qres %}
     tree:member <{{ item.concept }}> ;
 {% endfor %}
+{% if has_previous %}
     tree:relation [
         a tree:GreaterThanOrEqualToRelation ;
-        tree:node <{{ prefix_uri }}/{{ source_id }}/{{ next_fragment_timestamp }}> ;
+        tree:node <{{ prefix_uri }}/{{ source_id }}/{{ prev_fragment_timestamp }}> ;
         tree:path dcterms:modified ;
-        tree:value "{{ next_fragment_time }}"^^xsd:dateTime
+        tree:value "{{ prev_fragment_time }}"^^xsd:dateTime
     ] .
+{% else %}
+    .
+{% endif %}
 
 <{{ prefix_uri }}/{{ source_id }}>
     a ldes:EventStream ;

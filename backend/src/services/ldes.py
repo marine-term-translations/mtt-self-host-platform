@@ -114,6 +114,55 @@ def get_latest_modified_from_fragment(fragment_path):
         return None
 
 
+def get_previous_fragment(source_id):
+    """
+    Find the most recent (highest epoch number) fragment in the LDES directory.
+    This will be used as the previous fragment for tree:relation.
+    
+    Args:
+        source_id: Source identifier
+        
+    Returns:
+        tuple: (fragment_timestamp: str or None, fragment_datetime: datetime or None)
+    """
+    ldes_dir = get_ldes_directory(source_id)
+    
+    if not ldes_dir.exists():
+        return None, None
+    
+    # Find all .ttl files except latest.ttl
+    ttl_files = [f for f in ldes_dir.glob("*.ttl") if f.name != "latest.ttl"]
+    
+    if not ttl_files:
+        return None, None
+    
+    # Extract epoch timestamps from filenames
+    epoch_fragments = []
+    for f in ttl_files:
+        try:
+            # Filename should be like "1768758532.ttl"
+            epoch_str = f.stem  # Remove .ttl extension
+            epoch = int(epoch_str)
+            epoch_fragments.append((epoch, f))
+        except ValueError:
+            # Skip non-numeric filenames
+            continue
+    
+    if not epoch_fragments:
+        return None, None
+    
+    # Sort by epoch timestamp (highest first)
+    epoch_fragments.sort(reverse=True)
+    
+    # Get the most recent fragment
+    latest_epoch, latest_file = epoch_fragments[0]
+    
+    # Convert epoch to datetime
+    fragment_datetime = datetime.fromtimestamp(latest_epoch)
+    
+    return str(latest_epoch), fragment_datetime
+
+
 def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=None):
     """
     Query the database for translations with status='review' for LDES generation.
@@ -209,15 +258,22 @@ def prepare_ldes_data(translations):
         field_uri = trans['field_uri']
         
         if term_uri not in terms_data:
+            # Format datetime as xsd:dateTime compliant string
+            modified_dt = datetime.fromisoformat(trans['modified_at'])
+            modified_str = modified_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            
             terms_data[term_uri] = {
                 'concept': term_uri,
-                'modified': trans['modified_at'],
+                'modified': modified_str,  # Store as formatted string
                 'fields': {}  # Store all fields dynamically
             }
         
         # Update the latest modified date
-        if trans['modified_at'] > terms_data[term_uri]['modified']:
-            terms_data[term_uri]['modified'] = trans['modified_at']
+        trans_dt = datetime.fromisoformat(trans['modified_at'])
+        current_dt = datetime.strptime(terms_data[term_uri]['modified'], "%Y-%m-%dT%H:%M:%SZ")
+        
+        if trans_dt > current_dt:
+            terms_data[term_uri]['modified'] = trans_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         
         # Store field value by field_uri (dynamically)
         # Multiple values for the same field_uri are stored as a list
@@ -232,7 +288,7 @@ def prepare_ldes_data(translations):
     return list(terms_data.values())
 
 
-def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragment_timestamp, prefix_uri, next_fragment_time):
+def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragment_timestamp, prefix_uri, prev_fragment_time):
     """
     Generate an LDES fragment using py-sema (Subyt).
     
@@ -240,9 +296,9 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragme
         source_id: Source identifier
         ldes_data: List of dictionaries with term data
         fragment_timestamp: Epoch timestamp for this fragment (string)
-        next_fragment_timestamp: Epoch timestamp for next fragment (string)
+        prev_fragment_timestamp: Epoch timestamp for previous fragment (string or None)
         prefix_uri: Base URI prefix for the LDES
-        next_fragment_time: ISO datetime string for tree:value
+        prev_fragment_time: ISO datetime string for tree:value (or None)
         
     Returns:
         Path to the generated fragment file
@@ -265,9 +321,10 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragme
         vars_dict = {
             'source_id': source_id,
             'fragment_timestamp': fragment_timestamp,
-            'next_fragment_timestamp': next_fragment_timestamp,
-            'next_fragment_time': next_fragment_time,
+            'prev_fragment_timestamp': prev_fragment_timestamp,
+            'prev_fragment_time': prev_fragment_time,
             'prefix_uri': prefix_uri,
+            'has_previous': prev_fragment_timestamp is not None,
         }
         
         # Get templates folder
@@ -353,9 +410,12 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
             translations = query_translations_for_ldes(db_path, source_id, start_date, end_date)
             
             # Filter out translations that are not strictly newer than latest_modified_in_ldes
+            # Make latest_modified_in_ldes timezone-naive for comparison
+            latest_modified_naive = latest_modified_in_ldes.replace(tzinfo=None) if latest_modified_in_ldes.tzinfo else latest_modified_in_ldes
+            
             new_translations = [
                 t for t in translations 
-                if datetime.fromisoformat(t['modified_at']) > latest_modified_in_ldes
+                if datetime.fromisoformat(t['modified_at']) > latest_modified_naive
             ]
             
             if not new_translations:
@@ -398,25 +458,30 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
         # Convert to epoch timestamp (seconds since 1970-01-01)
         epoch_timestamp = int(latest_trans_date.timestamp())
         fragment_timestamp = str(epoch_timestamp)
-        # Next fragment timestamp is epoch + 1 second
-        next_fragment_timestamp = str(epoch_timestamp + 1)
-        # For the tree:value, use the actual datetime
-        next_fragment_time = (latest_trans_date + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     else:
         now = datetime.now()
         epoch_timestamp = int(now.timestamp())
         fragment_timestamp = str(epoch_timestamp)
-        next_fragment_timestamp = str(epoch_timestamp + 1)
-        next_fragment_time = (now + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # Step 5b: Get previous fragment information for tree:relation
+    prev_fragment_timestamp, prev_fragment_datetime = get_previous_fragment(source_id)
+    
+    if prev_fragment_timestamp and prev_fragment_datetime:
+        # Format the previous fragment datetime for tree:value
+        prev_fragment_time = prev_fragment_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
+        print(f"Previous fragment found: {prev_fragment_timestamp} ({prev_fragment_time})")
+    else:
+        prev_fragment_time = None
+        print("No previous fragment found. This is the first fragment.")
     
     # Step 6: Generate LDES fragment
     fragment_file = generate_ldes_fragment(
         source_id,
         ldes_data,
         fragment_timestamp,
-        next_fragment_timestamp,
+        prev_fragment_timestamp,
         prefix_uri,
-        next_fragment_time
+        prev_fragment_time
     )
     
     # Step 7: Update latest.ttl
