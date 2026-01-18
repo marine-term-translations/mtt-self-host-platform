@@ -193,7 +193,7 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
 def prepare_ldes_data(translations):
     """
     Transform translation records into LDES-compatible format.
-    Groups translations by term URI.
+    Groups translations by term URI and preserves all field URIs dynamically.
     
     Args:
         translations: List of translation records
@@ -206,42 +206,43 @@ def prepare_ldes_data(translations):
     
     for trans in translations:
         term_uri = trans['term_uri']
+        field_uri = trans['field_uri']
         
         if term_uri not in terms_data:
             terms_data[term_uri] = {
                 'concept': term_uri,
                 'modified': trans['modified_at'],
-                'prefLabel': None,
-                'altLabel': None,
-                'definition': None,
+                'fields': {}  # Store all fields dynamically
             }
         
         # Update the latest modified date
         if trans['modified_at'] > terms_data[term_uri]['modified']:
             terms_data[term_uri]['modified'] = trans['modified_at']
         
-        # Map field_uri to appropriate SKOS property
-        field_uri = trans['field_uri']
-        if 'prefLabel' in field_uri:
-            terms_data[term_uri]['prefLabel'] = trans['translation_value']
-        elif 'altLabel' in field_uri:
-            terms_data[term_uri]['altLabel'] = trans['translation_value']
-        elif 'definition' in field_uri:
-            terms_data[term_uri]['definition'] = trans['translation_value']
+        # Store field value by field_uri (dynamically)
+        # Multiple values for the same field_uri are stored as a list
+        if field_uri not in terms_data[term_uri]['fields']:
+            terms_data[term_uri]['fields'][field_uri] = []
+        
+        terms_data[term_uri]['fields'][field_uri].append({
+            'value': trans['translation_value'],
+            'language': trans['language']
+        })
     
     return list(terms_data.values())
 
 
-def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragment_timestamp, prefix_uri):
+def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragment_timestamp, prefix_uri, next_fragment_time):
     """
     Generate an LDES fragment using py-sema (Subyt).
     
     Args:
         source_id: Source identifier
         ldes_data: List of dictionaries with term data
-        fragment_timestamp: Timestamp for this fragment (string)
-        next_fragment_timestamp: Timestamp for next fragment (string)
+        fragment_timestamp: Epoch timestamp for this fragment (string)
+        next_fragment_timestamp: Epoch timestamp for next fragment (string)
         prefix_uri: Base URI prefix for the LDES
+        next_fragment_time: ISO datetime string for tree:value
         
     Returns:
         Path to the generated fragment file
@@ -260,17 +261,6 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, next_fragme
         json.dump(ldes_data, f)
     
     try:
-        # Determine next fragment time
-        # Parse fragment_timestamp to create next_fragment_time
-        try:
-            # Fragment timestamp format: YYYY_MM_DD_HH_MM_SS
-            dt = datetime.strptime(fragment_timestamp, "%Y_%m_%d_%H_%M_%S")
-            next_time = dt + timedelta(days=1)
-            next_fragment_time = next_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        except Exception:
-            # Fallback to current time if parsing fails
-            next_fragment_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
-        
         # Prepare variables for template
         vars_dict = {
             'source_id': source_id,
@@ -396,18 +386,22 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
     ldes_data = prepare_ldes_data(translations)
     
     # Determine fragment timestamp based on latest modified date in translations
+    # Use epoch timestamp for fragment naming
     if translations:
         latest_trans_date = max(
             datetime.fromisoformat(t['modified_at']) for t in translations
         )
-        fragment_timestamp = latest_trans_date.strftime("%Y_%m_%d_%H_%M_%S")
-        # Next fragment would be 1 day later
-        next_date = latest_trans_date + timedelta(days=1)
-        next_fragment_timestamp = next_date.strftime("%Y_%m_%d_%H_%M_%S")
+        # Convert to epoch timestamp (seconds since 1970-01-01)
+        fragment_timestamp = str(int(latest_trans_date.timestamp()))
+        # Next fragment timestamp is epoch + 1 second
+        next_fragment_timestamp = str(int(latest_trans_date.timestamp()) + 1)
+        # For the tree:value, use the actual datetime
+        next_fragment_time = (latest_trans_date + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     else:
         now = datetime.now()
-        fragment_timestamp = now.strftime("%Y_%m_%d_%H_%M_%S")
-        next_fragment_timestamp = (now + timedelta(days=1)).strftime("%Y_%m_%d_%H_%M_%S")
+        fragment_timestamp = str(int(now.timestamp()))
+        next_fragment_timestamp = str(int(now.timestamp()) + 1)
+        next_fragment_time = (now + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # Step 6: Generate LDES fragment
     fragment_file = generate_ldes_fragment(
@@ -415,7 +409,8 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
         ldes_data,
         fragment_timestamp,
         next_fragment_timestamp,
-        prefix_uri
+        prefix_uri,
+        next_fragment_time
     )
     
     # Step 7: Update latest.ttl

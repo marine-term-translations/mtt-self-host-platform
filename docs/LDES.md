@@ -14,8 +14,17 @@ LDES fragments are stored at:
 ```
 
 Each source has:
-- Individual fragment files named by timestamp (e.g., `2026_01_18_17_08_15.ttl`)
+- Individual fragment files named by **epoch timestamp** (e.g., `1768758532.ttl`)
 - A `latest.ttl` file that always points to the most recent fragment
+
+### Fragment Naming Convention
+
+Fragments are named using **Unix epoch timestamps** (seconds since 1970-01-01):
+- Fragment timestamp is based on the latest `modified_at` date of included translations
+- Next fragment timestamp is current epoch + 1 second
+- Example: `1768758532.ttl` → next fragment would be `1768758533.ttl`
+
+This ensures unique, sequential fragment names with minimal gaps between fragments.
 
 ### Components
 
@@ -23,10 +32,13 @@ Each source has:
    - Python module using py-sema library
    - Handles LDES creation and updates
    - Queries database for translations with status='review'
+   - Dynamically renders predicates based on field_uri from translations
 
 2. **LDES Template** (`backend/src/services/ldes_templates/ldes_fragment.ttl`)
    - Jinja2 template for generating LDES-compliant RDF
    - Defines LDES structure with tree:Node and ldes:EventStream
+   - **Dynamically renders all predicates** from translation field URIs
+   - Preserves language tags from translations
 
 3. **Task Dispatcher Integration** (`backend/src/services/taskDispatcher.service.js`)
    - Executes LDES feed creation tasks
@@ -106,11 +118,31 @@ Generated fragments comply with the LDES specification:
 
 - **tree:Node**: Each fragment is a tree:Node
 - **tree:relation**: Links to next fragment using tree:GreaterThanOrEqualToRelation
+  - Next fragment timestamp is current epoch + 1 second
+  - Ensures minimal gaps between fragment identifiers
 - **ldes:EventStream**: Declares the LDES with timestampPath and versionOfPath
 - **Members**: Each translation term includes:
   - `dcterms:modified`: Timestamp of modification
   - `dcterms:isVersionOf`: Reference to original concept
-  - SKOS properties (prefLabel, altLabel, definition)
+  - **Dynamic predicates**: Any predicate from `field_uri` in translations
+    - Examples: `skos:prefLabel`, `skos:definition`, `rdfs:label`, `dcterms:description`
+    - Language tags are preserved from translation data (e.g., `@nl`, `@fr`, `@de`)
+
+### Dynamic Predicate Rendering
+
+The template dynamically renders all predicates based on the `field_uri` values in the database:
+
+```turtle
+<http://example.org/concept/123>
+    dcterms:isVersionOf <http://example.org/concept/123> ;
+    dcterms:modified "2026-01-18T17:48:52.943447"^^xsd:dateTime ;
+    <http://www.w3.org/2004/02/skos/core#prefLabel> "Label"@nl ;
+    <http://purl.org/dc/terms/description> "Description"@fr ;
+    <http://www.w3.org/2000/01/rdf-schema#label> "RDFS Label"@de ;
+    .
+```
+
+This means any custom vocabularies used in translations will be automatically included in the LDES fragments.
 
 ## Configuration
 
@@ -151,9 +183,13 @@ pip install -r requirements.txt
 
 ### Fragment Naming
 
-Fragments use timestamp format: `YYYY_MM_DD_HH_MM_SS.ttl`
+Fragments use **Unix epoch timestamp** format: `{epoch}.ttl`
 
-Example: `2026_01_18_17_08_15.ttl` represents 2026-01-18 at 17:08:15
+Examples:
+- `1768758532.ttl` - Fragment at epoch 1768758532 (2026-01-18 17:48:52 UTC)
+- `1768758571.ttl` - Fragment at epoch 1768758571 (2026-01-18 17:49:31 UTC)
+
+The epoch timestamp is derived from the latest `modified_at` value of translations included in the fragment.
 
 ### Data Flow
 

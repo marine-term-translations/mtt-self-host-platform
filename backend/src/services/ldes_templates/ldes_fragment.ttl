@@ -2,7 +2,6 @@
 @prefix tree: <https://w3id.org/tree#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
@@ -21,17 +20,13 @@
     tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}> .
 
 {% for item in sets.qres %}
-<{{ item.concept }}> a skos:Concept ;
+<{{ item.concept }}> 
     dcterms:isVersionOf <{{ item.concept }}> ;
     dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
-{% if item.prefLabel %}
-    skos:prefLabel "{{ item.prefLabel }}"@en ;
-{% endif %}
-{% if item.altLabel %}
-    skos:altLabel "{{ item.altLabel }}"@en ;
-{% endif %}
-{% if item.definition %}
-    skos:definition "{{ item.definition }}"@en ;
-{% endif %}
+{% for field_uri, field_values in item.fields.items() %}
+{% for field_value in field_values %}
+    <{{ field_uri }}> "{{ field_value.value }}"@{{ field_value.language }} ;
+{% endfor %}
+{% endfor %}
     .
 {% endfor %}
