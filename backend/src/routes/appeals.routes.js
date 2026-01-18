@@ -144,7 +144,37 @@ router.get("/appeals/by-term/:termId", apiLimiter, (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * @openapi
+ * /api/appeals/{id}:
+ *   patch:
+ *     summary: Update an appeal (status, resolution)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *               resolution:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Appeal updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ */
+router.patch("/appeals/:id", writeLimiter, (req, res) => {
   const { id } = req.params;
   const { status, resolution, username } = req.body;
   if ((!status && !resolution) || !username) {
@@ -182,5 +212,7 @@ module.exports = router;
     res.status(500).json({ error: err.message });
   }
 });
+
+module.exports = router;
 
 module.exports = router;
