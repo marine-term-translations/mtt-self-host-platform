@@ -3,6 +3,7 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
     a tree:Node ;
@@ -21,6 +22,7 @@
 
 {% for item in sets.qres %}
 <{{ item.concept }}> 
+    a rdfs:Resource ;
     dcterms:isVersionOf <{{ item.concept }}> ;
     dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
 {% for field_uri, field_values in item.fields.items() %}

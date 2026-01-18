@@ -392,15 +392,17 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
             datetime.fromisoformat(t['modified_at']) for t in translations
         )
         # Convert to epoch timestamp (seconds since 1970-01-01)
-        fragment_timestamp = str(int(latest_trans_date.timestamp()))
+        epoch_timestamp = int(latest_trans_date.timestamp())
+        fragment_timestamp = str(epoch_timestamp)
         # Next fragment timestamp is epoch + 1 second
-        next_fragment_timestamp = str(int(latest_trans_date.timestamp()) + 1)
+        next_fragment_timestamp = str(epoch_timestamp + 1)
         # For the tree:value, use the actual datetime
         next_fragment_time = (latest_trans_date + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     else:
         now = datetime.now()
-        fragment_timestamp = str(int(now.timestamp()))
-        next_fragment_timestamp = str(int(now.timestamp()) + 1)
+        epoch_timestamp = int(now.timestamp())
+        fragment_timestamp = str(epoch_timestamp)
+        next_fragment_timestamp = str(epoch_timestamp + 1)
         next_fragment_time = (now + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     
     # Step 6: Generate LDES fragment
