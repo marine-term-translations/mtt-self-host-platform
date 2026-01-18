@@ -124,14 +124,18 @@ router.get("/terms", apiLimiter, (req, res) => {
       // Identify label and reference fields
       const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
         || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-      const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
-        || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      
+      // Get reference fields: prefer field_role, fallback to field_term
+      let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+      if (referenceFields.length === 0) {
+        referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      }
       
       return { 
         ...term, 
         fields: fieldsWithTranslations,
         labelField: labelField || null,
-        referenceFields: referenceFields || []
+        referenceFields: referenceFields
       };
     });
     
@@ -219,8 +223,11 @@ router.get("/terms/by-uri/:encodedUri", apiLimiter, (req, res) => {
     // Identify label and reference fields
     const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
       || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-    const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
-      || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    // Get reference fields: prefer field_role, fallback to field_term
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    if (referenceFields.length === 0) {
+      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    }
     
     res.json({ 
       ...term, 
@@ -317,8 +324,11 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     // Identify label and reference fields
     const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
       || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-    const referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference')
-      || fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    // Get reference fields: prefer field_role, fallback to field_term
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    if (referenceFields.length === 0) {
+      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    }
     
     res.json({ 
       ...term, 

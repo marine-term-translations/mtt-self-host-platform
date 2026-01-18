@@ -214,5 +214,3 @@ router.patch("/appeals/:id", writeLimiter, (req, res) => {
 });
 
 module.exports = router;
-
-module.exports = router;
