@@ -2,6 +2,7 @@
 
 const axios = require("axios");
 const config = require("../config");
+const datetime = require("../utils/datetime");
 
 /**
  * Create a new organization in Gitea
@@ -62,7 +63,7 @@ async function loginUser(username, password) {
   const response = await axios.post(
     `${config.gitea.url}/api/v1/users/${username}/tokens`,
     {
-      name: `token-${Date.now()}`,
+      name: `token-${datetime.unix()}`,
       scopes: ["all"],
     },
     {
