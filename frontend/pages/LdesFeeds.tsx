@@ -53,7 +53,8 @@ const LdesFeeds: React.FC = () => {
 
   const getFullUrl = (path: string) => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const baseUrl = apiUrl.replace('/api', '');
+    // Remove trailing /api if present to get the base URL
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
     return `${baseUrl}${path}`;
   };
 

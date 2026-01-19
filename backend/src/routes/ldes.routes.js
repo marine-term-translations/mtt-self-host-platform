@@ -114,6 +114,11 @@ router.get('/api/ldes/data/:sourceId/:filename', (req, res) => {
   try {
     const { sourceId, filename } = req.params;
     
+    // Security: validate sourceId to prevent directory traversal
+    if (sourceId.includes('..') || sourceId.includes('/') || sourceId.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid source ID' });
+    }
+    
     // Security: validate filename to prevent directory traversal
     if (filename.includes('..') || filename.includes('/') || !filename.endsWith('.ttl')) {
       return res.status(400).json({ error: 'Invalid filename' });
