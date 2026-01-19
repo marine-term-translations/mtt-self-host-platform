@@ -64,7 +64,7 @@ router.get("/task-schedulers", apiLimiter, (req, res) => {
     ).get(...params).count;
     
     const schedulers = db.prepare(
-      `SELECT * FROM task_schedulers ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM task_schedulers ${whereClause} ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
     
     res.json({

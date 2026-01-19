@@ -18,7 +18,7 @@ function checkAndDispatchScheduledTasks() {
     const schedulers = db.prepare(`
       SELECT * FROM task_schedulers 
       WHERE enabled = 1 
-      AND (next_run IS NULL OR next_run <= datetime('now'))
+      AND (next_run IS NULL OR datetime(next_run) <= datetime('now'))
       ORDER BY scheduler_id
     `).all();
     
@@ -599,7 +599,7 @@ function processPendingTasks() {
   
   try {
     const pendingTasks = db.prepare(
-      "SELECT task_id FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT 10"
+      "SELECT task_id FROM tasks WHERE status = 'pending' ORDER BY datetime(created_at) ASC LIMIT 10"
     ).all();
     
     for (const { task_id } of pendingTasks) {

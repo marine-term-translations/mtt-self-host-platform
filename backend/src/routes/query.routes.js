@@ -10,7 +10,7 @@ const PREDEFINED_QUERIES = {
   'all_sources': {
     name: 'All Sources',
     description: 'List all data sources with their types',
-    sql: 'SELECT source_id, source_path, source_type, graph_name, created_at FROM sources ORDER BY created_at DESC'
+    sql: 'SELECT source_id, source_path, source_type, graph_name, created_at FROM sources ORDER BY datetime(created_at) DESC'
   },
   'sources_by_type': {
     name: 'Sources by Type',
@@ -20,7 +20,7 @@ const PREDEFINED_QUERIES = {
   'recent_terms': {
     name: 'Recent Terms',
     description: 'Last 10 terms added',
-    sql: 'SELECT id, uri, created_at FROM terms ORDER BY created_at DESC LIMIT 10'
+    sql: 'SELECT id, uri, created_at FROM terms ORDER BY datetime(created_at) DESC LIMIT 10'
   },
   'translation_stats': {
     name: 'Translation Statistics',
@@ -43,7 +43,7 @@ const PREDEFINED_QUERIES = {
     sql: `SELECT t.id, t.uri, s.source_type, s.source_path 
           FROM terms t 
           LEFT JOIN sources s ON t.source_id = s.source_id 
-          ORDER BY t.created_at DESC LIMIT 20`
+          ORDER BY datetime(t.created_at) DESC LIMIT 20`
   },
   'fts_search_test': {
     name: 'Full-Text Search Test',

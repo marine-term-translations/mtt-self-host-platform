@@ -88,7 +88,7 @@ router.get("/tasks", apiLimiter, (req, res) => {
     
     // Get paginated tasks
     const tasks = db.prepare(
-      `SELECT * FROM tasks ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM tasks ${whereClause} ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
     
     res.json({
@@ -361,7 +361,7 @@ router.get("/tasks/stats", apiLimiter, (req, res) => {
     ).all();
     
     const recent = db.prepare(
-      "SELECT * FROM tasks ORDER BY created_at DESC LIMIT 10"
+      "SELECT * FROM tasks ORDER BY datetime(created_at) DESC LIMIT 10"
     ).all();
     
     res.json({

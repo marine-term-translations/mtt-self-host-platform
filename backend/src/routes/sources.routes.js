@@ -312,7 +312,7 @@ router.get("/sources", apiLimiter, (req, res) => {
     
     // Get paginated sources
     const sources = db.prepare(
-      "SELECT * FROM sources ORDER BY created_at DESC LIMIT ? OFFSET ?"
+      "SELECT * FROM sources ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?"
     ).all(limit, offset);
     
     res.json({
@@ -655,7 +655,7 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
     
     // Get paginated terms
     const terms = db.prepare(
-      "SELECT * FROM terms WHERE source_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+      "SELECT * FROM terms WHERE source_id = ? ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?"
     ).all(sourceId, limit, offset);
     
     res.json({
@@ -862,12 +862,12 @@ router.get("/sources/:id/tasks", apiLimiter, (req, res) => {
     
     // Get tasks for this source
     const tasks = db.prepare(
-      `SELECT * FROM tasks WHERE ${whereClause} ORDER BY created_at DESC`
+      `SELECT * FROM tasks WHERE ${whereClause} ORDER BY datetime(created_at) DESC`
     ).all(...params);
     
     // Get currently running task if any
     const runningTask = db.prepare(
-      "SELECT * FROM tasks WHERE source_id = ? AND status = 'running' ORDER BY started_at DESC LIMIT 1"
+      "SELECT * FROM tasks WHERE source_id = ? AND status = 'running' ORDER BY datetime(started_at) DESC LIMIT 1"
     ).get(sourceId);
     
     res.json({
