@@ -59,7 +59,7 @@ const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
  *       404:
  *         description: Fragment not found
  */
-router.get('/api/ldes', apiLimiter, (req, res) => {
+router.get('/ldes', apiLimiter, (req, res) => {
   try {
     const { source, fragment } = req.query;
 
@@ -108,12 +108,12 @@ router.get('/api/ldes', apiLimiter, (req, res) => {
       
       const fragments = fragmentFiles.map(filename => ({
         name: filename,
-        url: `/api/ldes?source=${sourceId}&fragment=${filename}`
+        url: `/ldes?source=${sourceId}&fragment=${filename}`
       }));
 
       return {
         sourceId,
-        latestUrl: `/api/ldes?source=${sourceId}&fragment=latest.ttl`,
+        latestUrl: `/ldes?source=${sourceId}&fragment=latest.ttl`,
         fragmentCount: fragmentFiles.length,
         fragments
       };
