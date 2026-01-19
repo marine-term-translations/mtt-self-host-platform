@@ -502,7 +502,7 @@ async function executeLdesFeedTask(task, addLog) {
   const ldesScriptPath = path.join(__dirname, 'ldes.py');
   
   // Get prefix URI from task metadata or use default
-  let prefixUri = 'https://marine-term-translations.github.io/LDES';
+  let prefixUri = 'https://mtt.vliz.be/api/ldes/data';
   if (task.metadata) {
     try {
       const metadata = JSON.parse(task.metadata);

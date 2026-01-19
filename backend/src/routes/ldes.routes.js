@@ -64,12 +64,12 @@ router.get('/ldes/feeds', apiLimiter, (req, res) => {
       
       const fragments = fragmentFiles.map(filename => ({
         name: filename,
-        url: `/ldes/data/${sourceId}/${filename}`
+        url: `api/ldes/data/${sourceId}/${filename}`
       }));
 
       return {
         sourceId,
-        latestUrl: `/ldes/data/${sourceId}/latest.ttl`,
+        latestUrl: `api/ldes/data/${sourceId}/latest.ttl`,
         fragmentCount: fragmentFiles.length,
         fragments
       };
