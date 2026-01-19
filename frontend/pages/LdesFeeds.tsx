@@ -52,10 +52,21 @@ const LdesFeeds: React.FC = () => {
   };
 
   const getFullUrl = (path: string) => {
+    // Get the API URL from environment or use default
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    // Remove trailing /api if present to get the base URL
-    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
-    return `${baseUrl}${path}`;
+    
+    // Extract base URL by removing '/api' suffix if present
+    // This handles cases like 'http://localhost:5000/api' -> 'http://localhost:5000'
+    let baseUrl = apiUrl;
+    if (baseUrl.endsWith('/api')) {
+      baseUrl = baseUrl.slice(0, -4);
+    } else if (baseUrl.endsWith('/api/')) {
+      baseUrl = baseUrl.slice(0, -5);
+    }
+    
+    // Ensure path starts with /
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${baseUrl}${normalizedPath}`;
   };
 
   if (loading) {

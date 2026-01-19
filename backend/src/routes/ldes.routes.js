@@ -120,7 +120,7 @@ router.get('/api/ldes/data/:sourceId/:filename', (req, res) => {
     }
     
     // Security: validate filename to prevent directory traversal
-    if (filename.includes('..') || filename.includes('/') || !filename.endsWith('.ttl')) {
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || !filename.endsWith('.ttl')) {
       return res.status(400).json({ error: 'Invalid filename' });
     }
 
