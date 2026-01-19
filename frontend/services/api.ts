@@ -282,7 +282,7 @@ class ApiService {
       fragments: Array<{ name: string; url: string }>;
     }>;
   }> {
-    return this.get('/ldes/feeds');
+    return this.get('/ldes');
   }
 }
 

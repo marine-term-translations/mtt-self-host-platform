@@ -10,13 +10,24 @@ const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
 
 /**
  * @swagger
- * /api/ldes/feeds:
+ * /api/ldes:
  *   get:
- *     summary: List all available LDES feeds
+ *     summary: List all available LDES feeds or retrieve a specific fragment
  *     tags: [LDES]
+ *     parameters:
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *         description: Source ID (optional, if not provided lists all feeds)
+ *       - in: query
+ *         name: fragment
+ *         schema:
+ *           type: string
+ *         description: Fragment filename (e.g., latest.ttl or 1768758532.ttl)
  *     responses:
  *       200:
- *         description: List of LDES feeds with metadata
+ *         description: List of LDES feeds with metadata or a specific fragment
  *         content:
  *           application/json:
  *             schema:
@@ -42,9 +53,42 @@ const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
  *                               type: string
  *                             url:
  *                               type: string
+ *           text/turtle:
+ *             schema:
+ *               type: string
+ *       404:
+ *         description: Fragment not found
  */
-router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
+router.get('/api/ldes', apiLimiter, (req, res) => {
   try {
+    const { source, fragment } = req.query;
+
+    // If source and fragment are provided, serve the file
+    if (source && fragment) {
+      // Security: validate source to prevent directory traversal
+      if (source.includes('..') || source.includes('/') || source.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid source ID' });
+      }
+      
+      // Security: validate fragment to prevent directory traversal
+      if (fragment.includes('..') || fragment.includes('/') || fragment.includes('\\') || !fragment.endsWith('.ttl')) {
+        return res.status(400).json({ error: 'Invalid fragment name' });
+      }
+
+      const filePath = path.join(LDES_BASE_DIR, source, fragment);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Fragment not found' });
+      }
+
+      // Read and send the file with appropriate content type
+      const content = fs.readFileSync(filePath, 'utf-8');
+      res.set('Content-Type', 'text/turtle; charset=utf-8');
+      return res.send(content);
+    }
+
+    // Otherwise, list all feeds
     // Check if LDES base directory exists
     if (!fs.existsSync(LDES_BASE_DIR)) {
       return res.json({ feeds: [] });
@@ -64,12 +108,12 @@ router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
       
       const fragments = fragmentFiles.map(filename => ({
         name: filename,
-        url: `/api/ldes/data/${sourceId}/${filename}`
+        url: `/api/ldes?source=${sourceId}&fragment=${filename}`
       }));
 
       return {
         sourceId,
-        latestUrl: `/api/ldes/data/${sourceId}/latest.ttl`,
+        latestUrl: `/api/ldes?source=${sourceId}&fragment=latest.ttl`,
         fragmentCount: fragmentFiles.length,
         fragments
       };
@@ -77,68 +121,8 @@ router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
 
     res.json({ feeds });
   } catch (error) {
-    console.error('Error listing LDES feeds:', error);
-    res.status(500).json({ error: 'Failed to list LDES feeds' });
-  }
-});
-
-/**
- * @swagger
- * /api/ldes/data/{sourceId}/{filename}:
- *   get:
- *     summary: Retrieve a specific LDES fragment or latest.ttl
- *     tags: [LDES]
- *     parameters:
- *       - in: path
- *         name: sourceId
- *         required: true
- *         schema:
- *           type: string
- *         description: Source ID
- *       - in: path
- *         name: filename
- *         required: true
- *         schema:
- *           type: string
- *         description: Fragment filename (e.g., latest.ttl or 1768758532.ttl)
- *     responses:
- *       200:
- *         description: LDES fragment in Turtle format
- *         content:
- *           text/turtle:
- *             schema:
- *               type: string
- *       404:
- *         description: Fragment not found
- */
-router.get('/api/ldes/data/:sourceId/:filename', apiLimiter, (req, res) => {
-  try {
-    const { sourceId, filename } = req.params;
-    
-    // Security: validate sourceId to prevent directory traversal
-    if (sourceId.includes('..') || sourceId.includes('/') || sourceId.includes('\\')) {
-      return res.status(400).json({ error: 'Invalid source ID' });
-    }
-    
-    // Security: validate filename to prevent directory traversal
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\') || !filename.endsWith('.ttl')) {
-      return res.status(400).json({ error: 'Invalid filename' });
-    }
-
-    const filePath = path.join(LDES_BASE_DIR, sourceId, filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Fragment not found' });
-    }
-
-    // Read and send the file with appropriate content type
-    const content = fs.readFileSync(filePath, 'utf-8');
-    res.set('Content-Type', 'text/turtle; charset=utf-8');
-    res.send(content);
-  } catch (error) {
-    console.error('Error serving LDES fragment:', error);
-    res.status(500).json({ error: 'Failed to retrieve LDES fragment' });
+    console.error('Error handling LDES request:', error);
+    res.status(500).json({ error: 'Failed to process LDES request' });
   }
 });
 
