@@ -68,6 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link to="/about" className={isActive('/about')}>About</Link>
               <Link to="/leaderboard" className={isActive('/leaderboard')}>Community</Link>
               <Link to="/documentation" className={isActive('/documentation')}>Documentation</Link>
+              <Link to="/ldes" className={isActive('/ldes')}>LDES Feeds</Link>
               {isAuthenticated && (
                 <>
                   <Link to="/browse" className={isActive('/browse')}>Browse</Link>
@@ -137,6 +138,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link to="/about" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>About</Link>
               <Link to="/leaderboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Community</Link>
               <Link to="/documentation" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Documentation</Link>
+              <Link to="/ldes" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>LDES Feeds</Link>
               {isAuthenticated && (
                 <>
                   <Link to="/browse" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Browse Terms</Link>
