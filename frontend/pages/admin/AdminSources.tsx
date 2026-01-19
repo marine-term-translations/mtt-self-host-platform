@@ -4,6 +4,7 @@ import { backendApi } from '../../services/api';
 import { ArrowLeft, Loader2, Layers, Rss, Upload, Database, Calendar, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { parse, format } from '../../utils/datetime';
 
 interface Source {
   source_id: number;
@@ -68,7 +69,7 @@ const AdminSources: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    return format(parse(dateString), 'YYYY-MM-DD HH:mm:ss');
   };
 
   return (
