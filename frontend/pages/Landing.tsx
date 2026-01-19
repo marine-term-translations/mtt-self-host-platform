@@ -5,6 +5,7 @@ import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database } fr
 import TermCard from '../components/TermCard';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, ApiPublicUser } from '../types';
+import { parse } from '@/src/utils/datetime';
 
 const Landing: React.FC = () => {
   const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
@@ -36,8 +37,8 @@ const Landing: React.FC = () => {
         // --- 1. Process Recent Terms ---
         // Sort by updated_at (descending)
         const sortedTerms = [...termsResponse.terms].sort((a, b) => {
-            const dateA = new Date(a.updated_at || a.created_at).getTime();
-            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            const dateA = parse(a.updated_at || a.created_at).valueOf();
+            const dateB = parse(b.updated_at || b.created_at).valueOf();
             return dateB - dateA;
         }).slice(0, 3);
 

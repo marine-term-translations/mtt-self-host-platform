@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
+import { parse, format } from '@/src/utils/datetime';
 
 const TermDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -686,7 +687,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                       h.parsedExtra?.field_uri === field.field_uri && 
                       h.parsedExtra?.language?.toLowerCase() === selectedLang.toLowerCase()
                   )
-                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                  .sort((a, b) => parse(b.created_at).valueOf() - parse(a.created_at).valueOf());
 
               const useHorizontalTimeline = fieldHistoryRaw.length > 3;
               const selectedEvent = selectedHistoryEventId 
@@ -852,7 +853,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                                         {appeal.resolution}
                                                     </div>
                                                     <div className="text-xs text-slate-500">
-                                                        Opened by {appeal.opened_by} on {new Date(appeal.opened_at).toLocaleDateString()}
+                                                        Opened by {appeal.opened_by} on {format(parse(appeal.opened_at), 'YYYY-MM-DD')}
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
@@ -880,7 +881,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                                     <div key={msg.id} className="text-sm">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.author}</span>
-                                                            <span className="text-xs text-slate-400">{new Date(msg.created_at).toLocaleDateString()}</span>
+                                                            <span className="text-xs text-slate-400">{format(parse(msg.created_at), 'YYYY-MM-DD')}</span>
                                                         </div>
                                                         <p className="text-slate-600 dark:text-slate-400">{msg.message}</p>
                                                     </div>
@@ -942,7 +943,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                                     <div key={h.id} className="flex items-center">
                                                         <div className="flex flex-col items-center cursor-pointer group w-20" onClick={() => setSelectedHistoryEventId(h.id)}>
                                                             <div className={`w-4 h-4 rounded-full border-2 transition-all z-10 ${dotColor} ${isSelected ? 'ring-2 ring-marine-500 scale-125' : 'group-hover:scale-110'}`}></div>
-                                                            <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{new Date(h.created_at).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+                                                            <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{format(parse(h.created_at), 'MMM D')}</span>
                                                         </div>
                                                         {nextH && (
                                                              <div 
@@ -961,7 +962,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                          <div className="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-3 mt-2 text-sm">
                                              <div className="flex justify-between items-center mb-2">
                                                  <span className="font-bold text-slate-700 dark:text-slate-300">{selectedEvent.user}</span>
-                                                 <span className="text-xs text-slate-400">{new Date(selectedEvent.created_at).toLocaleString()}</span>
+                                                 <span className="text-xs text-slate-400">{format(parse(selectedEvent.created_at), 'YYYY-MM-DD HH:mm:ss')}</span>
                                              </div>
                                              <div className="text-xs text-slate-500 mb-2 font-mono bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded inline-block">
                                                 {selectedEvent.action.replace(/_/g, ' ')}
@@ -1016,7 +1017,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                                       "{extra.value || extra.new_value}" 
                                                   </div>
                                               )}
-                                              <div className="text-[10px] text-slate-400 mt-1">{new Date(h.created_at).toLocaleString()}</div>
+                                              <div className="text-[10px] text-slate-400 mt-1">{format(parse(h.created_at), 'YYYY-MM-DD HH:mm:ss')}</div>
                                            </div>
                                          );
                                      })}

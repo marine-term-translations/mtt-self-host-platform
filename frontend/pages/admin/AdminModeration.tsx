@@ -4,7 +4,7 @@ import { ApiAppeal, ApiTerm } from '../../types';
 import { ArrowLeft, Loader2, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { parse, format } from '../../utils/datetime';
+import { parse, format } from '@/src/utils/datetime';
 
 const AdminModeration: React.FC = () => {
   const [appeals, setAppeals] = useState<ApiAppeal[]>([]);

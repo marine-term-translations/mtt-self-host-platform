@@ -4,7 +4,7 @@ import { ApiPublicUser } from '../../types';
 import { Search, ArrowLeft, Loader2, MoreVertical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { parse, format } from '../../utils/datetime';
+import { parse, format } from '@/src/utils/datetime';
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<ApiPublicUser[]>([]);

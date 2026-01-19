@@ -6,34 +6,27 @@ import { ApiPublicUser, ApiUserActivity } from '../types';
 import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-
-// Helper to get local date string YYYY-MM-DD
-const getLocalDateStr = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${d}`;
-};
+import { parse, format } from '@/src/utils/datetime';
 
 const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history }) => {
   // Determine date range (Last 365 days)
-  const today = new Date();
-  const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const startDate = new Date(endDate);
-  startDate.setDate(endDate.getDate() - 365); 
+  const today = parse(format(parse(now()), 'YYYY-MM-DD'));
+  const endDate = today;
+  let startDate = parse(today.toISOString());
+  startDate = startDate.subtract(365, 'day'); 
   
   // Adjust start date to previous Sunday to align grid
-  const dayOfWeek = startDate.getDay(); // 0 is Sunday
-  startDate.setDate(startDate.getDate() - dayOfWeek);
+  const dayOfWeek = startDate.day(); // 0 is Sunday
+  startDate = startDate.subtract(dayOfWeek, 'day');
 
   // Create array of days
-  const days: Date[] = [];
-  let current = new Date(startDate);
+  const days: any[] = [];
+  let current = startDate;
   
   // Generate days until we catch up to today
-  while (current <= endDate) {
-      days.push(new Date(current));
-      current.setDate(current.getDate() + 1);
+  while (current.isBefore(endDate) || current.isSame(endDate, 'day')) {
+      days.push(current);
+      current = current.add(1, 'day');
   }
   
   // Process history: Aggregate counts per day using local date strings
@@ -42,11 +35,12 @@ const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history
       history.forEach(h => {
           if (!h.created_at) return;
           try {
-              const dateObj = new Date(h.created_at);
-              if (!isNaN(dateObj.getTime())) {
-                  const dateStr = getLocalDateStr(dateObj);
-                  counts[dateStr] = (counts[dateStr] || 0) + 1;
-              }
+              const dateObj = parse(h.created_at);
+              const year = dateObj.year();
+              const month = String(dateObj.month() + 1).padStart(2, '0');
+              const d = String(dateObj.date()).padStart(2, '0');
+              const dateStr = `${year}-${month}-${d}`;
+              counts[dateStr] = (counts[dateStr] || 0) + 1;
           } catch (e) {
               // ignore invalid dates
           }
@@ -77,13 +71,16 @@ const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history
            <div className="min-w-fit">
               <div className="grid grid-rows-7 grid-flow-col gap-1 pb-2 h-[120px]">
                   {days.map(day => {
-                      const dateStr = getLocalDateStr(day);
+                      const year = day.year();
+                      const month = String(day.month() + 1).padStart(2, '0');
+                      const d = String(day.date()).padStart(2, '0');
+                      const dateStr = `${year}-${month}-${d}`;
                       const count = counts[dateStr] || 0;
                       return (
                           <div 
                               key={dateStr}
                               className={`w-3 h-3 rounded-sm ${getColor(count)} transition-all duration-200 hover:ring-1 hover:ring-slate-400 dark:hover:ring-slate-500`}
-                              title={`${count} contributions on ${day.toLocaleDateString()}`}
+                              title={`${count} contributions on ${format(day.toISOString(), 'YYYY-MM-DD')}`}
                           ></div>
                       )
                   })}
@@ -252,7 +249,7 @@ const UserProfile: React.FC = () => {
                     <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
                             <Calendar size={16} />
-                            Joined {new Date(userProfile.joined_at).toLocaleDateString()}
+                            Joined {format(parse(userProfile.joined_at), 'YYYY-MM-DD')}
                         </div>
                         {nativeLanguage && (
                             <div className="flex items-center gap-1.5">

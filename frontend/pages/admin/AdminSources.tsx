@@ -4,7 +4,7 @@ import { backendApi } from '../../services/api';
 import { ArrowLeft, Loader2, Layers, Rss, Upload, Database, Calendar, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { parse, format } from '../../utils/datetime';
+import { parse, format } from '@/src/utils/datetime';
 
 interface Source {
   source_id: number;
