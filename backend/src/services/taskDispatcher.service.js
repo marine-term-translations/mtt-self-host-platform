@@ -4,6 +4,7 @@ const { getDatabase } = require('../db/database');
 const axios = require('axios');
 const config = require('../config');
 const { CronExpressionParser } = require('cron-parser');
+const datetime = require('../utils/datetime');
 
 /**
  * Check for tasks that need to be dispatched based on schedulers
@@ -60,9 +61,7 @@ function dispatchTaskFromScheduler(scheduler) {
         const nextRun = calculateNextRun(scheduleConfig);
         if (nextRun) {
           // Add 1 minute to the next run to retry after current task might be done
-          const postponedDate = new Date(nextRun);
-          postponedDate.setMinutes(postponedDate.getMinutes() + 1);
-          const postponedRun = postponedDate.toISOString().replace('T', ' ').substring(0, 19);
+          const postponedRun = datetime.add(nextRun, 1, 'minute');
           
           db.prepare("UPDATE task_schedulers SET next_run = ? WHERE scheduler_id = ?")
             .run(postponedRun, scheduler.scheduler_id);
@@ -125,9 +124,7 @@ function calculateNextRun(scheduleConfig) {
     if (scheduleConfig.interval) {
       const interval = parseInt(scheduleConfig.interval);
       if (!isNaN(interval) && interval > 0) {
-        const now = new Date();
-        now.setSeconds(now.getSeconds() + interval);
-        return now.toISOString().replace('T', ' ').substring(0, 19);
+        return datetime.format(datetime.add(datetime.now(), interval, 'second'), 'YYYY-MM-DD HH:mm:ss');
       }
     }
     
@@ -136,13 +133,11 @@ function calculateNextRun(scheduleConfig) {
       try {
         const interval = CronExpressionParser.parse(scheduleConfig.cron);
         const nextDate = interval.next().toDate();
-        return nextDate.toISOString().replace('T', ' ').substring(0, 19);
+        return datetime.format(nextDate, 'YYYY-MM-DD HH:mm:ss');
       } catch (cronErr) {
         console.error('Error parsing cron expression:', cronErr.message);
         // Fallback to 1 hour if cron parsing fails
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
-        return now.toISOString().replace('T', ' ').substring(0, 19);
+        return datetime.format(datetime.add(datetime.now(), 1, 'hour'), 'YYYY-MM-DD HH:mm:ss');
       }
     }
     
@@ -162,7 +157,7 @@ async function executeTask(taskId) {
   
   // Helper to add log entries
   const addLog = (message) => {
-    const timestamp = new Date().toISOString();
+    const timestamp = datetime.toISO(datetime.now());
     const logEntry = `[${timestamp}] ${message}`;
     logs.push(logEntry);
     console.log(`Task ${taskId}: ${message}`);
@@ -385,7 +380,7 @@ async function executeSyncTask(task, addLog) {
       termsCreated,
       termsUpdated,
       fieldsCreated,
-      completed: new Date().toISOString()
+      completed: datetime.toISO(datetime.now())
     };
     
     db.prepare("UPDATE tasks SET metadata = ? WHERE task_id = ?")
