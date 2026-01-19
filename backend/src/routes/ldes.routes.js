@@ -43,7 +43,7 @@ const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
  *                             url:
  *                               type: string
  */
-router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
+router.get('/ldes/feeds', apiLimiter, (req, res) => {
   try {
     // Check if LDES base directory exists
     if (!fs.existsSync(LDES_BASE_DIR)) {
@@ -64,12 +64,12 @@ router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
       
       const fragments = fragmentFiles.map(filename => ({
         name: filename,
-        url: `/api/ldes/data/${sourceId}/${filename}`
+        url: `/ldes/data/${sourceId}/${filename}`
       }));
 
       return {
         sourceId,
-        latestUrl: `/api/ldes/data/${sourceId}/latest.ttl`,
+        latestUrl: `/ldes/data/${sourceId}/latest.ttl`,
         fragmentCount: fragmentFiles.length,
         fragments
       };
@@ -111,7 +111,7 @@ router.get('/api/ldes/feeds', apiLimiter, (req, res) => {
  *       404:
  *         description: Fragment not found
  */
-router.get('/api/ldes/data/:sourceId/:filename', apiLimiter, (req, res) => {
+router.get('/ldes/data/:sourceId/:filename', apiLimiter, (req, res) => {
   try {
     const { sourceId, filename } = req.params;
     
