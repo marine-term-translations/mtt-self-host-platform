@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
 import toast from 'react-hot-toast';
-import { parse, fromNow } from '../utils/datetime';
+import { parse, fromNow } from '@/src/utils/datetime';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -102,7 +102,6 @@ const Dashboard: React.FC = () => {
 
   const getRelativeTime = (dateString: string) => {
     return fromNow(parse(dateString));
-  };
   };
 
   const getLanguageName = (code: string) => {
