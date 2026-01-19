@@ -6,7 +6,7 @@ import { ApiPublicUser, ApiUserActivity } from '../types';
 import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { parse, format } from '@/src/utils/datetime';
+import { parse, format, now } from '@/src/utils/datetime';
 
 const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history }) => {
   // Determine date range (Last 365 days)
