@@ -215,6 +215,9 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
     
     query += " ORDER BY COALESCE(t.modified_at, t.created_at) ASC"
     
+    print(f"Executing translation query with params: {params}")
+    print(f"Query: {query}")
+    
     cursor.execute(query, params)
     rows = cursor.fetchall()
     
