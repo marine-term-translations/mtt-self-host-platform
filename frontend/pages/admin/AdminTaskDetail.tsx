@@ -14,6 +14,7 @@ import {
   Database
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { parse, format, diff, now } from '@/src/utils/datetime';
 
 interface Task {
   task_id: number;
@@ -95,14 +96,13 @@ const AdminTaskDetail: React.FC = () => {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '—';
-    return new Date(dateString).toLocaleString();
+    return format(parse(dateString), 'YYYY-MM-DD HH:mm:ss');
   };
 
   const formatDuration = (start: string | null, end: string | null) => {
     if (!start) return '—';
-    const startTime = new Date(start).getTime();
-    const endTime = end ? new Date(end).getTime() : Date.now();
-    const duration = endTime - startTime;
+    const endTime = end || now();
+    const duration = diff(endTime, start, 'millisecond');
     const seconds = Math.floor(duration / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);

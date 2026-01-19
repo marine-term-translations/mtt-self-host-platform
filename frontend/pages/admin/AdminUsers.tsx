@@ -4,6 +4,7 @@ import { ApiPublicUser } from '../../types';
 import { Search, ArrowLeft, Loader2, MoreVertical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { parse, format } from '@/src/utils/datetime';
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<ApiPublicUser[]>([]);
@@ -90,7 +91,7 @@ const AdminUsers: React.FC = () => {
                         </span>
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                        {new Date(user.joined_at).toLocaleDateString()}
+                        {format(parse(user.joined_at), 'YYYY-MM-DD')}
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                        <button className="text-slate-400 hover:text-marine-600 transition-colors">

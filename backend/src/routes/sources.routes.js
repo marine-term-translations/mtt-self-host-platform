@@ -10,6 +10,7 @@ const yaml = require("js-yaml");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 const config = require("../config");
+const datetime = require("../utils/datetime");
 
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
@@ -25,7 +26,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = datetime.unix() + '-' + Math.round(Math.random() * 1E9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
@@ -311,7 +312,7 @@ router.get("/sources", apiLimiter, (req, res) => {
     
     // Get paginated sources
     const sources = db.prepare(
-      "SELECT * FROM sources ORDER BY created_at DESC LIMIT ? OFFSET ?"
+      "SELECT * FROM sources ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?"
     ).all(limit, offset);
     
     res.json({
@@ -654,7 +655,7 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
     
     // Get paginated terms
     const terms = db.prepare(
-      "SELECT * FROM terms WHERE source_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+      "SELECT * FROM terms WHERE source_id = ? ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?"
     ).all(sourceId, limit, offset);
     
     res.json({
@@ -861,12 +862,12 @@ router.get("/sources/:id/tasks", apiLimiter, (req, res) => {
     
     // Get tasks for this source
     const tasks = db.prepare(
-      `SELECT * FROM tasks WHERE ${whereClause} ORDER BY created_at DESC`
+      `SELECT * FROM tasks WHERE ${whereClause} ORDER BY datetime(created_at) DESC`
     ).all(...params);
     
     // Get currently running task if any
     const runningTask = db.prepare(
-      "SELECT * FROM tasks WHERE source_id = ? AND status = 'running' ORDER BY started_at DESC LIMIT 1"
+      "SELECT * FROM tasks WHERE source_id = ? AND status = 'running' ORDER BY datetime(started_at) DESC LIMIT 1"
     ).get(sourceId);
     
     res.json({

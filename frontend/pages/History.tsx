@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { backendApi } from '../services/api';
 import { ApiUserActivity, ApiTerm } from '../types';
 import toast from 'react-hot-toast';
+import { parse, format } from '@/src/utils/datetime';
 
 const History: React.FC = () => {
   const { user } = useAuth();
@@ -38,7 +39,7 @@ const History: React.FC = () => {
 
         // Sort history by date descending
         const sortedHistory = historyData.sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            parse(b.created_at).valueOf() - parse(a.created_at).valueOf()
         );
         setHistory(sortedHistory);
       } catch (error) {
@@ -131,7 +132,7 @@ const History: React.FC = () => {
                     return (
                         <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                            {new Date(item.created_at).toLocaleDateString()}
+                            {format(parse(item.created_at), 'YYYY-MM-DD')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm font-medium text-slate-900 dark:text-white">

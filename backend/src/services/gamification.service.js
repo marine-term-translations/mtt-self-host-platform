@@ -1,6 +1,7 @@
 // Gamification service - handles points, streaks, and challenges
 
 const { getDatabase, resolveUsernameToId } = require("../db/database");
+const datetime = require("../utils/datetime");
 
 /**
  * Helper: Resolve user identifier to user_id
@@ -146,7 +147,7 @@ function updateStreak(userIdentifier) {
   ensureUserStats(userId);
   
   const stats = db.prepare("SELECT * FROM user_stats WHERE user_id = ?").get(userId);
-  const today = new Date().toISOString().split('T')[0];
+  const today = datetime.format(datetime.now(), 'YYYY-MM-DD');
   const lastActive = stats.last_active_date;
   
   let newStreak = stats.daily_streak;
@@ -157,9 +158,7 @@ function updateStreak(userIdentifier) {
     // First activity ever
     newStreak = 1;
   } else {
-    const lastActiveDate = new Date(lastActive);
-    const todayDate = new Date(today);
-    const daysDiff = Math.floor((todayDate - lastActiveDate) / (1000 * 60 * 60 * 24));
+    const daysDiff = datetime.diff(datetime.parse(today), datetime.parse(lastActive), 'day');
     
     if (daysDiff === 0) {
       // Same day, no change
@@ -267,7 +266,7 @@ function getDailyChallenges(userIdentifier) {
     return [];
   }
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = datetime.format(datetime.now(), 'YYYY-MM-DD');
   
   // Get existing challenges for today
   const existing = db.prepare(
@@ -309,7 +308,7 @@ function updateChallengeProgress(userIdentifier, challengeType, increment = 1) {
     return null;
   }
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = datetime.format(datetime.now(), 'YYYY-MM-DD');
   
   const challenge = db.prepare(
     "SELECT * FROM daily_challenges WHERE user_id = ? AND challenge_date = ? AND challenge_type = ?"

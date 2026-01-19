@@ -7,6 +7,7 @@ const router = express.Router();
 const config = require("../config");
 const { authLimiter } = require("../middleware/rateLimit");
 const { getDatabase } = require("../db/database");
+const datetime = require("../utils/datetime");
 
 /**
  * @openapi
@@ -116,7 +117,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
           name: name,
           orcid: orcid,
           is_admin: isFirstUser,
-          registered_at: new Date().toISOString()
+          registered_at: datetime.toISO(datetime.now())
         });
         
         const userResult = db.prepare(
@@ -126,7 +127,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
         userId = userResult.lastInsertRowid;
         username = orcid;
         userReputation = 0;
-        userExtra = { name, orcid, is_admin: isFirstUser, registered_at: new Date().toISOString() };
+        userExtra = { name, orcid, is_admin: isFirstUser, registered_at: datetime.toISO(datetime.now()) };
         
         // Create auth_provider entry
         db.prepare(
@@ -138,7 +139,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
           name,
           access_token,
           refresh_token,
-          new Date(Date.now() + expires_in * 1000).toISOString()
+          datetime.add(datetime.now(), expires_in, 'second')
         );
         
         console.log('[ORCID Callback] User created successfully with ID:', userId);
@@ -155,7 +156,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
         ).run(
           access_token,
           refresh_token,
-          new Date(Date.now() + expires_in * 1000).toISOString(),
+          datetime.add(datetime.now(), expires_in, 'second'),
           'orcid',
           orcid
         );
@@ -170,7 +171,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
         name: name || userExtra.name, 
         access_token, 
         refresh_token, 
-        expires_at: Date.now() + expires_in * 1000,
+        expires_at: datetime.unix(datetime.add(datetime.now(), expires_in, 'second')) * 1000,
         is_admin: userExtra.is_admin || false,
         reputation: userReputation
       };

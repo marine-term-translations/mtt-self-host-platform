@@ -4,6 +4,7 @@ import { ApiAppeal, ApiTerm } from '../../types';
 import { ArrowLeft, Loader2, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { parse, format } from '@/src/utils/datetime';
 
 const AdminModeration: React.FC = () => {
   const [appeals, setAppeals] = useState<ApiAppeal[]>([]);
@@ -93,7 +94,7 @@ const AdminModeration: React.FC = () => {
                                     </p>
                                 </div>
                                 <div className="text-right text-sm text-slate-500">
-                                    {new Date(appeal.opened_at).toLocaleDateString()}
+                                    {format(parse(appeal.opened_at), 'YYYY-MM-DD')}
                                 </div>
                             </div>
                             

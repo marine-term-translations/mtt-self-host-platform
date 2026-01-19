@@ -606,7 +606,7 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
     
     const history = db
       .prepare(
-        "SELECT * FROM user_activity WHERE user_id = ? ORDER BY created_at DESC"
+        "SELECT * FROM user_activity WHERE user_id = ? ORDER BY datetime(created_at) DESC"
       )
       .all(resolvedUserId);
     res.json(history);
@@ -729,7 +729,7 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
     const db = getDatabase();
     const history = db
       .prepare(
-        "SELECT * FROM user_activity WHERE term_id = ? ORDER BY created_at DESC"
+        "SELECT * FROM user_activity WHERE term_id = ? ORDER BY datetime(created_at) DESC"
       )
       .all(term_id);
     res.json(history);

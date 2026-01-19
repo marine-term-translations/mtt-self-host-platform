@@ -17,6 +17,7 @@ import {
   XCircle,
   Clock
 } from 'lucide-react';
+import { format, parse } from '@/src/utils/datetime';
 
 const API_URL = backendApi.baseUrl;
 
@@ -483,7 +484,7 @@ export default function AdminSourceDetail() {
                   <span className="font-medium">Type:</span> {runningTask.task_type}
                 </p>
                 <p>
-                  <span className="font-medium">Started:</span> {new Date(runningTask.started_at || runningTask.created_at).toLocaleString()}
+                  <span className="font-medium">Started:</span> {format(parse(runningTask.started_at || runningTask.created_at), 'YYYY-MM-DD HH:mm:ss')}
                 </p>
                 <Link 
                   to="/admin/tasks" 

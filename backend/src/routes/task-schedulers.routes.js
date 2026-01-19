@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const datetime = require("../utils/datetime");
 
 /**
  * @openapi
@@ -63,7 +64,7 @@ router.get("/task-schedulers", apiLimiter, (req, res) => {
     ).get(...params).count;
     
     const schedulers = db.prepare(
-      `SELECT * FROM task_schedulers ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM task_schedulers ${whereClause} ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?`
     ).all(...params, limit, offset);
     
     res.json({
@@ -185,7 +186,7 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
     let next_run = null;
     if (enabledValue === 1) {
       // Set next_run to now so it triggers immediately on first check
-      next_run = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      next_run = datetime.format(datetime.now(), 'YYYY-MM-DD HH:mm:ss');
     }
     
     const stmt = db.prepare(
@@ -399,7 +400,7 @@ router.post("/task-schedulers/:id/toggle", writeLimiter, (req, res) => {
     
     // If enabling the scheduler, set next_run to now so it triggers on next check
     if (newEnabled === 1) {
-      const next_run = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const next_run = datetime.format(datetime.now(), 'YYYY-MM-DD HH:mm:ss');
       db.prepare(
         "UPDATE task_schedulers SET enabled = ?, next_run = ?, updated_at = CURRENT_TIMESTAMP WHERE scheduler_id = ?"
       ).run(newEnabled, next_run, schedulerId);

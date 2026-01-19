@@ -206,14 +206,17 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
     
     # Add date filters if provided
     if start_date:
-        query += " AND (t.modified_at >= ? OR (t.modified_at IS NULL AND t.created_at >= ?))"
+        query += " AND (datetime(t.modified_at) >= datetime(?) OR (t.modified_at IS NULL AND datetime(t.created_at) >= datetime(?)))"
         params.extend([start_date.isoformat(), start_date.isoformat()])
     
     if end_date:
-        query += " AND (t.modified_at <= ? OR (t.modified_at IS NULL AND t.created_at <= ?))"
+        query += " AND (datetime(t.modified_at) <= datetime(?) OR (t.modified_at IS NULL AND datetime(t.created_at) <= datetime(?)))"
         params.extend([end_date.isoformat(), end_date.isoformat()])
     
-    query += " ORDER BY COALESCE(t.modified_at, t.created_at) ASC"
+    query += " ORDER BY datetime(COALESCE(t.modified_at, t.created_at)) ASC"
+    
+    print(f"Executing translation query with params: {params}")
+    print(f"Query: {query}")
     
     cursor.execute(query, params)
     rows = cursor.fetchall()

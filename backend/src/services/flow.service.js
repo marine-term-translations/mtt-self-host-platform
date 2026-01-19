@@ -53,7 +53,7 @@ function getPendingReviews(userIdentifier, language = null) {
     params.push(language);
   }
   
-  query += ` ORDER BY t.created_at ASC LIMIT 1`;
+  query += ` ORDER BY datetime(t.created_at) ASC LIMIT 1`;
   
   const reviews = db.prepare(query).get(...params);
   

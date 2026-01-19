@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Database, AlertCircle, CheckCircle, DownloadCloud, 
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { format, now } from '@/src/utils/datetime';
 
 interface HarvestResult {
   success: boolean;
@@ -42,7 +43,7 @@ const AdminHarvest: React.FC = () => {
     setLoading(true);
     setResult(null);
     setLogs([]); // Clear previous logs
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Connecting to harvest stream...`]);
+    setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Connecting to harvest stream...`]);
 
     try {
       const response = await backendApi.harvestCollectionStream(collectionUri, user?.token);
@@ -72,7 +73,7 @@ const AdminHarvest: React.FC = () => {
                 try {
                     const dataStr = line.trim().slice(6);
                     const data = JSON.parse(dataStr);
-                    const timestamp = new Date().toLocaleTimeString();
+                    const timestamp = format(now(), 'HH:mm:ss');
 
                     switch (data.type) {
                         case 'connected':
@@ -109,7 +110,7 @@ const AdminHarvest: React.FC = () => {
     } catch (error: any) {
       console.error("Harvest failed", error);
       const errorMsg = error.message || "Unknown error occurred";
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Error: ${errorMsg}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Error: ${errorMsg}`]);
       toast.error(`Harvest failed: ${errorMsg}`);
     } finally {
       setLoading(false);
@@ -126,7 +127,7 @@ const AdminHarvest: React.FC = () => {
     setLoading(true);
     setResult(null);
     setLogs([]);
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Creating LDES source...`]);
+    setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Creating LDES source...`]);
 
     try {
       const response = await fetch(`${backendApi.baseUrl}/sources`, {
@@ -148,9 +149,9 @@ const AdminHarvest: React.FC = () => {
       }
 
       const source = await response.json();
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ LDES source created successfully`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Source ID: ${source.source_id}`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Source path: ${source.source_path}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ✅ LDES source created successfully`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source ID: ${source.source_id}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source path: ${source.source_path}`]);
       toast.success("LDES source created successfully");
       
       // Reset form
@@ -159,7 +160,7 @@ const AdminHarvest: React.FC = () => {
     } catch (error: any) {
       console.error("LDES source creation failed", error);
       const errorMsg = error.message || "Unknown error occurred";
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Error: ${errorMsg}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ❌ Error: ${errorMsg}`]);
       toast.error(`Failed to create LDES source: ${errorMsg}`);
     } finally {
       setLoading(false);
@@ -176,7 +177,7 @@ const AdminHarvest: React.FC = () => {
     setLoading(true);
     setResult(null);
     setLogs([]);
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Uploading file: ${selectedFile.name}...`]);
+    setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Uploading file: ${selectedFile.name}...`]);
 
     try {
       const formData = new FormData();
@@ -199,13 +200,13 @@ const AdminHarvest: React.FC = () => {
       }
 
       const source = await response.json();
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ File uploaded successfully`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Source ID: ${source.source_id}`]);
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] File saved at: ${source.source_path}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ✅ File uploaded successfully`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source ID: ${source.source_id}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] File saved at: ${source.source_path}`]);
       
       if (source.task_id) {
-        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 📋 Processing task #${source.task_id} started`]);
-        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Status: ${source.task_status}`]);
+        setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] 📋 Processing task #${source.task_id} started`]);
+        setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Status: ${source.task_status}`]);
         toast.success("File uploaded! Processing in background...");
       } else {
         toast.success("File uploaded and source created successfully");
@@ -219,7 +220,7 @@ const AdminHarvest: React.FC = () => {
     } catch (error: any) {
       console.error("File upload failed", error);
       const errorMsg = error.message || "Unknown error occurred";
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Error: ${errorMsg}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ❌ Error: ${errorMsg}`]);
       toast.error(`File upload failed: ${errorMsg}`);
     } finally {
       setLoading(false);
