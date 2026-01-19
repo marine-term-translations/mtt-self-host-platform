@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
+import { parse, format, now } from '../utils/datetime';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -171,7 +172,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <span className="font-semibold text-slate-700 dark:text-slate-300">Marine Term Translations</span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center md:text-right">
-            &copy; {new Date().getFullYear()} Marine Term Translations. Data sourced from NERC Vocabulary Server.
+            &copy; {format(parse(now()), 'YYYY')} Marine Term Translations. Data sourced from NERC Vocabulary Server.
           </p>
         </div>
       </footer>

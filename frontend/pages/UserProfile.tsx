@@ -12,8 +12,7 @@ const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history
   // Determine date range (Last 365 days)
   const today = parse(format(parse(now()), 'YYYY-MM-DD'));
   const endDate = today;
-  let startDate = parse(today.toISOString());
-  startDate = startDate.subtract(365, 'day'); 
+  let startDate = today.subtract(365, 'day'); 
   
   // Adjust start date to previous Sunday to align grid
   const dayOfWeek = startDate.day(); // 0 is Sunday
@@ -80,7 +79,7 @@ const ContributionHeatmap: React.FC<{ history: ApiUserActivity[] }> = ({ history
                           <div 
                               key={dateStr}
                               className={`w-3 h-3 rounded-sm ${getColor(count)} transition-all duration-200 hover:ring-1 hover:ring-slate-400 dark:hover:ring-slate-500`}
-                              title={`${count} contributions on ${format(day.toISOString(), 'YYYY-MM-DD')}`}
+                              title={`${count} contributions on ${format(day, 'YYYY-MM-DD')}`}
                           ></div>
                       )
                   })}

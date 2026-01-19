@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
 import toast from 'react-hot-toast';
+import { parse, fromNow } from '../utils/datetime';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -67,7 +68,7 @@ const Dashboard: React.FC = () => {
         // 3. Process History
         // Sort by created_at desc just in case API doesn't
         const sortedHistory = history.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          parse(b.created_at).valueOf() - parse(a.created_at).valueOf()
         );
 
         setActivities(sortedHistory.slice(0, 5)); // Top 5 recent
@@ -100,14 +101,8 @@ const Dashboard: React.FC = () => {
   };
 
   const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return fromNow(parse(dateString));
+  };
   };
 
   const getLanguageName = (code: string) => {
