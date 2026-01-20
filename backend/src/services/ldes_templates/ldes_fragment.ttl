@@ -5,36 +5,39 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-<{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}>
+@base <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}.ttl> .
+
+<>
     a tree:Node ;
-{% for item in sets.qres %}
-    tree:member <{{ item.concept }}> ;
-{% endfor %}
+
 {% if has_previous %}
     tree:relation [
         a tree:GreaterThanOrEqualToRelation ;
         tree:node <{{ prefix_uri }}/{{ source_id }}/{{ prev_fragment_timestamp }}.ttl> ;
         tree:path dcterms:modified ;
-        tree:value "{{ prev_fragment_time }}"^^xsd:dateTime
+        tree:value {{ prev_fragment_time | xsd("datetime") }}
     ] .
 {% else %}
     .
 {% endif %}
 
-<{{ prefix_uri }}/{{ source_id }}>
+<feed>
     a ldes:EventStream ;
-    ldes:timestampPath dcterms:modified ;
-    ldes:versionOfPath dcterms:isVersionOf ;
-    tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}> .
+    ldes:timestampPath {{ldes_timestampPath_property | uri }} ;
+    ldes:versionOfPath {{ldes_versionOfPath_property | uri }} ;
+    tree:view <{{ prefix_uri }}/{{ source_id }}/{{ fragment_timestamp }}.ttl> .
 
 {% for item in sets.qres %}
-<{{ item.concept }}> 
-    a rdfs:Resource ;
-    dcterms:isVersionOf <{{ item.concept }}> ;
-    dcterms:modified "{{ item.modified }}"^^xsd:dateTime ;
+    <feed> tree:member <{{ item.concept }}> .
+{{ item.concept | uri }}
+    a {% for type in types %}
+        {{ type | uri }}{% if not loop.last %} ,{% endif %}
+    {% endfor %} ;
+    {{ldes_versionOfPath_property | uri }} {{ item.concept | uri }} ;
+    {{ldes_timestampPath_property | uri }} {{ item.modified  | xsd("datetime")}} ;
 {% for field_uri, field_values in item.fields.items() %}
 {% for field_value in field_values %}
-    <{{ field_uri }}> "{{ field_value.value }}"@{{ field_value.language }} ;
+    {{ field_uri | uri }} {{ field_value.value | xsd("@"~field_value.language)}};
 {% endfor %}
 {% endfor %}
     .
