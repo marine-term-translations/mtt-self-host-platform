@@ -110,13 +110,17 @@ router.get("/auth/orcid/callback", async (req, res) => {
       
       if (isNewUser) {
         console.log('[ORCID Callback] New user detected, creating user record');
-        console.log('[ORCID Callback] Is first user (admin):', isFirstUser);
+        console.log('[ORCID Callback] Is first user (superadmin):', isFirstUser);
         
         // Create user in database
         const extra = JSON.stringify({
           name: name,
           orcid: orcid,
           is_admin: isFirstUser,
+          is_superadmin: isFirstUser,
+          is_banned: false,
+          ban_reason: '',
+          banned_at: '',
           registered_at: datetime.toISO(datetime.now())
         });
         
@@ -127,7 +131,16 @@ router.get("/auth/orcid/callback", async (req, res) => {
         userId = userResult.lastInsertRowid;
         username = orcid;
         userReputation = 0;
-        userExtra = { name, orcid, is_admin: isFirstUser, registered_at: datetime.toISO(datetime.now()) };
+        userExtra = { 
+          name, 
+          orcid, 
+          is_admin: isFirstUser, 
+          is_superadmin: isFirstUser,
+          is_banned: false,
+          ban_reason: '',
+          banned_at: '',
+          registered_at: datetime.toISO(datetime.now()) 
+        };
         
         // Create auth_provider entry
         db.prepare(
@@ -149,6 +162,12 @@ router.get("/auth/orcid/callback", async (req, res) => {
         username = existingAuth.username;
         userReputation = existingAuth.reputation;
         userExtra = existingAuth.extra ? JSON.parse(existingAuth.extra) : {};
+        
+        // Check if user is banned
+        if (userExtra.is_banned) {
+          console.log('[ORCID Callback] User is banned:', orcid);
+          return res.redirect(`${config.frontendUrl}/login?error=user_banned&reason=${encodeURIComponent(userExtra.ban_reason || 'No reason provided')}`);
+        }
         
         // Update auth_provider tokens
         db.prepare(
@@ -173,6 +192,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
         refresh_token, 
         expires_at: datetime.unix(datetime.add(datetime.now(), expires_in, 'second')) * 1000,
         is_admin: userExtra.is_admin || false,
+        is_superadmin: userExtra.is_superadmin || false,
         reputation: userReputation
       };
 
