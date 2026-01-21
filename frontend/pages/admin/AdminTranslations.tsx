@@ -15,7 +15,7 @@ interface Translation {
   updated_at: string;
   field_name: string;
   term_id: number;
-  concept_uri: string;
+  uri: string;
 }
 
 const AdminTranslations: React.FC = () => {
@@ -103,7 +103,7 @@ const AdminTranslations: React.FC = () => {
 
   const filteredTranslations = translations.filter(t => 
     t.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.concept_uri?.toLowerCase().includes(searchTerm.toLowerCase())
+    t.uri?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusColor = (status: string) => {

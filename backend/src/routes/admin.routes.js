@@ -270,9 +270,9 @@ router.get("/admin/translations", requireAdmin, apiLimiter, (req, res) => {
         t.created_by_id,
         t.modified_by_id,
         t.reviewed_by_id,
-        tf.name as field_name,
+        tf.field_term as field_name,
         term.id as term_id,
-        term.concept_uri
+        term.uri
       FROM translations t
       LEFT JOIN term_fields tf ON t.term_field_id = tf.id
       LEFT JOIN terms term ON tf.term_id = term.id
