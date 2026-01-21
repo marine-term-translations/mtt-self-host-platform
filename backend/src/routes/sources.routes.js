@@ -255,8 +255,7 @@ router.post("/sources", writeLimiter, (req, res) => {
     // If this is an LDES feed, update ldes-feeds.yaml
     if (source_type === 'LDES') {
       try {
-        // Extract a short name from the source_path for the YAML key
-        // For LDES feeds, use the source_id as the key
+        // Use the source_id as the feed key in ldes-feeds.yaml
         const feedKey = `source_${sourceId}`;
         updateLdesFeedsYaml(feedKey, source_path);
       } catch (error) {

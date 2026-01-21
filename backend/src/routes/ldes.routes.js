@@ -76,9 +76,13 @@ router.get('/ldes/feeds', apiLimiter, (req, res) => {
       // Try to get source description from database
       let description = null;
       try {
-        const source = db.prepare("SELECT description FROM sources WHERE source_id = ?").get(parseInt(sourceId));
-        if (source) {
-          description = source.description;
+        // Validate that sourceId is numeric before querying
+        const numericSourceId = parseInt(sourceId, 10);
+        if (!isNaN(numericSourceId)) {
+          const source = db.prepare("SELECT description FROM sources WHERE source_id = ?").get(numericSourceId);
+          if (source) {
+            description = source.description;
+          }
         }
       } catch (dbError) {
         console.error(`Failed to get description for source ${sourceId}:`, dbError);
