@@ -938,20 +938,10 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           status,
           created_by,
         });
-        if (!language || !value || !created_by) {
+        if (!language || !value) {
           console.log("Skipping translation due to missing data", t);
           continue;
         }
-
-        // Resolve created_by to user_id
-        const createdByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(created_by, parseInt(created_by) || 0);
-        if (!createdByUser) {
-          console.error("Error: Created_by user not found", created_by);
-          return res.status(400).json({ 
-            error: `Invalid created_by user: ${created_by}` 
-          });
-        }
-        const createdByUserId = createdByUser.id;
 
         const translationKey = `${fieldId}:${language}`;
         const existingTranslation = oldTranslationMap[translationKey];
@@ -1109,6 +1099,22 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           }
         } else {
           // Insert new translation
+          // Validate created_by for new translations only
+          if (!created_by) {
+            console.log("Skipping new translation due to missing created_by", t);
+            continue;
+          }
+          
+          // Resolve created_by to user_id
+          const createdByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(created_by, parseInt(created_by) || 0);
+          if (!createdByUser) {
+            console.error("Error: Created_by user not found", created_by);
+            return res.status(400).json({ 
+              error: `Invalid created_by user: ${created_by}` 
+            });
+          }
+          const createdByUserId = createdByUser.id;
+          
           const translationResult = db
             .prepare(
               "INSERT INTO translations (term_field_id, language, value, status, created_by_id) VALUES (?, ?, ?, ?, ?)"
