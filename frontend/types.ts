@@ -32,6 +32,7 @@ export interface User {
   avatar: string;
   token: string;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
   orcid?: string;       // ORCID iD (still supported)
   reputation?: number;  // User reputation score
 }

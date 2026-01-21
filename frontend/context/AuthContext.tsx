@@ -35,6 +35,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || data.orcid)}&background=0ea5e9&color=fff`,
               token: data.access_token, // For compatibility with existing code
               isAdmin: data.is_admin || false, // Use is_admin from backend session
+              isSuperAdmin: data.is_superadmin || false, // Use is_superadmin from backend session
               orcid: data.orcid, // Keep ORCID for reference
               reputation: data.reputation // Include reputation if available
             };

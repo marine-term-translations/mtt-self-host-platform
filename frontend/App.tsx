@@ -28,6 +28,7 @@ import AdminQuery from './pages/admin/AdminQuery';
 import AdminTriplestore from './pages/admin/AdminTriplestore';
 import AdminTasks from './pages/admin/AdminTasks';
 import AdminTaskDetail from './pages/admin/AdminTaskDetail';
+import AdminTranslations from './pages/admin/AdminTranslations';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -166,6 +167,11 @@ const App: React.FC = () => {
         <Route path="/admin/tasks/:id" element={
           <AdminRoute>
             <AdminTaskDetail />
+          </AdminRoute>
+        } />
+        <Route path="/admin/translations" element={
+          <AdminRoute>
+            <AdminTranslations />
           </AdminRoute>
         } />
 

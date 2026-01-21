@@ -284,6 +284,58 @@ class ApiService {
   }> {
     return this.get('/ldes/feeds');
   }
+
+  // --- Admin Methods ---
+
+  public async getAdminUsers(): Promise<any[]> {
+    return this.get('/admin/users');
+  }
+
+  public async promoteUser(userId: number): Promise<any> {
+    return this.put(`/admin/users/${userId}/promote`, {});
+  }
+
+  public async demoteUser(userId: number): Promise<any> {
+    return this.put(`/admin/users/${userId}/demote`, {});
+  }
+
+  public async banUser(userId: number, reason: string): Promise<any> {
+    return this.put(`/admin/users/${userId}/ban`, { reason });
+  }
+
+  public async unbanUser(userId: number): Promise<any> {
+    return this.put(`/admin/users/${userId}/unban`, {});
+  }
+
+  public async getAdminTranslations(params?: {
+    status?: string;
+    language?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    translations: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    const queryParams: Record<string, string> = {};
+    if (params?.status) queryParams.status = params.status;
+    if (params?.language) queryParams.language = params.language;
+    if (params?.page) queryParams.page = params.page.toString();
+    if (params?.limit) queryParams.limit = params.limit.toString();
+    return this.get('/admin/translations', queryParams);
+  }
+
+  public async updateTranslationStatus(translationId: number, status: string): Promise<any> {
+    return this.put(`/admin/translations/${translationId}/status`, { status });
+  }
+
+  public async updateTranslationLanguage(translationId: number, language: string): Promise<any> {
+    return this.put(`/admin/translations/${translationId}/language`, { language });
+  }
 }
 
 // Export pre-configured instances

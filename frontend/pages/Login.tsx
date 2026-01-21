@@ -13,11 +13,19 @@ const Login: React.FC = () => {
   useEffect(() => {
     // Check for error in query params (from OAuth callback)
     const error = searchParams.get('error');
+    const reason = searchParams.get('reason');
+    
     if (error) {
       if (error === 'invalid_state') {
         toast.error('Invalid authentication state. Please try again.');
       } else if (error === 'orcid_failed') {
         toast.error('ORCID authentication failed. Please try again.');
+      } else if (error === 'user_banned') {
+        const banReason = reason ? decodeURIComponent(reason) : 'No reason provided';
+        toast.error(`Your account has been banned. Reason: ${banReason}`, {
+          duration: 8000,
+          icon: '🚫'
+        });
       }
     }
   }, [searchParams]);
