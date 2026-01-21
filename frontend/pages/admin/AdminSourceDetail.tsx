@@ -26,6 +26,7 @@ interface Source {
   source_path: string;
   graph_name: string;
   source_type: string;
+  description: string | null;
   created_at: string;
   last_modified: string;
   translation_config?: TranslationConfig;
@@ -462,6 +463,10 @@ export default function AdminSourceDetail() {
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Path:</span>
             <span className="ml-2 text-gray-900 dark:text-white font-mono break-all">{source.source_path}</span>
+          </div>
+          <div className="col-span-2">
+            <span className="text-gray-600 dark:text-gray-400">Description:</span>
+            <span className="ml-2 text-gray-900 dark:text-white break-all">{source.description || <span className="text-gray-400 italic">No description</span>}</span>
           </div>
           <div className="col-span-2">
             <span className="text-gray-600 dark:text-gray-400">Graph Name:</span>

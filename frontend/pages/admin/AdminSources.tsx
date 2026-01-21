@@ -10,7 +10,7 @@ interface Source {
   source_id: number;
   source_path: string;
   source_type: 'LDES' | 'Static_file';
-  graph_name: string | null;
+  description: string | null;
   created_at: string;
   last_modified: string;
 }
@@ -182,7 +182,7 @@ const AdminSources: React.FC = () => {
                     Source Path
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Graph Name
+                    Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Created
@@ -222,7 +222,7 @@ const AdminSources: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
-                      {source.graph_name || <span className="text-slate-400">—</span>}
+                      {source.description || <span className="text-slate-400 italic">No description</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1">

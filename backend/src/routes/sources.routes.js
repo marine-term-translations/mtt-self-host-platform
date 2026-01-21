@@ -193,9 +193,13 @@ function updateLdesFeedsYaml(graphName, url) {
  *               source_path:
  *                 type: string
  *                 description: Path or URI of the data source
- *               graph_name:
+ *               description:
  *                 type: string
- *                 description: Optional graph name for RDF data sources
+ *                 description: Optional description of the data source
+ *               source_type:
+ *                 type: string
+ *                 enum: [LDES, Static_file]
+ *                 description: Type of the data source
  *     responses:
  *       201:
  *         description: Source created successfully
@@ -210,6 +214,9 @@ function updateLdesFeedsYaml(graphName, url) {
  *                   type: string
  *                 graph_name:
  *                   type: string
+ *                   description: Auto-generated graph name (urn:mtt:source:{source_id})
+ *                 description:
+ *                   type: string
  *                 created_at:
  *                   type: string
  *                 last_modified:
@@ -220,7 +227,7 @@ function updateLdesFeedsYaml(graphName, url) {
  *         description: Server error
  */
 router.post("/sources", writeLimiter, (req, res) => {
-  const { source_path, graph_name, source_type } = req.body;
+  const { source_path, source_type, description } = req.body;
   
   if (!source_path) {
     return res.status(400).json({ error: "Missing source_path" });
@@ -234,14 +241,23 @@ router.post("/sources", writeLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const stmt = db.prepare(
-      "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
+      "INSERT INTO sources (source_path, source_type, description) VALUES (?, ?, ?)"
     );
-    const info = stmt.run(source_path, graph_name || null, source_type || 'Static_file');
+    const info = stmt.run(source_path, source_type || 'Static_file', description || null);
     
-    // If this is an LDES feed and a graph_name is provided, update ldes-feeds.yaml
-    if (source_type === 'LDES' && graph_name) {
+    // Auto-generate graph_name from source_id
+    const sourceId = info.lastInsertRowid;
+    const autoGraphName = `urn:mtt:source:${sourceId}`;
+    
+    // Update the source with the auto-generated graph_name
+    db.prepare("UPDATE sources SET graph_name = ? WHERE source_id = ?").run(autoGraphName, sourceId);
+    
+    // If this is an LDES feed, update ldes-feeds.yaml
+    if (source_type === 'LDES') {
       try {
-        updateLdesFeedsYaml(graph_name, source_path);
+        // Use the source_id as the feed key in ldes-feeds.yaml
+        const feedKey = `source_${sourceId}`;
+        updateLdesFeedsYaml(feedKey, source_path);
       } catch (error) {
         console.error('Failed to update ldes-feeds.yaml:', error.message);
         // Continue - source is still created in database
@@ -249,7 +265,7 @@ router.post("/sources", writeLimiter, (req, res) => {
     }
     
     // Fetch the created source
-    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
     
     res.status(201).json(source);
   } catch (err) {
@@ -405,8 +421,11 @@ router.get("/sources/:id", apiLimiter, (req, res) => {
  *             properties:
  *               source_path:
  *                 type: string
- *               graph_name:
+ *               description:
  *                 type: string
+ *               source_type:
+ *                 type: string
+ *                 enum: [LDES, Static_file]
  *     responses:
  *       200:
  *         description: Source updated successfully
@@ -421,7 +440,7 @@ router.get("/sources/:id", apiLimiter, (req, res) => {
  */
 router.put("/sources/:id", writeLimiter, (req, res) => {
   const { id } = req.params;
-  const { source_path, graph_name, source_type } = req.body;
+  const { source_path, source_type, description } = req.body;
   
   // Validate that id is a valid integer
   const sourceId = parseInt(id, 10);
@@ -447,10 +466,10 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
       return res.status(404).json({ error: "Source not found" });
     }
     
-    // Update the source
+    // Update the source (graph_name is not updated as it's auto-generated)
     db.prepare(
-      "UPDATE sources SET source_path = ?, graph_name = ?, source_type = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
-    ).run(source_path, graph_name || null, source_type || existing.source_type || 'Static_file', sourceId);
+      "UPDATE sources SET source_path = ?, source_type = ?, description = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
+    ).run(source_path, source_type || existing.source_type || 'Static_file', description || null, sourceId);
     
     // Fetch updated source
     const updated = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
@@ -689,9 +708,9 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *                 type: string
  *                 format: binary
  *                 description: RDF file (.ttl, .rdf, .xml, .jsonld, .json, .nt, .nq)
- *               graph_name:
+ *               description:
  *                 type: string
- *                 description: Optional graph name for the RDF data
+ *                 description: Optional description of the data source
  *     responses:
  *       201:
  *         description: File uploaded and source created successfully
@@ -705,6 +724,9 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *                 source_path:
  *                   type: string
  *                 graph_name:
+ *                   type: string
+ *                   description: Auto-generated graph name (urn:mtt:source:{source_id})
+ *                 description:
  *                   type: string
  *                 source_type:
  *                   type: string
@@ -721,7 +743,7 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const { graph_name } = req.body;
+    const { description } = req.body;
     // Use the actual file path (relative to the upload directory)
     const filePath = process.env.NODE_ENV === 'production' 
       ? `/data/uploads/${req.file.filename}`
@@ -730,19 +752,26 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     // Create source entry in database first
     const db = getDatabase();
     const stmt = db.prepare(
-      "INSERT INTO sources (source_path, graph_name, source_type) VALUES (?, ?, ?)"
+      "INSERT INTO sources (source_path, source_type, description) VALUES (?, ?, ?)"
     );
-    const info = stmt.run(filePath, graph_name || null, 'Static_file');
+    const info = stmt.run(filePath, 'Static_file', description || null);
+    
+    // Auto-generate graph_name from source_id
+    const sourceId = info.lastInsertRowid;
+    const autoGraphName = `urn:mtt:source:${sourceId}`;
+    
+    // Update the source with the auto-generated graph_name
+    db.prepare("UPDATE sources SET graph_name = ? WHERE source_id = ?").run(autoGraphName, sourceId);
     
     // Fetch the created source
-    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(info.lastInsertRowid);
+    const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
     
     // Create a task for the file upload processing
     const created_by = req.session?.user?.username || null;
     const taskMetadata = JSON.stringify({
       filename: req.file.originalname,
       size: req.file.size,
-      graph_name: graph_name || null
+      graph_name: autoGraphName
     });
     
     const taskStmt = db.prepare(
@@ -760,7 +789,7 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
         ).run(taskId);
         
         // Upload file to GraphDB triplestore
-        const uploadResult = await uploadToGraphDB(req.file.path, graph_name);
+        const uploadResult = await uploadToGraphDB(req.file.path, autoGraphName);
         console.log('GraphDB upload successful:', uploadResult.message);
         
         // Mark task as completed
