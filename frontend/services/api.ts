@@ -272,6 +272,18 @@ class ApiService {
     
     return this.get('/browse', queryParams);
   }
+
+  // LDES Feeds
+  public async getLdesFeeds(): Promise<{
+    feeds: Array<{
+      sourceId: string;
+      latestUrl: string;
+      fragmentCount: number;
+      fragments: Array<{ name: string; url: string }>;
+    }>;
+  }> {
+    return this.get('/ldes/feeds');
+  }
 }
 
 // Export pre-configured instances

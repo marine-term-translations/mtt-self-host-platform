@@ -17,6 +17,7 @@ import Reputation from './pages/Reputation';
 import Leaderboard from './pages/Leaderboard';
 import Documentation from './pages/Documentation';
 import TranslationFlow from './pages/TranslationFlow';
+import LdesFeeds from './pages/LdesFeeds';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
@@ -64,6 +65,7 @@ const App: React.FC = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/ldes" element={<LdesFeeds />} />
         
         {/* Protected Routes */}
         <Route path="/dashboard" element={

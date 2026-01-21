@@ -9,6 +9,8 @@ import sqlite3
 import os
 import json
 import shutil
+import requests
+from io import StringIO
 from datetime import datetime, timedelta
 from pathlib import Path
 from sema.subyt import (
@@ -76,6 +78,8 @@ def detect_existing_ldes(source_id):
         return True, None
     
     return False, None
+
+
 
 
 def get_latest_modified_from_fragment(fragment_path):
@@ -242,6 +246,156 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
     return results
 
 
+def extract_types_from_source(db_path, source_id):
+    """
+    Extract the type URIs from a source's translation_config column.
+    
+    Args:
+        db_path: Path to the SQLite database
+        source_id: Source identifier
+        
+    Returns:
+        List of type URIs (e.g., ["http://qudt.org/schema/qudt/CoordinateSystem"])
+        Returns empty list if no types found or on error.
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        # Query the translation_config from sources table
+        cursor.execute(
+            "SELECT translation_config FROM sources WHERE source_id = ?",
+            [source_id]
+        )
+        row = cursor.fetchone()
+        
+        if not row or not row[0]:
+            print(f"No translation_config found for source {source_id}")
+            return []
+        
+        # Parse the JSON string
+        config = json.loads(row[0])
+        
+        # Extract type URIs from types array
+        types = []
+        if 'types' in config and isinstance(config['types'], list):
+            for type_obj in config['types']:
+                if isinstance(type_obj, dict) and 'type' in type_obj:
+                    types.append(type_obj['type'])
+        
+        print(f"Extracted types for source {source_id}: {types}")
+        return types
+        
+    except json.JSONDecodeError as e:
+        print(f"Error parsing translation_config JSON for source {source_id}: {e}")
+        return []
+    except Exception as e:
+        print(f"Error extracting types for source {source_id}: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def extract_ldes_paths_from_source(db_path, source_id=1):
+    """
+    Extract ldes:timestampPath and ldes:versionOfPath from a source's LDES feed.
+    
+    This function queries the sources table for the given source_id.
+    If the source_type is 'LDES', it retrieves the TTL content from the source_path URI
+    and extracts the LDES properties.
+    
+    Args:
+        db_path: Path to the SQLite database
+        source_id: Source identifier (default: 1)
+        
+    Returns:
+        tuple: (ldes_timestampPath_property, ldes_versionOfPath_property)
+               Defaults to full URIs if not found or on error
+    """
+    # Default values (full URIs)
+    default_timestamp = 'http://purl.org/dc/terms/modified'
+    default_versionof = 'http://purl.org/dc/terms/isVersionOf'
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        # Query source_path and source_type from sources table
+        cursor.execute(
+            "SELECT source_path, source_type FROM sources WHERE source_id = ?",
+            [source_id]
+        )
+        row = cursor.fetchone()
+        
+        if not row:
+            print(f"No source found for source_id {source_id}")
+            return default_timestamp, default_versionof
+        
+        source_path, source_type = row
+        
+        if source_type != 'LDES':
+            print(f"Source {source_id} is not of type LDES (type: {source_type})")
+            return default_timestamp, default_versionof
+        
+        if not source_path:
+            print(f"No source_path found for source {source_id}")
+            return default_timestamp, default_versionof
+        
+        print(f"Retrieving LDES TTL from URI: {source_path}")
+        
+        # Fetch the TTL content from the URI
+        try:
+            response = requests.get(source_path, timeout=30)
+            response.raise_for_status()
+            ttl_content = response.text
+        except requests.RequestException as e:
+            print(f"Error fetching LDES TTL from {source_path}: {e}")
+            return default_timestamp, default_versionof
+        
+        # Parse the TTL content
+        g = Graph()
+        try:
+            g.parse(StringIO(ttl_content), format="turtle", publicID=source_path)
+        except Exception as e:
+            print(f"Error parsing TTL content from {source_path}: {e}")
+            return default_timestamp, default_versionof
+        
+        # Extract ldes:timestampPath
+        timestamp_path = None
+        for s, p, o in g.triples((None, LDES.timestampPath, None)):
+            timestamp_path = str(o)
+            break
+        
+        # Extract ldes:versionOfPath
+        versionof_path = None
+        for s, p, o in g.triples((None, LDES.versionOfPath, None)):
+            versionof_path = str(o)
+            break
+        
+        # Use defaults if not found
+        if not timestamp_path:
+            print(f"ldes:timestampPath not found in {source_path}, using default: {default_timestamp}")
+            timestamp_path = default_timestamp
+        else:
+            print(f"Found ldes:timestampPath: {timestamp_path}")
+        
+        if not versionof_path:
+            print(f"ldes:versionOfPath not found in {source_path}, using default: {default_versionof}")
+            versionof_path = default_versionof
+        else:
+            print(f"Found ldes:versionOfPath: {versionof_path}")
+        
+        return timestamp_path, versionof_path
+        
+    except Exception as e:
+        print(f"Error extracting LDES paths for source {source_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return default_timestamp, default_versionof
+    finally:
+        conn.close()
+
+
 def prepare_ldes_data(translations):
     """
     Transform translation records into LDES-compatible format.
@@ -291,7 +445,7 @@ def prepare_ldes_data(translations):
     return list(terms_data.values())
 
 
-def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragment_timestamp, prefix_uri, prev_fragment_time):
+def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragment_timestamp, prefix_uri, prev_fragment_time, types=None, ldes_timestampPath_property=None, ldes_versionOfPath_property=None):
     """
     Generate an LDES fragment using py-sema (Subyt).
     
@@ -302,6 +456,9 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragme
         prev_fragment_timestamp: Epoch timestamp for previous fragment (string or None)
         prefix_uri: Base URI prefix for the LDES
         prev_fragment_time: ISO datetime string for tree:value (or None)
+        types: List of type URIs extracted from source translation_config (optional)
+        ldes_timestampPath_property: Property for LDES timestampPath (e.g., "dc:modified")
+        ldes_versionOfPath_property: Property for LDES versionOfPath (e.g., "dc:isVersionOf")
         
     Returns:
         Path to the generated fragment file
@@ -320,6 +477,12 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragme
         json.dump(ldes_data, f)
     
     try:
+        # Set default values if not provided
+        if ldes_timestampPath_property is None:
+            ldes_timestampPath_property = 'dc:modified'
+        if ldes_versionOfPath_property is None:
+            ldes_versionOfPath_property = 'dc:isVersionOf'
+        
         # Prepare variables for template
         vars_dict = {
             'source_id': source_id,
@@ -328,6 +491,9 @@ def generate_ldes_fragment(source_id, ldes_data, fragment_timestamp, prev_fragme
             'prev_fragment_time': prev_fragment_time,
             'prefix_uri': prefix_uri,
             'has_previous': prev_fragment_timestamp is not None,
+            'types': types if types else [],
+            'ldes_timestampPath_property': ldes_timestampPath_property,
+            'ldes_versionOfPath_property': ldes_versionOfPath_property,
         }
         
         # Get templates folder
@@ -370,7 +536,7 @@ def update_latest_symlink(source_id, fragment_file):
     print(f"Updated latest.ttl -> {fragment_file.name}")
 
 
-def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-translations.github.io"):
+def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be_filled_in.com"):
     """
     Main function to create or update LDES feed for a source.
     
@@ -477,6 +643,17 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
         prev_fragment_time = None
         print("No previous fragment found. This is the first fragment.")
     
+    # Step 5c: Extract types from source translation_config
+    types = extract_types_from_source(db_path, source_id)
+    
+    print(f"Types extracted for LDES: {types}")
+    
+    # Step 5d: Extract LDES paths (timestampPath and versionOfPath) from source
+    ldes_timestampPath_property, ldes_versionOfPath_property = extract_ldes_paths_from_source(db_path, source_id)
+    
+    print(f"LDES timestampPath property: {ldes_timestampPath_property}")
+    print(f"LDES versionOfPath property: {ldes_versionOfPath_property}")
+    
     # Step 6: Generate LDES fragment
     fragment_file = generate_ldes_fragment(
         source_id,
@@ -484,7 +661,10 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://marine-term-tr
         fragment_timestamp,
         prev_fragment_timestamp,
         prefix_uri,
-        prev_fragment_time
+        prev_fragment_time,
+        types,
+        ldes_timestampPath_property,
+        ldes_versionOfPath_property
     )
     
     # Step 7: Update latest.ttl

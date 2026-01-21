@@ -21,6 +21,7 @@ const queryRoutes = require("./routes/query.routes");
 const sparqlRoutes = require("./routes/sparql.routes");
 const tasksRoutes = require("./routes/tasks.routes");
 const taskSchedulersRoutes = require("./routes/task-schedulers.routes");
+const ldesRoutes = require("./routes/ldes.routes");
 
 const app = express();
 
@@ -91,5 +92,6 @@ app.use("/", queryRoutes);
 app.use("/", sparqlRoutes);
 app.use("/", tasksRoutes);
 app.use("/", taskSchedulersRoutes);
+app.use("/", ldesRoutes);
 
 module.exports = app;
