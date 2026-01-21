@@ -4,6 +4,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { apiLimiter } = require('../middleware/rateLimit');
+const { getDatabase } = require('../db/database');
 
 // Base directory for LDES data (from environment or default)
 const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
@@ -28,6 +29,8 @@ const LDES_BASE_DIR = process.env.LDES_BASE_DIR || '/data/LDES';
  *                     type: object
  *                     properties:
  *                       sourceId:
+ *                         type: string
+ *                       description:
  *                         type: string
  *                       latestUrl:
  *                         type: string
@@ -55,6 +58,9 @@ router.get('/ldes/feeds', apiLimiter, (req, res) => {
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
 
+    // Get database connection to fetch source descriptions
+    const db = getDatabase();
+
     const feeds = sourceDirs.map(sourceId => {
       const sourcePath = path.join(LDES_BASE_DIR, sourceId);
       const files = fs.readdirSync(sourcePath);
@@ -67,8 +73,20 @@ router.get('/ldes/feeds', apiLimiter, (req, res) => {
         url: `api/ldes/data/${sourceId}/${filename}`
       }));
 
+      // Try to get source description from database
+      let description = null;
+      try {
+        const source = db.prepare("SELECT description FROM sources WHERE source_id = ?").get(parseInt(sourceId));
+        if (source) {
+          description = source.description;
+        }
+      } catch (dbError) {
+        console.error(`Failed to get description for source ${sourceId}:`, dbError);
+      }
+
       return {
         sourceId,
+        description,
         latestUrl: `api/ldes/data/${sourceId}/latest.ttl`,
         fragmentCount: fragmentFiles.length,
         fragments

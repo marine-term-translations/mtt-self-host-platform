@@ -10,6 +10,7 @@ interface Fragment {
 
 interface LdesFeed {
   sourceId: string;
+  description: string | null;
   latestUrl: string;
   fragmentCount: number;
   fragments: Fragment[];
@@ -136,11 +137,16 @@ const LdesFeeds: React.FC = () => {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                      Source {feed.sourceId}
+                      {feed.description || `Source ${feed.sourceId}`}
                     </h2>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
                       {feed.fragmentCount} fragment{feed.fragmentCount !== 1 ? 's' : ''} available
                     </p>
+                    {!feed.description && (
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                        Source ID: {feed.sourceId}
+                      </p>
+                    )}
                   </div>
                 </div>
 

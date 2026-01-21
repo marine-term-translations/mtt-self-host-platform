@@ -23,7 +23,7 @@ const AdminHarvest: React.FC = () => {
   const [collectionUri, setCollectionUri] = useState('http://vocab.nerc.ac.uk/collection/P01/current/');
   const [ldesUrl, setLdesUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [graphName, setGraphName] = useState('');
+  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<HarvestResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -139,7 +139,7 @@ const AdminHarvest: React.FC = () => {
         body: JSON.stringify({
           source_path: ldesUrl,
           source_type: 'LDES',
-          graph_name: graphName || null
+          description: description || null
         })
       });
 
@@ -152,11 +152,12 @@ const AdminHarvest: React.FC = () => {
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ✅ LDES source created successfully`]);
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source ID: ${source.source_id}`]);
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source path: ${source.source_path}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Graph name: ${source.graph_name}`]);
       toast.success("LDES source created successfully");
       
       // Reset form
       setLdesUrl('');
-      setGraphName('');
+      setDescription('');
     } catch (error: any) {
       console.error("LDES source creation failed", error);
       const errorMsg = error.message || "Unknown error occurred";
@@ -182,10 +183,8 @@ const AdminHarvest: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      if (graphName) {
-        // Prepend 'urn:' to graph name if not already present
-        const graphToUse = graphName.startsWith('urn:') ? graphName : `urn:${graphName}`;
-        formData.append('graph_name', graphToUse);
+      if (description) {
+        formData.append('description', description);
       }
 
       const response = await fetch(`${backendApi.baseUrl}/sources/upload`, {
@@ -203,6 +202,7 @@ const AdminHarvest: React.FC = () => {
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] ✅ File uploaded successfully`]);
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Source ID: ${source.source_id}`]);
       setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] File saved at: ${source.source_path}`]);
+      setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] Graph name: ${source.graph_name}`]);
       
       if (source.task_id) {
         setLogs(prev => [...prev, `[${format(now(), 'HH:mm:ss')}] 📋 Processing task #${source.task_id} started`]);
@@ -214,7 +214,7 @@ const AdminHarvest: React.FC = () => {
       
       // Reset form
       setSelectedFile(null);
-      setGraphName('');
+      setDescription('');
       const fileInput = document.getElementById('file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     } catch (error: any) {
@@ -368,18 +368,21 @@ const AdminHarvest: React.FC = () => {
                     </div>
 
                     <div className="mb-6">
-                        <label htmlFor="ldes-graph" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Graph Name (Optional)
+                        <label htmlFor="ldes-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Description (Optional)
                         </label>
                         <input 
-                            id="ldes-graph"
+                            id="ldes-description"
                             type="text" 
-                            value={graphName}
-                            onChange={(e) => setGraphName(e.target.value)}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 outline-none"
-                            placeholder="http://example.org/graph"
+                            placeholder="Brief description of this LDES feed"
                             disabled={loading}
                         />
+                        <p className="mt-2 text-xs text-slate-500">
+                            A user-friendly description to help identify this source.
+                        </p>
                     </div>
 
                     <div className="flex justify-end">
@@ -433,18 +436,21 @@ const AdminHarvest: React.FC = () => {
                     </div>
 
                     <div className="mb-6">
-                        <label htmlFor="file-graph" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Graph Name (Optional)
+                        <label htmlFor="file-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Description (Optional)
                         </label>
                         <input 
-                            id="file-graph"
+                            id="file-description"
                             type="text" 
-                            value={graphName}
-                            onChange={(e) => setGraphName(e.target.value)}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 outline-none"
-                            placeholder="http://example.org/graph"
+                            placeholder="Brief description of this file"
                             disabled={loading}
                         />
+                        <p className="mt-2 text-xs text-slate-500">
+                            A user-friendly description to help identify this source.
+                        </p>
                     </div>
 
                     <div className="flex justify-end">
