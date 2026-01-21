@@ -169,7 +169,7 @@ def get_previous_fragment(source_id):
 
 def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=None):
     """
-    Query the database for translations with status='review' for LDES generation.
+    Query the database for translations with status='approved' for LDES generation.
     
     Args:
         db_path: Path to the SQLite database
@@ -203,7 +203,7 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
         JOIN term_fields tf ON t.term_field_id = tf.id
         JOIN terms tm ON tf.term_id = tm.id
         WHERE tm.source_id = ?
-        AND t.status = 'review'
+        AND t.status = 'approved'
     """
     
     params = [source_id]
@@ -536,13 +536,57 @@ def update_latest_symlink(source_id, fragment_file):
     print(f"Updated latest.ttl -> {fragment_file.name}")
 
 
+def update_translations_to_merged(db_path, translation_ids):
+    """
+    Update translations status from 'approved' to 'merged' after successful LDES fragment creation.
+    
+    Args:
+        db_path: Path to the SQLite database
+        translation_ids: List of translation IDs to update
+        
+    Returns:
+        int: Number of translations updated
+    """
+    if not translation_ids:
+        return 0
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        # Update translations in batch
+        placeholders = ','.join('?' * len(translation_ids))
+        query = f"""
+            UPDATE translations 
+            SET status = 'merged', 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id IN ({placeholders})
+            AND status = 'approved'
+        """
+        
+        cursor.execute(query, translation_ids)
+        updated_count = cursor.rowcount
+        conn.commit()
+        
+        print(f"Updated {updated_count} translation(s) to 'merged' status")
+        return updated_count
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating translations to merged: {e}")
+        raise
+    finally:
+        conn.close()
+
+
 def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be_filled_in.com"):
     """
     Main function to create or update LDES feed for a source.
     
     This function works with all source types (LDES and Static_file sources).
-    It generates LDES fragments from translations with status='review', regardless
+    It generates LDES fragments from translations with status='approved', regardless
     of whether the source was originally from an LDES feed or a static file import.
+    After successful fragment creation, translations are updated to status='merged'.
     
     Args:
         source_id: Source identifier
@@ -606,10 +650,10 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be
         translations = query_translations_for_ldes(db_path, source_id)
     
     if not translations:
-        print("No translations with status='review' found.")
+        print("No translations with status='approved' found.")
         return {
             'status': 'skipped',
-            'message': 'No translations with status=review found',
+            'message': 'No translations with status=approved found',
             'fragment': None
         }
     
@@ -670,11 +714,16 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be
     # Step 7: Update latest.ttl
     update_latest_symlink(source_id, fragment_file)
     
+    # Step 8: Update translation statuses to 'merged' after successful fragment creation
+    translation_ids = [t['translation_id'] for t in translations]
+    updated_count = update_translations_to_merged(db_path, translation_ids)
+    
     return {
         'status': 'success',
         'message': f'LDES fragment created successfully',
         'fragment': str(fragment_file),
-        'translations_count': len(translations)
+        'translations_count': len(translations),
+        'merged_count': updated_count
     }
 
 
