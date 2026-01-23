@@ -185,6 +185,74 @@ CREATE TABLE message_reports (
 
 CREATE INDEX idx_message_reports_status ON message_reports(status);
 
+-- Auth providers for multi-provider authentication
+CREATE TABLE auth_providers (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider         TEXT    NOT NULL, -- 'orcid', 'github', 'google', 'email', etc.
+    provider_id      TEXT    NOT NULL, -- Provider-specific user ID (e.g., ORCID iD)
+    email            TEXT,
+    name             TEXT,
+    avatar_url       TEXT,
+    access_token     TEXT,
+    refresh_token    TEXT,
+    token_expires_at DATETIME,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, provider),
+    UNIQUE(provider, provider_id)
+);
+
+-- User statistics table for gamification
+CREATE TABLE user_stats (
+    user_id         INTEGER PRIMARY KEY,
+    points          INTEGER DEFAULT 0,
+    daily_streak    INTEGER DEFAULT 0,
+    longest_streak  INTEGER DEFAULT 0,
+    last_active_date DATE,
+    translations_count INTEGER DEFAULT 0,
+    reviews_count   INTEGER DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_user_stats_points ON user_stats(points DESC);
+CREATE INDEX idx_user_stats_streak ON user_stats(daily_streak DESC);
+
+-- Daily challenges tracking
+CREATE TABLE daily_challenges (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    challenge_date  DATE NOT NULL,
+    challenge_type  TEXT NOT NULL CHECK(challenge_type IN ('translate_5', 'review_10', 'daily_login', 'streak_maintain')),
+    target_count    INTEGER NOT NULL,
+    current_count   INTEGER DEFAULT 0,
+    completed       INTEGER DEFAULT 0 CHECK(completed IN (0, 1)),
+    points_reward   INTEGER DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at    DATETIME,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, challenge_date, challenge_type)
+);
+
+CREATE INDEX idx_daily_challenges_user ON daily_challenges(user_id, challenge_date);
+CREATE INDEX idx_daily_challenges_date ON daily_challenges(challenge_date);
+
+-- Flow session tracking for analytics
+CREATE TABLE flow_sessions (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id                 INTEGER NOT NULL,
+    started_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ended_at                DATETIME,
+    translations_completed  INTEGER DEFAULT 0,
+    reviews_completed       INTEGER DEFAULT 0,
+    points_earned           INTEGER DEFAULT 0,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_flow_sessions_user ON flow_sessions(user_id, started_at DESC);
+
 -- FTS5 virtual table for full-text search
 CREATE VIRTUAL TABLE translations_fts USING fts5(
     value,

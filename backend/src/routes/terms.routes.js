@@ -789,7 +789,6 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *                   properties:
  *                     field_uri:
  *                       type: string
- *                       type: string
  *                     original_value:
  *                       type: string
  *                     translations:
