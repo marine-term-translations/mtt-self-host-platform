@@ -28,10 +28,10 @@ const AdminUsers: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const data = await backendApi.getAdminUsers();
-      // Parse extra field for each user
+      // Backend already parses extra field, just use it directly
       const parsedUsers = data.map((u: any) => ({
         ...u,
-        extra_parsed: u.extra ? JSON.parse(u.extra) : {}
+        extra_parsed: typeof u.extra === 'string' ? JSON.parse(u.extra) : (u.extra || {})
       }));
       setUsers(parsedUsers);
     } catch (error) {
