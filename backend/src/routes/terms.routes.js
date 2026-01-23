@@ -326,10 +326,24 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       return res.status(404).json({ error: "Term not found" });
     }
     
-    // Get fields for this term
-    const fields = db
-      .prepare("SELECT * FROM term_fields WHERE term_id = ?")
-      .all(term.id);
+    // Get the source to find translatable fields
+    const source = db.prepare("SELECT translatable_field_uris FROM sources WHERE source_id = ?").get(term.source_id);
+    let translatableFieldUris = [];
+    if (source && source.translatable_field_uris) {
+      try {
+        translatableFieldUris = JSON.parse(source.translatable_field_uris);
+      } catch (err) {
+        console.error('[Terms] Failed to parse translatable_field_uris:', err);
+      }
+    }
+    
+    // Get fields for this term - filter to only translatable fields if configured
+    let fields = db.prepare("SELECT * FROM term_fields WHERE term_id = ?").all(term.id);
+    
+    if (translatableFieldUris.length > 0) {
+      // Only show fields that are in the translatable_field_uris list
+      fields = fields.filter(f => translatableFieldUris.includes(f.field_uri));
+    }
     
     // Get all translations for all fields in a single query to avoid N+1 problem
     const fieldIds = fields.map(f => f.id);
@@ -337,8 +351,9 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     
     if (fieldIds.length > 0) {
       const placeholders = fieldIds.map(() => '?').join(',');
+      // Only get translations with status 'original' or 'merged' for display
       allTranslations = db
-        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders})`)
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders}) AND (status = 'original' OR status = 'merged')`)
         .all(...fieldIds);
     }
     
@@ -354,11 +369,14 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     // Attach translations to fields and add bestTranslation for each field
     const fieldsWithTranslations = fields.map((field) => {
       const fieldTranslations = translationsByField[field.id] || [];
+      // For original value, prefer English or undefined language
+      const originalValueTranslation = selectBestTranslation(fieldTranslations, ['en', 'undefined']);
       const bestTranslation = selectBestTranslation(fieldTranslations, userPrefs.preferredLanguages);
       
       return {
         ...field,
         translations: fieldTranslations,
+        originalValueTranslation: originalValueTranslation, // English or undefined for reference
         bestTranslation: bestTranslation // Add best translation based on user preferences
       };
     });
@@ -375,11 +393,11 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     res.json({ 
       ...term, 
       fields: fieldsWithTranslations,
-      // Simplified labelField - just field_uri and field_term
+      // Simplified labelField - just field_uri
       labelField: labelField ? {
         field_uri: labelField.field_uri,
       } : null,
-      // Simplified referenceFields - array of objects with just field_uri and field_term
+      // Simplified referenceFields - array of objects with just field_uri
       referenceFields: referenceFields.map(f => ({
         field_uri: f.field_uri,
       })),

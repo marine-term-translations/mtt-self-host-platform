@@ -17,6 +17,7 @@ const {
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
  * Returns translations that are in 'review' status and not created by the user
+ * Only returns fields from translatable_field_uris configured in source
  * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter
  * @returns {array} Array of translations needing review
@@ -34,17 +35,28 @@ function getPendingReviews(userIdentifier, language = null) {
     }
   }
   
-  // Build query with optional language filter
+  // Build query with optional language filter and translatable fields filter
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
             t.created_by_id, t.created_at,
             tf.field_uri, tf.original_value,
-            term.id as term_id, term.uri as term_uri
+            term.id as term_id, term.uri as term_uri, term.source_id,
+            s.translatable_field_uris
      FROM translations t
      JOIN term_fields tf ON t.term_field_id = tf.id
      JOIN terms term ON tf.term_id = term.id
+     LEFT JOIN sources s ON term.source_id = s.source_id
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
-       AND (t.reviewed_by_id IS NULL)`;
+       AND (t.reviewed_by_id IS NULL)
+       AND EXISTS (
+         SELECT 1 FROM sources s2 
+         WHERE s2.source_id = term.source_id 
+         AND (
+           s2.translatable_field_uris IS NULL 
+           OR s2.translatable_field_uris = '[]'
+           OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+         )
+       )`;
   
   const params = [userId];
   
@@ -61,11 +73,18 @@ function getPendingReviews(userIdentifier, language = null) {
     return null;
   }
   
-  // Enrich with term fields for context
+  // Enrich with translatable fields for context
   const allFields = db.prepare(
-    `SELECT field_uri, original_value 
-     FROM term_fields 
-     WHERE term_id = ?`
+    `SELECT tf.field_uri, tf.original_value 
+     FROM term_fields tf
+     JOIN terms term ON tf.term_id = term.id
+     LEFT JOIN sources s ON term.source_id = s.source_id
+     WHERE tf.term_id = ?
+     AND (
+       s.translatable_field_uris IS NULL 
+       OR s.translatable_field_uris = '[]'
+       OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+     )`
   ).all(reviews.term_id);
   
   return {
@@ -77,6 +96,7 @@ function getPendingReviews(userIdentifier, language = null) {
 /**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
+ * Only returns fields from translatable_field_uris configured in source
  * @param {number|string} userIdentifier - User ID or username (optional, for filtering)
  * @param {string} language - Optional language filter
  * @returns {object|null} Term field needing translation
@@ -84,23 +104,36 @@ function getPendingReviews(userIdentifier, language = null) {
 function getRandomUntranslated(userIdentifier, language = null) {
   const db = getDatabase();
   
-  // Build query with optional language filter
+  // Build query with optional language filter and translatable fields filter
   let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
-            term.id as term_id, term.uri as term_uri
+            term.id as term_id, term.uri as term_uri, term.source_id,
+            s.translatable_field_uris
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE (tf.field_uri LIKE '%definition%' OR tf.field_uri LIKE '%prefLabel%')`;
+     LEFT JOIN sources s ON term.source_id = s.source_id
+     WHERE 1=1`;
   
   const params = [];
   
+  // Filter to only translatable fields if configured
+  query += ` AND EXISTS (
+       SELECT 1 FROM sources s2 
+       WHERE s2.source_id = term.source_id 
+       AND (
+         s2.translatable_field_uris IS NULL 
+         OR s2.translatable_field_uris = '[]'
+         OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+       )
+     )`;
+  
   if (language) {
     query += ` AND tf.id NOT IN (
-         SELECT term_field_id FROM translations WHERE language = ?
+         SELECT term_field_id FROM translations WHERE language = ? AND (status = 'original' OR status = 'merged')
        )`;
     params.push(language);
   } else {
     query += ` AND tf.id NOT IN (
-         SELECT term_field_id FROM translations WHERE language IN ('nl', 'fr', 'de', 'es', 'it', 'pt')
+         SELECT term_field_id FROM translations WHERE language IN ('nl', 'fr', 'de', 'es', 'it', 'pt') AND (status = 'original' OR status = 'merged')
        )`;
   }
   
@@ -111,26 +144,39 @@ function getRandomUntranslated(userIdentifier, language = null) {
   if (!untranslated) {
     // Try to find fields with partial translations
     let partialQuery = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
-              term.id as term_id, term.uri as term_uri,
+              term.id as term_id, term.uri as term_uri, term.source_id,
+              s.translatable_field_uris,
               (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     if (language) {
-      partialQuery += ` AND language = ?`;
+      partialQuery += ` AND language = ? AND (status = 'original' OR status = 'merged')`;
+    } else {
+      partialQuery += ` AND (status = 'original' OR status = 'merged')`;
     }
     
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       WHERE (tf.field_uri LIKE '%definition%' OR tf.field_uri LIKE '%prefLabel%')
+       LEFT JOIN sources s ON term.source_id = s.source_id
+       WHERE EXISTS (
+         SELECT 1 FROM sources s2 
+         WHERE s2.source_id = term.source_id 
+         AND (
+           s2.translatable_field_uris IS NULL 
+           OR s2.translatable_field_uris = '[]'
+           OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+         )
+       )
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
     
     if (language) {
-      partialQuery += ` AND language = ?`;
+      partialQuery += ` AND language = ? AND (status = 'original' OR status = 'merged')`;
       partialParams.push(language);
       partialQuery += `) < 1`;
     } else {
+      partialQuery += ` AND (status = 'original' OR status = 'merged')`;
       partialQuery += `) < 6`;
     }
     
@@ -142,11 +188,18 @@ function getRandomUntranslated(userIdentifier, language = null) {
       return null;
     }
     
-    // Get all fields for this term for context
+    // Get all translatable fields for this term for context
     const allFields = db.prepare(
-      `SELECT field_uri, original_value 
-       FROM term_fields 
-       WHERE term_id = ?`
+      `SELECT tf.field_uri, tf.original_value 
+       FROM term_fields tf
+       JOIN terms term ON tf.term_id = term.id
+       LEFT JOIN sources s ON term.source_id = s.source_id
+       WHERE tf.term_id = ?
+       AND (
+         s.translatable_field_uris IS NULL 
+         OR s.translatable_field_uris = '[]'
+         OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+       )`
     ).all(partiallyTranslated.term_id);
     
     return {
@@ -155,11 +208,18 @@ function getRandomUntranslated(userIdentifier, language = null) {
     };
   }
   
-  // Get all fields for this term for context
+  // Get all translatable fields for this term for context
   const allFields = db.prepare(
-    `SELECT field_uri, original_value 
-     FROM term_fields 
-     WHERE term_id = ?`
+    `SELECT tf.field_uri, tf.original_value 
+     FROM term_fields tf
+     JOIN terms term ON tf.term_id = term.id
+     LEFT JOIN sources s ON term.source_id = s.source_id
+     WHERE tf.term_id = ?
+     AND (
+       s.translatable_field_uris IS NULL 
+       OR s.translatable_field_uris = '[]'
+       OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
+     )`
   ).all(untranslated.term_id);
   
   return {

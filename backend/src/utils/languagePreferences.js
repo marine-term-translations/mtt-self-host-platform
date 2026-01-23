@@ -33,6 +33,36 @@ function getUserLanguagePreferences(db, userId) {
 }
 
 /**
+ * Helper function to get user's translation languages
+ * Returns languages the user can translate into
+ * @param {object} db - Database connection
+ * @param {number|null} userId - User ID if authenticated, null for anonymous
+ * @returns {array} Array of language codes user can translate into
+ */
+function getUserTranslationLanguages(db, userId) {
+  if (!userId) {
+    // Anonymous user cannot translate
+    return [];
+  }
+  
+  // First check user extra field for legacy translationLanguages
+  const user = db.prepare('SELECT extra FROM users WHERE id = ?').get(userId);
+  if (user && user.extra) {
+    try {
+      const extra = JSON.parse(user.extra);
+      if (extra.translationLanguages && Array.isArray(extra.translationLanguages)) {
+        return extra.translationLanguages;
+      }
+    } catch (err) {
+      console.error('[Language Preferences] Failed to parse user extra:', err);
+    }
+  }
+  
+  // Fallback to empty array if no translation languages configured
+  return [];
+}
+
+/**
  * Helper function to select best translation based on user language preferences
  * Only considers translations with status 'original' or 'merged'
  * @param {array} translations - Array of translation objects with language, value, status
@@ -87,5 +117,6 @@ function selectBestTranslation(translations, preferredLanguages) {
 
 module.exports = {
   getUserLanguagePreferences,
+  getUserTranslationLanguages,
   selectBestTranslation
 };
