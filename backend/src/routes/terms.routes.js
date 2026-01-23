@@ -244,8 +244,16 @@ router.get("/term-by-uri", apiLimiter, (req, res) => {
     res.json({ 
       ...term, 
       fields: fieldsWithTranslations,
-      labelField: labelField || null,
-      referenceFields: referenceFields || []
+      // Simplified labelField - just field_uri and field_term
+      labelField: labelField ? {
+        field_uri: labelField.field_uri,
+        field_term: labelField.field_term
+      } : null,
+      // Simplified referenceFields - array of objects with just field_uri and field_term
+      referenceFields: referenceFields.map(f => ({
+        field_uri: f.field_uri,
+        field_term: f.field_term
+      }))
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -355,8 +363,16 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     res.json({ 
       ...term, 
       fields: fieldsWithTranslations,
-      labelField: labelField || null,
-      referenceFields: referenceFields || [],
+      // Simplified labelField - just field_uri and field_term
+      labelField: labelField ? {
+        field_uri: labelField.field_uri,
+        field_term: labelField.field_term
+      } : null,
+      // Simplified referenceFields - array of objects with just field_uri and field_term
+      referenceFields: referenceFields.map(f => ({
+        field_uri: f.field_uri,
+        field_term: f.field_term
+      })),
       userPreferences: userPrefs // Include user preferences so frontend knows what was used
     });
   } catch (err) {

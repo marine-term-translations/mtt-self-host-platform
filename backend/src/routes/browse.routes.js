@@ -216,7 +216,7 @@ router.get("/browse", apiLimiter, (req, res) => {
         original_value: prefLabelField?.original_value || definitionField?.original_value || null,
         // Include best matching translation based on user preferences
         displayValue: bestLabelTranslation?.value || prefLabelField?.original_value || definitionField?.original_value || null,
-        displayLanguage: bestLabelTranslation?.language || 'und',
+        displayLanguage: bestLabelTranslation?.language || 'no_lang',
         displayStatus: bestLabelTranslation?.status || 'original',
         // Include all translations for clients that want to show multiple languages
         translations: fieldsWithTranslations.flatMap(f => f.translations).map(t => ({
@@ -224,9 +224,15 @@ router.get("/browse", apiLimiter, (req, res) => {
           value: t.value,
           status: t.status
         })),
-        // Include label and reference field information
-        labelField: labelField || null,
-        referenceField: referenceField || null
+        // Include label and reference field information (simplified - just URIs and terms)
+        labelField: labelField ? {
+          field_uri: labelField.field_uri,
+          field_term: labelField.field_term
+        } : null,
+        referenceField: referenceField ? {
+          field_uri: referenceField.field_uri,
+          field_term: referenceField.field_term
+        } : null
       };
     });
     

@@ -34,6 +34,7 @@ function getUserLanguagePreferences(db, userId) {
 
 /**
  * Helper function to select best translation based on user language preferences
+ * Only considers translations with status 'original' or 'merged'
  * @param {array} translations - Array of translation objects with language, value, status
  * @param {array} preferredLanguages - Array of preferred language codes
  * @returns {object|null} Best matching translation or null
@@ -43,38 +44,43 @@ function selectBestTranslation(translations, preferredLanguages) {
     return null;
   }
   
-  // Define priority for workflow statuses (higher number = higher priority)
-  const workflowPriority = {
+  // Filter to only show 'original' and 'merged' status translations
+  const displayableTranslations = translations.filter(t => 
+    t.status === 'original' || t.status === 'merged'
+  );
+  
+  if (displayableTranslations.length === 0) {
+    return null;
+  }
+  
+  // Define priority for displayable statuses (higher number = higher priority)
+  const statusPriority = {
     'original': 100,  // Original from RDF ingestion - highest priority
-    'approved': 90,   // Approved user translation
-    'merged': 80,     // Merged translation
-    'review': 70,     // In review
-    'draft': 60,      // Draft translation
-    'rejected': 50    // Rejected (lowest priority)
+    'merged': 80      // Merged translation
   };
   
   // First try to find translations in the preferred languages
   for (const lang of preferredLanguages) {
-    const langTranslations = translations.filter(t => t.language === lang);
+    const langTranslations = displayableTranslations.filter(t => t.language === lang);
     if (langTranslations.length > 0) {
-      // Sort by workflow priority and return the best one (create copy to avoid mutation)
+      // Sort by status priority and return the best one (create copy to avoid mutation)
       const best = [...langTranslations].sort((a, b) => 
-        (workflowPriority[b.status] || 0) - (workflowPriority[a.status] || 0)
+        (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0)
       )[0];
       return best;
     }
   }
   
   // Fallback to any 'original' translation, preferring English
-  const englishOriginal = translations.find(t => t.language === 'en' && t.status === 'original');
+  const englishOriginal = displayableTranslations.find(t => t.language === 'en' && t.status === 'original');
   if (englishOriginal) return englishOriginal;
   
-  const anyOriginal = translations.find(t => t.status === 'original');
+  const anyOriginal = displayableTranslations.find(t => t.status === 'original');
   if (anyOriginal) return anyOriginal;
   
   // Last resort - return highest priority translation regardless of language (create copy to avoid mutation)
-  const sorted = [...translations].sort((a, b) => 
-    (workflowPriority[b.status] || 0) - (workflowPriority[a.status] || 0)
+  const sorted = [...displayableTranslations].sort((a, b) => 
+    (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0)
   );
   return sorted[0];
 }
