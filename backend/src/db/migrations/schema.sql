@@ -130,10 +130,10 @@ CREATE TABLE sources (
     source_path TEXT NOT NULL,
     source_type TEXT CHECK(source_type IN ('LDES', 'Static_file')) DEFAULT 'Static_file',
     graph_name  TEXT,
-    translation_config TEXT,  -- JSON config for RDF type and predicate paths
+    translation_config TEXT CHECK(translation_config IS NULL OR json_valid(translation_config)),  -- JSON config for RDF type and predicate paths
     label_field_uri TEXT,  -- URI of the field used as label (e.g., http://schema.org/name)
-    reference_field_uris TEXT,  -- JSON array of URIs used as reference fields
-    translatable_field_uris TEXT,  -- JSON array of URIs that are translatable
+    reference_field_uris TEXT CHECK(reference_field_uris IS NULL OR json_valid(reference_field_uris)),  -- JSON array of URIs used as reference fields
+    translatable_field_uris TEXT CHECK(translatable_field_uris IS NULL OR json_valid(translatable_field_uris)),  -- JSON array of URIs that are translatable
     description TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_modified DATETIME DEFAULT CURRENT_TIMESTAMP
