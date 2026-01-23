@@ -147,11 +147,10 @@ CREATE TABLE tasks (
     source_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,
     status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
     metadata    TEXT,  -- JSON metadata
-    log         TEXT,  -- Task execution log
+    logs        TEXT,  -- Task execution logs
     error_message TEXT,  -- Error details if task failed
-    logs        TEXT,  -- Execution logs (alias for compatibility)
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by  TEXT REFERENCES users(username) ON DELETE SET NULL,
     started_at  DATETIME,
     completed_at DATETIME
 );
@@ -171,7 +170,7 @@ CREATE TABLE task_schedulers (
     next_run    DATETIME,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by  TEXT
+    created_by  TEXT REFERENCES users(username) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_task_schedulers_enabled ON task_schedulers(enabled);
