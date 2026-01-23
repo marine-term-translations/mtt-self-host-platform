@@ -123,13 +123,13 @@ router.get("/terms", apiLimiter, (req, res) => {
       });
       
       // Identify label and reference fields
-      const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-        || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+      const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel') 
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
       
       // Get reference fields: prefer field_role, fallback to field_term
-      let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+      let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
       if (referenceFields.length === 0) {
-        referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+        referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
       }
       
       return { 
@@ -233,12 +233,12 @@ router.get("/term-by-uri", apiLimiter, (req, res) => {
     }));
     
     // Identify label and reference fields
-    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+    const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel') 
+      || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
     // Get reference fields: prefer field_role, fallback to field_term
-    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
     if (referenceFields.length === 0) {
-      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
     }
     
     res.json({ 
@@ -247,12 +247,10 @@ router.get("/term-by-uri", apiLimiter, (req, res) => {
       // Simplified labelField - just field_uri and field_term
       labelField: labelField ? {
         field_uri: labelField.field_uri,
-        field_term: labelField.field_term
       } : null,
       // Simplified referenceFields - array of objects with just field_uri and field_term
       referenceFields: referenceFields.map(f => ({
         field_uri: f.field_uri,
-        field_term: f.field_term
       }))
     });
   } catch (err) {
@@ -352,12 +350,12 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     });
     
     // Identify label and reference fields
-    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+    const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel') 
+      || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
     // Get reference fields: prefer field_role, fallback to field_term
-    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
     if (referenceFields.length === 0) {
-      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
     }
     
     res.json({ 
@@ -366,12 +364,10 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       // Simplified labelField - just field_uri and field_term
       labelField: labelField ? {
         field_uri: labelField.field_uri,
-        field_term: labelField.field_term
       } : null,
       // Simplified referenceFields - array of objects with just field_uri and field_term
       referenceFields: referenceFields.map(f => ({
         field_uri: f.field_uri,
-        field_term: f.field_term
       })),
       userPreferences: userPrefs // Include user preferences so frontend knows what was used
     });
@@ -793,7 +789,6 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *                   properties:
  *                     field_uri:
  *                       type: string
- *                     field_term:
  *                       type: string
  *                     original_value:
  *                       type: string

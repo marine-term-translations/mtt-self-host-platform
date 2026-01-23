@@ -264,14 +264,6 @@ async function executeSyncTask(task, addLog) {
     const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
     const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
     
-    // Helper function to determine field role
-    const getFieldRole = (fieldUri) => {
-      if (fieldUri === labelFieldUri) return 'label';
-      if (referenceFieldUris.includes(fieldUri)) return 'reference';
-      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
-      return 'translatable'; // default
-    };
-    
     // Process each configured type and its predicates
     let termsCreated = 0;
     let termsUpdated = 0;
@@ -334,8 +326,6 @@ async function executeSyncTask(task, addLog) {
         // For each selected predicate path, create term_field and translations
         for (const pathConfig of selectedPaths) {
           const predicatePath = pathConfig.path;
-          const fieldTerm = pathConfig.label || predicatePath;
-          const fieldRole = getFieldRole(predicatePath);
           
           // Query for the values at this predicate path (with language tags)
           const valueResults = await getValueForPath(source.graph_name, subjectUri, predicatePath);
@@ -355,16 +345,11 @@ async function executeSyncTask(task, addLog) {
             if (!termField) {
               // Create new term_field with first value as original_value
               const insertField = db.prepare(
-                "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
               );
-              const fieldInfo = insertField.run(term.id, predicatePath, fieldTerm, firstValue, task.source_id, fieldRole);
+              const fieldInfo = insertField.run(term.id, predicatePath, firstValue, task.source_id);
               termField = db.prepare("SELECT * FROM term_fields WHERE id = ?").get(fieldInfo.lastInsertRowid);
               fieldsCreated++;
-            } else if (!termField.field_role) {
-              // Update existing field with role if not set
-              db.prepare(
-                "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(fieldRole, termField.id);
             }
             
             // If new schema is available, create 'original' translations for ALL language variants

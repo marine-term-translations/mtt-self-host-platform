@@ -14,15 +14,15 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 
 SPARQL_ENDPOINT = "http://vocab.nerc.ac.uk/sparql/"
 
-# Field mappings: SPARQL variable name -> (field_uri, field_term)
+# Field mappings: SPARQL variable name -> field_uri
 FIELD_MAPPINGS = {
-    "prefLabel": ("http://www.w3.org/2004/02/skos/core#prefLabel", "skos:prefLabel"),
-    "altLabel": ("http://www.w3.org/2004/02/skos/core#altLabel", "skos:altLabel"),
-    "definition": ("http://www.w3.org/2004/02/skos/core#definition", "skos:definition"),
-    "notation": ("http://www.w3.org/2004/02/skos/core#notation", "skos:notation"),
-    "broader": ("http://www.w3.org/2004/02/skos/core#broader", "skos:broader"),
-    "narrower": ("http://www.w3.org/2004/02/skos/core#narrower", "skos:narrower"),
-    "related": ("http://www.w3.org/2004/02/skos/core#related", "skos:related"),
+    "prefLabel": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "altLabel": "http://www.w3.org/2004/02/skos/core#altLabel",
+    "definition": "http://www.w3.org/2004/02/skos/core#definition",
+    "notation": "http://www.w3.org/2004/02/skos/core#notation",
+    "broader": "http://www.w3.org/2004/02/skos/core#broader",
+    "narrower": "http://www.w3.org/2004/02/skos/core#narrower",
+    "related": "http://www.w3.org/2004/02/skos/core#related",
 }
 
 
@@ -290,17 +290,15 @@ def insert_results(conn, collection_uri, results):
             if not value:
                 continue
             
-            # Map property URI to field info
-            field_info = None
-            for field_name, (field_uri, field_term) in FIELD_MAPPINGS.items():
-                if property_uri == field_uri:
-                    field_info = (field_uri, field_term)
+            # Map property URI to field_uri
+            field_uri = None
+            for field_name, uri in FIELD_MAPPINGS.items():
+                if property_uri == uri:
+                    field_uri = uri
                     break
             
-            if not field_info:
+            if not field_uri:
                 continue
-                
-            field_uri, field_term = field_info
             
             # Try to insert term_field using the first value we encounter for this field
             # We only store one original_value per field (for backward compatibility)
@@ -318,10 +316,10 @@ def insert_results(conn, collection_uri, results):
                 cursor.execute(
                     """
                     INSERT INTO term_fields 
-                    (term_id, field_uri, field_term, original_value)
-                    VALUES (?, ?, ?, ?)
+                    (term_id, field_uri, original_value)
+                    VALUES (?, ?, ?)
                 """,
-                    (term_id, field_uri, field_term, value),
+                    (term_id, field_uri, value),
                 )
                 term_fields_inserted += 1
                 term_field_id = cursor.lastrowid

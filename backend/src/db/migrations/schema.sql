@@ -4,33 +4,37 @@ CREATE TABLE terms (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     uri         TEXT    NOT NULL UNIQUE,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    source_id   INTEGER REFERENCES sources(id) ON DELETE SET NULL
 );
 
+-- term_fields: Removed field_term and field_role columns as requested
 CREATE TABLE term_fields (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     term_id       INTEGER NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
     field_uri     TEXT    NOT NULL,
-    field_term    TEXT    NOT NULL,
     original_value TEXT   NOT NULL,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(term_id, field_uri, original_value)
+    source_id     INTEGER REFERENCES sources(id) ON DELETE SET NULL,
+    UNIQUE(term_id, field_uri)
 );
 
+-- translations: Language-agnostic with 'original' status support
 CREATE TABLE translations (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     term_field_id  INTEGER NOT NULL REFERENCES term_fields(id) ON DELETE CASCADE,
-    language       TEXT    NOT NULL CHECK(language IN ('nl','fr','de','es','it','pt')),
+    language       TEXT    NOT NULL DEFAULT 'undefined',
     value          TEXT    NOT NULL,
-    status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'review', 'approved', 'rejected', 'merged')),
+    status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('original', 'draft', 'review', 'approved', 'rejected', 'merged')),
+    source         TEXT,  -- e.g. 'rdf-ingest', 'user:123', 'ai:claude-3.5', 'merged'
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by     TEXT    NOT NULL,
+    created_by_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
     modified_at    DATETIME,
-    modified_by    TEXT,
-    reviewed_by    TEXT,
-    UNIQUE(term_field_id, language)
+    modified_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(term_field_id, language, status)
 );
 
 CREATE TABLE appeals (
@@ -53,21 +57,36 @@ CREATE TABLE appeal_messages (
 );
 
 CREATE TABLE users (
-    username    TEXT PRIMARY KEY,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT UNIQUE NOT NULL,
     reputation  INTEGER DEFAULT 0,
     joined_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-    extra       TEXT
+    extra       TEXT,
+    is_admin    INTEGER DEFAULT 0,
+    is_banned   INTEGER DEFAULT 0,
+    ban_reason  TEXT
+);
+
+-- User language preferences
+CREATE TABLE user_preferences (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    preferred_languages TEXT NOT NULL DEFAULT '["en"]',  -- JSON array of language codes
+    visible_extra_languages TEXT NOT NULL DEFAULT '[]',  -- JSON array of additional languages to show
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_translations_status ON translations(status);
 CREATE INDEX idx_translations_lang   ON translations(language);
+CREATE INDEX idx_translations_concept_status_lang ON translations(term_field_id, status, language);
+CREATE INDEX idx_translations_source ON translations(source);
 CREATE INDEX idx_appeals_status     ON appeals(status);
 CREATE INDEX idx_term_fields_term_id ON term_fields(term_id);
+CREATE INDEX idx_user_preferences_updated ON user_preferences(updated_at);
 
 -- Generic activity / history table
 CREATE TABLE user_activity (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    user          TEXT    NOT NULL,
+    user_id       INTEGER NOT NULL,
     action        TEXT    NOT NULL,  -- e.g. 'translation_created', 'translation_approved', 'appeal_opened', etc.
     term_id           INTEGER,
     term_field_id     INTEGER,
@@ -76,7 +95,7 @@ CREATE TABLE user_activity (
     appeal_message_id INTEGER,
     extra             TEXT,  -- JSON string recommended
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user)          REFERENCES users(username)         ON DELETE CASCADE,
+    FOREIGN KEY(user_id)       REFERENCES users(id)               ON DELETE CASCADE,
     FOREIGN KEY(term_id)       REFERENCES terms(id)               ON DELETE SET NULL,
     FOREIGN KEY(term_field_id) REFERENCES term_fields(id)         ON DELETE SET NULL,
     FOREIGN KEY(translation_id)REFERENCES translations(id)        ON DELETE SET NULL,
@@ -84,20 +103,125 @@ CREATE TABLE user_activity (
     FOREIGN KEY(appeal_message_id) REFERENCES appeal_messages(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_user_activity_user      ON user_activity(user);
+CREATE INDEX idx_user_activity_user      ON user_activity(user_id);
 CREATE INDEX idx_user_activity_created   ON user_activity(created_at DESC);
 CREATE INDEX idx_user_activity_action    ON user_activity(action);
-CREATE INDEX idx_user_activity_user_created ON user_activity(user, created_at DESC);
+CREATE INDEX idx_user_activity_user_created ON user_activity(user_id, created_at DESC);
 
 -- Reputation history (optional)
 CREATE TABLE reputation_events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    user        TEXT NOT NULL,
+    user_id     INTEGER NOT NULL,
     delta       INTEGER NOT NULL,          -- +5, -2, etc.
     reason      TEXT NOT NULL,             -- 'translation_approved', 'appeal_spam', etc.
     related_activity_id INTEGER,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user) REFERENCES users(username) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(related_activity_id) REFERENCES user_activity(id) ON DELETE SET NULL
 );
-CREATE INDEX idx_reputation_user ON reputation_events(user, created_at DESC);
+
+CREATE INDEX idx_reputation_user ON reputation_events(user_id, created_at DESC);
+
+-- Sources table
+CREATE TABLE sources (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    type        TEXT NOT NULL CHECK(type IN ('sparql', 'rdf_file', 'ldes', 'graphdb')),
+    endpoint    TEXT,
+    file_path   TEXT,
+    graph_name  TEXT,
+    config      TEXT,  -- JSON config for translation source
+    description TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tasks table
+CREATE TABLE tasks (
+    task_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
+    source_id   INTEGER REFERENCES sources(id) ON DELETE CASCADE,
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed')),
+    metadata    TEXT,  -- JSON metadata
+    log         TEXT,  -- Task execution log
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    started_at  DATETIME,
+    completed_at DATETIME
+);
+
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_source ON tasks(source_id);
+
+-- Task schedulers
+CREATE TABLE task_schedulers (
+    scheduler_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
+    source_id   INTEGER REFERENCES sources(id) ON DELETE CASCADE,
+    schedule_config TEXT NOT NULL,  -- JSON: { "type": "cron", "expression": "0 0 * * *" } or { "type": "interval", "seconds": 3600 }
+    enabled     INTEGER DEFAULT 1,
+    last_run    DATETIME,
+    next_run    DATETIME,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_task_schedulers_enabled ON task_schedulers(enabled);
+CREATE INDEX idx_task_schedulers_next_run ON task_schedulers(next_run);
+
+-- Message reports
+CREATE TABLE message_reports (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id  INTEGER NOT NULL REFERENCES appeal_messages(id) ON DELETE CASCADE,
+    reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason      TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'dismissed')),
+    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at DATETIME,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, reported_by)
+);
+
+CREATE INDEX idx_message_reports_status ON message_reports(status);
+
+-- FTS5 virtual table for full-text search
+CREATE VIRTUAL TABLE translations_fts USING fts5(
+    value,
+    language,
+    content='translations',
+    content_rowid='id'
+);
+
+-- FTS5 triggers
+CREATE TRIGGER translations_fts_insert AFTER INSERT ON translations BEGIN
+    INSERT INTO translations_fts(rowid, value, language)
+    VALUES (new.id, new.value, new.language);
+END;
+
+CREATE TRIGGER translations_fts_update AFTER UPDATE ON translations BEGIN
+    UPDATE translations_fts
+    SET value = new.value, language = new.language
+    WHERE rowid = new.id;
+END;
+
+CREATE TRIGGER translations_fts_delete AFTER DELETE ON translations BEGIN
+    DELETE FROM translations_fts WHERE rowid = old.id;
+END;
+
+-- View for term summary
+CREATE VIEW term_summary AS
+SELECT 
+    t.id as term_id,
+    t.uri,
+    tf.id as term_field_id,
+    tf.field_uri,
+    tf.original_value,
+    tr.id as translation_id,
+    tr.language,
+    tr.status,
+    tr.value as translation_value,
+    tr.source
+FROM terms t
+LEFT JOIN term_fields tf ON t.id = tf.term_id
+LEFT JOIN translations tr ON tf.id = tr.term_field_id;
