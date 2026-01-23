@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import { backendApi } from '../services/api';
 import { CONFIG } from '../config';
@@ -9,6 +10,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
+  checkBanStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,16 +18,70 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const checkBanStatus = async () => {
+    try {
+      // Force a non-cached check of user status
+      const apiUrl = `${CONFIG.API_URL}/me`;
+      const response = await fetch(apiUrl, { 
+        credentials: 'include',
+        cache: 'no-store', // Prevent caching
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Check if user is banned
+        if (data.is_banned) {
+          // Clear user state
+          setUser(null);
+          
+          // Redirect to banned page with reason
+          const params = new URLSearchParams({
+            reason: data.ban_reason || 'No reason provided',
+            ...(data.banned_at && { banned_at: data.banned_at })
+          });
+          navigate(`/banned?${params.toString()}`, { replace: true });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to check ban status", e);
+    }
+  };
 
   useEffect(() => {
     const initAuth = async () => {
       try {
         // Check if user is authenticated via session
         const apiUrl = `${CONFIG.API_URL}/me`;
-        const response = await fetch(apiUrl, { credentials: 'include' });
+        const response = await fetch(apiUrl, { 
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           if (!data.error) {
+            // Check if user is banned
+            if (data.is_banned) {
+              const params = new URLSearchParams({
+                reason: data.ban_reason || 'No reason provided',
+                ...(data.banned_at && { banned_at: data.banned_at })
+              });
+              navigate(`/banned?${params.toString()}`, { replace: true });
+              setIsLoading(false);
+              return;
+            }
+            
             // Map ORCID user to our User type
             const userData: User = {
               id: data.id || data.user_id, // Use id or user_id from backend
@@ -52,6 +108,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initAuth();
   }, []);
 
+  // Check ban status on every route change (page visit)
+  useEffect(() => {
+    if (user && location.pathname !== '/banned') {
+      checkBanStatus();
+    }
+  }, [location.pathname]);
+
   const login = () => {
     // Redirect to ORCID OAuth flow using full backend URL
     const authUrl = `${CONFIG.API_URL}/auth/orcid`;
@@ -72,7 +135,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading, checkBanStatus }}>
       {children}
     </AuthContext.Provider>
   );

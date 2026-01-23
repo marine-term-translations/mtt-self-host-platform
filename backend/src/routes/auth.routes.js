@@ -252,6 +252,24 @@ router.get("/me", (req, res) => {
   
   if (req.session.user) {
     console.log('[Me] Returning user:', req.session.user.orcid);
+    
+    // Force fresh check of ban status from database
+    const db = getDatabase();
+    try {
+      const user = db.prepare('SELECT extra FROM users WHERE orcid = ?').get(req.session.user.orcid);
+      
+      if (user && user.extra) {
+        const extra = JSON.parse(user.extra);
+        
+        // Update session with fresh ban status
+        req.session.user.is_banned = extra.is_banned || false;
+        req.session.user.ban_reason = extra.ban_reason || '';
+        req.session.user.banned_at = extra.banned_at || '';
+      }
+    } catch (err) {
+      console.error('[Me] Error checking ban status:', err);
+    }
+    
     res.json(req.session.user);
   } else {
     console.log('[Me] No authenticated user found');
