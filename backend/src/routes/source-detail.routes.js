@@ -879,21 +879,29 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
               
               // Query for the value at this predicate path
               const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
-              
+
               if (valueQuery && valueQuery.length > 0) {
-                for (const value of valueQuery) {
-                  // Check if term_field exists
-                  const existingField = db.prepare(
-                    "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
-                  ).get(term.id, predicatePath, value);
-                  
-                  if (!existingField) {
-                    // Create new term_field (field_term and field_role columns removed from schema)
-                    db.prepare(
-                      "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
-                    ).run(term.id, predicatePath, value, sourceId);
-                    fieldsCreated++;
-                  }
+                // Always use the same term_field for this (term_id, field_uri)
+                let termField = db.prepare(
+                  "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"
+                ).get(term.id, predicatePath);
+
+                if (!termField) {
+                  // Use the first value as original_value for the field
+                  db.prepare(
+                    "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
+                  ).run(term.id, predicatePath, valueQuery[0].value, sourceId);
+                  fieldsCreated++;
+                  termField = db.prepare(
+                    "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"
+                  ).get(term.id, predicatePath);
+                }
+
+                // Insert or update translation for each value/languageTag
+                for (const { value, language } of valueQuery) {
+                  db.prepare(
+                    "INSERT OR REPLACE INTO translations (term_field_id, language, value, status, source) VALUES (?, ?, ?, 'original', 'rdf-ingest')"
+                  ).run(termField.id, language, value);
                 }
               }
             }
@@ -978,32 +986,24 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     return `<${p}>`;
   }).join(' / ');
   
-  // Determine language filter
-  let languageFilter = '';
-  if (languageTag && languageTag !== '@en') {
-    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
-    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
-  }
-  
+  // Query for value and language
   const sparqlQuery = `
-    SELECT DISTINCT ?value
+    SELECT DISTINCT ?value (LANG(?value) as ?lang)
     WHERE {
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
-        ${languageFilter}
       }
     }
     LIMIT 100
   `;
 
   console.log('SPARQL Query for getValueForPath:', sparqlQuery);
-  
   try {
     const graphdbUrl = config.graphdb.url;
     const repository = config.graphdb.repository;
     const endpoint = `${graphdbUrl}/repositories/${repository}`;
-    
+
     const response = await axios.post(endpoint, sparqlQuery, {
       headers: {
         'Content-Type': 'application/sparql-query',
@@ -1011,8 +1011,11 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
       },
       timeout: 15000
     });
-    
-    return response.data.results.bindings.map(b => b.value.value);
+
+    return response.data.results.bindings.map(b => ({
+      value: b.value.value,
+      language: b.lang?.value || 'undefined'
+    }));
   } catch (err) {
     console.error(`Error querying path ${predicatePath}:`, err.message);
     if (err.response && err.response.data) {

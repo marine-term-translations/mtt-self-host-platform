@@ -183,7 +183,7 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
     if (translationLanguages !== undefined) extra.translationLanguages = translationLanguages;
     
     // Save updated extra data
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+    db.prepare('UPDATE users SET extra = ? WHERE id = ?').run(
       JSON.stringify(extra),
       userId
     );

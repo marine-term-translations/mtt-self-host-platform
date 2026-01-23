@@ -29,6 +29,7 @@ const TermDetail: React.FC = () => {
   
   const [selectedLang, setSelectedLang] = useState('');
   const [allowedLanguages, setAllowedLanguages] = useState<string[]>([]);
+  const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // AI State
@@ -72,6 +73,28 @@ const TermDetail: React.FC = () => {
 
   // Helper to normalize URIs for comparison (remove trailing slashes)
   const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
+
+  // Fetch user preferences (preferredLanguages, translationLanguages, etc.)
+  const fetchUserPreferences = async () => {
+    try {
+      const res = await backendApi.getUserPreferences();
+      if (res) {
+        // preferredLanguages: array of language codes (e.g. ["en", "nl"])
+        setPreferredLanguages(res.preferredLanguages || []);
+        setAllowedLanguages(res.translationLanguages || []);
+        // Set default selectedLang to first allowed or preferred
+        setSelectedLang((prev) => {
+          if (prev && (res.translationLanguages || []).includes(prev)) return prev;
+          if ((res.translationLanguages || []).length > 0) return res.translationLanguages[0];
+          return '';
+        });
+      }
+    } catch (e) {
+      // fallback: no preferences
+      setPreferredLanguages([]);
+      setAllowedLanguages([]);
+    }
+  };
 
   const fetchTermData = async () => {
     setLoading(true);
@@ -129,11 +152,27 @@ const TermDetail: React.FC = () => {
       // 5. Extract Meta Info
       // Extract display values using field roles
       // Priority: field_role > hardcoded skos fields (backward compatibility)
-      const labelField = foundApiTerm.fields.find(f => f.field_role === 'label') 
-        || foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-      const definitionField = foundApiTerm.fields.find(f => f.field_role === 'reference') 
-        || foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
+      // Patch: Ensure field_term is present for all fields
+      const patchedFields = foundApiTerm.fields.map(f => {
+        if (typeof f.field_term === 'string' && f.field_term.length > 0) return f;
+        let fieldTerm = f.field_uri;
+        if (fieldTerm) {
+          const hashIdx = fieldTerm.lastIndexOf('#');
+          const slashIdx = fieldTerm.lastIndexOf('/');
+          const idx = Math.max(hashIdx, slashIdx);
+          if (idx !== -1 && idx < fieldTerm.length - 1) {
+            fieldTerm = fieldTerm.substring(idx + 1);
+          }
+        }
+        return { ...f, field_term: fieldTerm };
+      });
 
+      const labelField = patchedFields.find(f => f.field_role === 'label') 
+        || patchedFields.find(f => f.field_term === 'skos:prefLabel');
+      const definitionField = patchedFields.find(f => f.field_role === 'reference') 
+        || patchedFields.find(f => f.field_term === 'skos:definition');
+
+      setTerm({ ...foundApiTerm, fields: patchedFields });
       setDisplayLabel(labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term');
       setDisplayDef(definitionField?.original_value || 'No definition available.');
       
@@ -179,10 +218,14 @@ const TermDetail: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      // Fetch user preferences first, then term data
+      fetchUserPreferences().then(() => {
         fetchTermData();
+      });
     }
   }, [id, user]);
 
+  // Set form values for the selected language
   useEffect(() => {
     if (term && selectedLang) {
       const newValues: Record<number, string> = {};
@@ -193,6 +236,18 @@ const TermDetail: React.FC = () => {
       setFormValues(newValues);
     }
   }, [term, selectedLang]);
+
+  // Helper: get the best translation for a field based on preferredLanguages
+  const getBestTranslation = (field: ApiField): { value: string, language: string } => {
+    if (field.translations && preferredLanguages.length > 0) {
+      for (const lang of preferredLanguages) {
+        const t = field.translations.find(tr => tr.language.toLowerCase() === lang.toLowerCase());
+        if (t) return { value: t.value, language: t.language };
+      }
+    }
+    // fallback: show original value (assume original is in English)
+    return { value: field.original_value, language: 'en' };
+  };
 
   const handleInputChange = (fieldId: number, value: string) => {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
@@ -780,15 +835,23 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                           )}
                       </div>
                       <div className="flex items-center gap-2">
-                         <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">EN</span>
-                         <span className="text-xs text-slate-400">Original</span>
+                        {(() => {
+                          const best = getBestTranslation(field);
+                          return <>
+                            <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">{best.language.toUpperCase()}</span>
+                            <span className="text-xs text-slate-400">{preferredLanguages.length > 0 ? 'Preferred' : 'Original'}</span>
+                          </>;
+                        })()}
                       </div>
                    </div>
 
                    <div className="p-6">
-                      {/* Original Value */}
+                      {/* Best Translation or Original Value */}
                       <div className="mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 italic">
-                         "{field.original_value}"
+                        {(() => {
+                          const best = getBestTranslation(field);
+                          return `"${best.value}"`;
+                        })()}
                       </div>
 
                       {/* Input Area */}

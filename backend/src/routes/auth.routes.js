@@ -251,16 +251,13 @@ router.get("/me", (req, res) => {
   console.log('[Me] User in session:', !!req.session.user);
   
   if (req.session.user) {
-    console.log('[Me] Returning user:', req.session.user.orcid);
-    
+    console.log('[Me] Returning user:', req.session.user.username);
     // Force fresh check of ban status from database
     const db = getDatabase();
     try {
-      const user = db.prepare('SELECT extra FROM users WHERE orcid = ?').get(req.session.user.orcid);
-      
+      const user = db.prepare('SELECT extra FROM users WHERE username = ?').get(req.session.user.username);
       if (user && user.extra) {
         const extra = JSON.parse(user.extra);
-        
         // Update session with fresh ban status
         req.session.user.is_banned = extra.is_banned || false;
         req.session.user.ban_reason = extra.ban_reason || '';
