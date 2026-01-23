@@ -17,7 +17,7 @@ const {
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
  * Returns translations that are in 'review' status and not created by the user
- * Only returns fields from translatable_field_uris configured in source
+ * Only returns fields with field_role = 'translatable'
  * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter
  * @returns {array} Array of translations needing review
@@ -39,24 +39,14 @@ function getPendingReviews(userIdentifier, language = null) {
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
             t.created_by_id, t.created_at,
             tf.field_uri, tf.original_value,
-            term.id as term_id, term.uri as term_uri, term.source_id,
-            s.translatable_field_uris
+            term.id as term_id, term.uri as term_uri, term.source_id
      FROM translations t
      JOIN term_fields tf ON t.term_field_id = tf.id
      JOIN terms term ON tf.term_id = term.id
-     LEFT JOIN sources s ON term.source_id = s.source_id
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
        AND (t.reviewed_by_id IS NULL)
-       AND EXISTS (
-         SELECT 1 FROM sources s2 
-         WHERE s2.source_id = term.source_id 
-         AND (
-           s2.translatable_field_uris IS NULL 
-           OR s2.translatable_field_uris = '[]'
-           OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-         )
-       )`;
+       AND tf.field_role = 'translatable'`;
   
   const params = [userId];
   
@@ -77,14 +67,8 @@ function getPendingReviews(userIdentifier, language = null) {
   const allFields = db.prepare(
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
-     JOIN terms term ON tf.term_id = term.id
-     LEFT JOIN sources s ON term.source_id = s.source_id
      WHERE tf.term_id = ?
-     AND (
-       s.translatable_field_uris IS NULL 
-       OR s.translatable_field_uris = '[]'
-       OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-     )`
+     AND tf.field_role = 'translatable'`
   ).all(reviews.term_id);
   
   return {
@@ -96,7 +80,7 @@ function getPendingReviews(userIdentifier, language = null) {
 /**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
- * Only returns fields from translatable_field_uris configured in source
+ * Only returns fields with field_role = 'translatable'
  * @param {number|string} userIdentifier - User ID or username (optional, for filtering)
  * @param {string} language - Optional language filter
  * @returns {object|null} Term field needing translation
@@ -106,25 +90,12 @@ function getRandomUntranslated(userIdentifier, language = null) {
   
   // Build query with optional language filter and translatable fields filter
   let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
-            term.id as term_id, term.uri as term_uri, term.source_id,
-            s.translatable_field_uris
+            term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     LEFT JOIN sources s ON term.source_id = s.source_id
-     WHERE 1=1`;
+     WHERE tf.field_role = 'translatable'`;
   
   const params = [];
-  
-  // Filter to only translatable fields if configured
-  query += ` AND EXISTS (
-       SELECT 1 FROM sources s2 
-       WHERE s2.source_id = term.source_id 
-       AND (
-         s2.translatable_field_uris IS NULL 
-         OR s2.translatable_field_uris = '[]'
-         OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-       )
-     )`;
   
   if (language) {
     query += ` AND tf.id NOT IN (
@@ -145,7 +116,6 @@ function getRandomUntranslated(userIdentifier, language = null) {
     // Try to find fields with partial translations
     let partialQuery = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
               term.id as term_id, term.uri as term_uri, term.source_id,
-              s.translatable_field_uris,
               (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     if (language) {
@@ -157,16 +127,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       LEFT JOIN sources s ON term.source_id = s.source_id
-       WHERE EXISTS (
-         SELECT 1 FROM sources s2 
-         WHERE s2.source_id = term.source_id 
-         AND (
-           s2.translatable_field_uris IS NULL 
-           OR s2.translatable_field_uris = '[]'
-           OR json_extract(s2.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-         )
-       )
+       WHERE tf.field_role = 'translatable'
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
@@ -192,14 +153,8 @@ function getRandomUntranslated(userIdentifier, language = null) {
     const allFields = db.prepare(
       `SELECT tf.field_uri, tf.original_value 
        FROM term_fields tf
-       JOIN terms term ON tf.term_id = term.id
-       LEFT JOIN sources s ON term.source_id = s.source_id
        WHERE tf.term_id = ?
-       AND (
-         s.translatable_field_uris IS NULL 
-         OR s.translatable_field_uris = '[]'
-         OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-       )`
+       AND tf.field_role = 'translatable'`
     ).all(partiallyTranslated.term_id);
     
     return {
@@ -212,14 +167,8 @@ function getRandomUntranslated(userIdentifier, language = null) {
   const allFields = db.prepare(
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
-     JOIN terms term ON tf.term_id = term.id
-     LEFT JOIN sources s ON term.source_id = s.source_id
      WHERE tf.term_id = ?
-     AND (
-       s.translatable_field_uris IS NULL 
-       OR s.translatable_field_uris = '[]'
-       OR json_extract(s.translatable_field_uris, '$') LIKE '%' || tf.field_uri || '%'
-     )`
+     AND tf.field_role = 'translatable'`
   ).all(untranslated.term_id);
   
   return {

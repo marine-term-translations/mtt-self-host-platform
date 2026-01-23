@@ -264,6 +264,14 @@ async function executeSyncTask(task, addLog) {
     const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
     const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
     
+    // Helper function to determine field role
+    const getFieldRole = (fieldUri) => {
+      if (fieldUri === labelFieldUri) return 'label';
+      if (referenceFieldUris.includes(fieldUri)) return 'reference';
+      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
+      return 'translatable'; // default
+    };
+    
     // Process each configured type and its predicates
     let termsCreated = 0;
     let termsUpdated = 0;
@@ -344,10 +352,12 @@ async function executeSyncTask(task, addLog) {
             
             if (!termField) {
               // Create new term_field with first value as original_value
+              // Determine field_role based on source configuration
+              const fieldRole = getFieldRole(predicatePath);
               const insertField = db.prepare(
-                "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
+                "INSERT INTO term_fields (term_id, field_uri, field_role, original_value, source_id) VALUES (?, ?, ?, ?, ?)"
               );
-              const fieldInfo = insertField.run(term.id, predicatePath, firstValue, task.source_id);
+              const fieldInfo = insertField.run(term.id, predicatePath, fieldRole, firstValue, task.source_id);
               termField = db.prepare("SELECT * FROM term_fields WHERE id = ?").get(fieldInfo.lastInsertRowid);
               fieldsCreated++;
             }

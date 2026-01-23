@@ -326,24 +326,11 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       return res.status(404).json({ error: "Term not found" });
     }
     
-    // Get the source to find translatable fields
-    const source = db.prepare("SELECT translatable_field_uris FROM sources WHERE source_id = ?").get(term.source_id);
-    let translatableFieldUris = [];
-    if (source && source.translatable_field_uris) {
-      try {
-        translatableFieldUris = JSON.parse(source.translatable_field_uris);
-      } catch (err) {
-        console.error('[Terms] Failed to parse translatable_field_uris:', err);
-      }
-    }
-    
-    // Get fields for this term - filter to only translatable fields if configured
-    let fields = db.prepare("SELECT * FROM term_fields WHERE term_id = ?").all(term.id);
-    
-    if (translatableFieldUris.length > 0) {
-      // Only show fields that are in the translatable_field_uris list
-      fields = fields.filter(f => translatableFieldUris.includes(f.field_uri));
-    }
+    // Get fields for this term - filter to only translatable fields
+    // Use field_role to efficiently filter instead of parsing JSON arrays
+    const fields = db.prepare(
+      "SELECT * FROM term_fields WHERE term_id = ? AND field_role = 'translatable'"
+    ).all(term.id);
     
     // Get all translations for all fields in a single query to avoid N+1 problem
     const fieldIds = fields.map(f => f.id);

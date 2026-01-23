@@ -888,9 +888,11 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
 
                 if (!termField) {
                   // Use the first value as original_value for the field
+                  // Determine field_role based on source configuration
+                  const fieldRole = getFieldRole(predicatePath);
                   db.prepare(
-                    "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
-                  ).run(term.id, predicatePath, valueQuery[0].value, sourceId);
+                    "INSERT INTO term_fields (term_id, field_uri, field_role, original_value, source_id) VALUES (?, ?, ?, ?, ?)"
+                  ).run(term.id, predicatePath, fieldRole, valueQuery[0].value, sourceId);
                   fieldsCreated++;
                   termField = db.prepare(
                     "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"

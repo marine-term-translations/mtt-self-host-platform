@@ -8,11 +8,12 @@ CREATE TABLE terms (
     source_id   INTEGER REFERENCES sources(source_id) ON DELETE SET NULL
 );
 
--- term_fields: Removed field_term and field_role columns as requested
+-- term_fields: field_role added to mark fields as 'label', 'reference', or 'translatable'
 CREATE TABLE term_fields (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     term_id       INTEGER NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
     field_uri     TEXT    NOT NULL,
+    field_role    TEXT    CHECK(field_role IN ('label', 'reference', 'translatable')),
     original_value TEXT   NOT NULL,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
