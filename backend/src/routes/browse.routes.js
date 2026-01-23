@@ -6,6 +6,63 @@ const { getDatabase } = require("../db/database");
 const { apiLimiter } = require("../middleware/rateLimit");
 
 /**
+ * Helper function to get user language preferences
+ * @param {object} db - Database connection
+ * @param {number|null} userId - User ID if authenticated, null for anonymous
+ * @returns {object} Object with preferredLanguages array
+ */
+function getUserLanguagePreferences(db, userId) {
+  if (!userId) {
+    // Anonymous user - prefer English original
+    return { preferredLanguages: ['en'] };
+  }
+  
+  // Check if user_preferences table exists
+  const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'").get();
+  
+  if (tableExists) {
+    const userPrefs = db.prepare('SELECT preferred_languages FROM user_preferences WHERE user_id = ?').get(userId);
+    if (userPrefs) {
+      return { preferredLanguages: JSON.parse(userPrefs.preferred_languages) };
+    }
+  }
+  
+  // Fallback to English if no preferences set
+  return { preferredLanguages: ['en'] };
+}
+
+/**
+ * Helper function to select best translation based on user language preferences
+ * @param {array} translations - Array of translation objects with language, value, status
+ * @param {array} preferredLanguages - Array of preferred language codes
+ * @returns {object|null} Best matching translation or null
+ */
+function selectBestTranslation(translations, preferredLanguages) {
+  if (!translations || translations.length === 0) {
+    return null;
+  }
+  
+  // First try to find a translation in the preferred languages (prioritize 'original' status)
+  for (const lang of preferredLanguages) {
+    const original = translations.find(t => t.language === lang && t.status === 'original');
+    if (original) return original;
+    
+    const translated = translations.find(t => t.language === lang && (t.status === 'translated' || t.status === 'merged'));
+    if (translated) return translated;
+  }
+  
+  // Fallback to any 'original' translation, preferring English
+  const englishOriginal = translations.find(t => t.language === 'en' && t.status === 'original');
+  if (englishOriginal) return englishOriginal;
+  
+  const anyOriginal = translations.find(t => t.status === 'original');
+  if (anyOriginal) return anyOriginal;
+  
+  // Last resort - return first available translation
+  return translations[0];
+}
+
+/**
  * @openapi
  * /api/browse:
  *   get:
@@ -77,6 +134,10 @@ const { apiLimiter } = require("../middleware/rateLimit");
 router.get("/browse", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
+    
+    // Get user ID from session if authenticated
+    const userId = req.session?.user?.id || req.session?.user?.user_id || null;
+    const userPrefs = getUserLanguagePreferences(db, userId);
     
     // Parse parameters
     const searchQuery = req.query.query || '';
@@ -194,10 +255,26 @@ router.get("/browse", apiLimiter, (req, res) => {
       const prefLabelField = fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
       const definitionField = fieldsWithTranslations.find(f => f.field_term === 'skos:definition');
       
+      // Select best translation based on user language preferences
+      const bestLabelTranslation = selectBestTranslation(
+        prefLabelField?.translations || [],
+        userPrefs.preferredLanguages
+      );
+      
+      const bestDefinitionTranslation = selectBestTranslation(
+        definitionField?.translations || [],
+        userPrefs.preferredLanguages
+      );
+      
       return {
         uri: term.uri,
         field_term: prefLabelField?.field_term || null,
         original_value: prefLabelField?.original_value || definitionField?.original_value || null,
+        // Include best matching translation based on user preferences
+        displayValue: bestLabelTranslation?.value || prefLabelField?.original_value || definitionField?.original_value || null,
+        displayLanguage: bestLabelTranslation?.language || 'und',
+        displayStatus: bestLabelTranslation?.status || 'original',
+        // Include all translations for clients that want to show multiple languages
         translations: fieldsWithTranslations.flatMap(f => f.translations).map(t => ({
           language: t.language,
           value: t.value,

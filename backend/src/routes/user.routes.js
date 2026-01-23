@@ -43,6 +43,14 @@ const requireAuth = (req, res, next) => {
  *                   type: array
  *                   items:
  *                     type: string
+ *                 preferredLanguages:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                 visibleExtraLanguages:
+ *                   type: array
+ *                   items:
+ *                     type: string
  *       401:
  *         description: Not authenticated
  */
@@ -60,11 +68,33 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Check if new user_preferences table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'").get();
+    
+    let preferences = {};
+    
+    if (tableExists) {
+      // Try to get preferences from new table
+      const userPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      
+      if (userPrefs) {
+        preferences = {
+          preferredLanguages: JSON.parse(userPrefs.preferred_languages),
+          visibleExtraLanguages: JSON.parse(userPrefs.visible_extra_languages)
+        };
+      } else {
+        // Initialize with defaults
+        preferences = {
+          preferredLanguages: ['en'],
+          visibleExtraLanguages: []
+        };
+      }
+    }
+    
+    // Also get legacy preferences from extra field for backward compatibility
     const extra = user.extra ? JSON.parse(user.extra) : {};
-    const preferences = {
-      nativeLanguage: extra.nativeLanguage || '',
-      translationLanguages: extra.translationLanguages || []
-    };
+    preferences.nativeLanguage = extra.nativeLanguage || '';
+    preferences.translationLanguages = extra.translationLanguages || [];
     
     console.log('[User Preferences] Returning preferences:', preferences);
     res.json(preferences);
@@ -92,6 +122,14 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
  *                 type: array
  *                 items:
  *                   type: string
+ *               preferredLanguages:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               visibleExtraLanguages:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *     responses:
  *       200:
  *         description: Preferences updated successfully
@@ -102,10 +140,10 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
   try {
     const db = getDatabase();
     const userId = req.session.user.id || req.session.user.user_id;
-    const { nativeLanguage, translationLanguages } = req.body;
+    const { nativeLanguage, translationLanguages, preferredLanguages, visibleExtraLanguages } = req.body;
     
     console.log('[User Preferences] Updating preferences for user ID:', userId);
-    console.log('[User Preferences] New preferences:', { nativeLanguage, translationLanguages });
+    console.log('[User Preferences] New preferences:', { nativeLanguage, translationLanguages, preferredLanguages, visibleExtraLanguages });
     
     // Get current user data
     const user = db.prepare('SELECT extra FROM users WHERE id = ?').get(userId);
@@ -118,9 +156,9 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
     // Parse existing extra data
     const extra = user.extra ? JSON.parse(user.extra) : {};
     
-    // Update preferences
-    extra.nativeLanguage = nativeLanguage || extra.nativeLanguage;
-    extra.translationLanguages = translationLanguages || extra.translationLanguages || [];
+    // Update legacy preferences
+    if (nativeLanguage !== undefined) extra.nativeLanguage = nativeLanguage;
+    if (translationLanguages !== undefined) extra.translationLanguages = translationLanguages;
     
     // Save updated extra data
     db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
@@ -128,13 +166,41 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
       userId
     );
     
+    // Check if new user_preferences table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'").get();
+    
+    if (tableExists && (preferredLanguages !== undefined || visibleExtraLanguages !== undefined)) {
+      // Get current preferences
+      const currentPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      
+      const newPreferredLanguages = preferredLanguages !== undefined 
+        ? JSON.stringify(preferredLanguages) 
+        : (currentPrefs ? currentPrefs.preferred_languages : '["en"]');
+        
+      const newVisibleExtraLanguages = visibleExtraLanguages !== undefined
+        ? JSON.stringify(visibleExtraLanguages)
+        : (currentPrefs ? currentPrefs.visible_extra_languages : '[]');
+      
+      // Insert or update preferences
+      db.prepare(`
+        INSERT INTO user_preferences (user_id, preferred_languages, visible_extra_languages, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+          preferred_languages = excluded.preferred_languages,
+          visible_extra_languages = excluded.visible_extra_languages,
+          updated_at = CURRENT_TIMESTAMP
+      `).run(userId, newPreferredLanguages, newVisibleExtraLanguages);
+    }
+    
     console.log('[User Preferences] Preferences updated successfully');
     res.json({ 
       success: true, 
       message: 'Preferences updated successfully',
       preferences: {
         nativeLanguage: extra.nativeLanguage,
-        translationLanguages: extra.translationLanguages
+        translationLanguages: extra.translationLanguages,
+        preferredLanguages: preferredLanguages,
+        visibleExtraLanguages: visibleExtraLanguages
       }
     });
   } catch (error) {
