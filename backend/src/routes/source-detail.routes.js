@@ -888,16 +888,11 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
                   ).get(term.id, predicatePath, value);
                   
                   if (!existingField) {
-                    // Create new term_field with field_role
+                    // Create new term_field (field_term and field_role columns removed from schema)
                     db.prepare(
-                      "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
-                    ).run(term.id, predicatePath, fieldTerm, value, sourceId, fieldRole);
+                      "INSERT INTO term_fields (term_id, field_uri, original_value, source_id) VALUES (?, ?, ?, ?)"
+                    ).run(term.id, predicatePath, value, sourceId);
                     fieldsCreated++;
-                  } else if (!existingField.field_role) {
-                    // Update existing field with role if not set
-                    db.prepare(
-                      "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                    ).run(fieldRole, existingField.id);
                   }
                 }
               }

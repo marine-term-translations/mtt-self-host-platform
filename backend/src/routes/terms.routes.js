@@ -423,14 +423,14 @@ router.post("/terms/by-ids", apiLimiter, (req, res) => {
       return res.json([]);
     }
     
-    // Get label fields for these terms
+    // Get label fields for these terms (using field_uri since field_role/field_term removed)
     const termIdsFound = terms.map(t => t.id);
     const labelFieldsPlaceholders = termIdsFound.map(() => '?').join(',');
     const labelFields = db
       .prepare(`
         SELECT * FROM term_fields 
         WHERE term_id IN (${labelFieldsPlaceholders}) 
-        AND (field_role = 'label' OR field_term = 'skos:prefLabel')
+        AND (field_uri LIKE '%prefLabel%' OR field_uri LIKE '%label%')
       `)
       .all(...termIdsFound);
     
@@ -901,16 +901,14 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     // Process each incoming field
     const newFieldIdMap = {};
     for (const field of fields) {
-      const { field_uri, field_term, original_value, translations } = field;
+      const { field_uri, original_value, translations } = field;
       console.log("Processing field", {
         field_uri,
-        field_term,
         original_value,
         translations,
       });
       if (
         !field_uri ||
-        !field_term ||
         !original_value ||
         !Array.isArray(translations)
       ) {
@@ -926,23 +924,21 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         fieldId = existingField.id;
         usedFieldIds.add(fieldId);
         if (
-          existingField.field_term !== field_term ||
           existingField.original_value !== original_value
         ) {
           db.prepare(
-            "UPDATE term_fields SET field_term = ?, original_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-          ).run(field_term, original_value, fieldId);
+            "UPDATE term_fields SET original_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+          ).run(original_value, fieldId);
           console.log("Updated term_field", { field_uri, fieldId });
         }
       } else {
         // Insert new field
         const fieldStmt = db.prepare(
-          "INSERT INTO term_fields (term_id, field_uri, field_term, original_value) VALUES (?, ?, ?, ?)"
+          "INSERT INTO term_fields (term_id, field_uri, original_value) VALUES (?, ?, ?)"
         );
         const fieldInfo = fieldStmt.run(
           id,
           field_uri,
-          field_term,
           original_value
         );
         fieldId = fieldInfo.lastInsertRowid;

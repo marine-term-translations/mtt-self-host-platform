@@ -37,7 +37,7 @@ function getPendingReviews(userIdentifier, language = null) {
   // Build query with optional language filter
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
             t.created_by_id, t.created_at,
-            tf.field_uri, tf.field_term, tf.original_value,
+            tf.field_uri, tf.original_value,
             term.id as term_id, term.uri as term_uri
      FROM translations t
      JOIN term_fields tf ON t.term_field_id = tf.id
@@ -63,7 +63,7 @@ function getPendingReviews(userIdentifier, language = null) {
   
   // Enrich with term fields for context
   const allFields = db.prepare(
-    `SELECT field_uri, field_term, original_value 
+    `SELECT field_uri, original_value 
      FROM term_fields 
      WHERE term_id = ?`
   ).all(reviews.term_id);
@@ -85,11 +85,11 @@ function getRandomUntranslated(userIdentifier, language = null) {
   const db = getDatabase();
   
   // Build query with optional language filter
-  let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
+  let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
             term.id as term_id, term.uri as term_uri
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE (tf.field_term LIKE '%definition%' OR tf.field_term LIKE '%prefLabel%')`;
+     WHERE (tf.field_uri LIKE '%definition%' OR tf.field_uri LIKE '%prefLabel%')`;
   
   const params = [];
   
@@ -110,7 +110,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
   
   if (!untranslated) {
     // Try to find fields with partial translations
-    let partialQuery = `SELECT tf.id as term_field_id, tf.field_uri, tf.field_term, tf.original_value,
+    let partialQuery = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
               term.id as term_id, term.uri as term_uri,
               (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
@@ -121,7 +121,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       WHERE (tf.field_term LIKE '%definition%' OR tf.field_term LIKE '%prefLabel%')
+       WHERE (tf.field_uri LIKE '%definition%' OR tf.field_uri LIKE '%prefLabel%')
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
@@ -144,7 +144,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
     
     // Get all fields for this term for context
     const allFields = db.prepare(
-      `SELECT field_uri, field_term, original_value 
+      `SELECT field_uri, original_value 
        FROM term_fields 
        WHERE term_id = ?`
     ).all(partiallyTranslated.term_id);
@@ -157,7 +157,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
   
   // Get all fields for this term for context
   const allFields = db.prepare(
-    `SELECT field_uri, field_term, original_value 
+    `SELECT field_uri, original_value 
      FROM term_fields 
      WHERE term_id = ?`
   ).all(untranslated.term_id);

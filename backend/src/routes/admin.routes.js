@@ -271,7 +271,7 @@ router.get("/admin/translations", requireAdmin, apiLimiter, (req, res) => {
         t.created_by_id,
         t.modified_by_id,
         t.reviewed_by_id,
-        tf.field_term as field_name,
+        tf.field_uri as field_name,
         term.id as term_id,
         term.uri,
         created_user.username as created_by_username,
