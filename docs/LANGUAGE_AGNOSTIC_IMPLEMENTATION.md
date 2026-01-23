@@ -18,11 +18,11 @@ The previous system had several issues:
 ### 1. Database Migration (014_language_agnostic.sql)
 
 #### Changes to `translations` table:
-- **Removed language CHECK constraint** - Now accepts any ISO 639-1/3 language code or 'und' (undetermined)
-- **Added `status` column** - Values: 'original', 'translated', 'merged'
+- **Removed language CHECK constraint** - Now accepts any ISO 639-1/3 language code or 'no_lang' (for terms without language tags)
+- **Extended `status` column** - Added 'original' to existing workflow statuses
+  - Values: 'original', 'draft', 'review', 'approved', 'rejected', 'merged'
   - 'original': Data from RDF/JSON ingestion sources
-  - 'translated': Human or AI-created translations
-  - 'merged': Merged from multiple sources
+  - 'draft', 'review', 'approved', 'rejected', 'merged': User translation workflow statuses (preserved from original system)
 - **Added `source` column** - Tracks origin (e.g., 'rdf-ingest', 'user:123', 'ai:claude-3.5')
 - **Modified UNIQUE constraint** - Changed to (term_field_id, language, status) to allow multiple translations per language with different statuses
 
@@ -36,26 +36,16 @@ CREATE TABLE user_preferences (
 );
 ```
 
-#### New `translation_workflow_status` table:
-```sql
-CREATE TABLE translation_workflow_status (
-    translation_id INTEGER PRIMARY KEY REFERENCES translations(id) ON DELETE CASCADE,
-    workflow_status TEXT NOT NULL DEFAULT 'draft' CHECK(workflow_status IN ('draft', 'review', 'approved', 'rejected')),
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-This table maintains backward compatibility with the existing workflow system.
-
 #### Views:
-- **Recreated `term_summary` view** - Updated to include new `status`, `source`, and `workflow_status` columns
-- **Added `translations_with_workflow` view** - Simplifies querying translations with their workflow status
+- **Recreated `term_summary` view** - Updated to include new `status` and `source` columns
 
 ### 2. Harvest Script Updates (harvest.py)
 
 #### Language Tag Extraction:
 - Extracts language tags from RDF literals using the `xml:lang` attribute
-- Falls back to 'und' (undetermined) if no language tag is present
-- Example: `<skos:prefLabel xml:lang="en">Sea surface temperature</skos:prefLabel>` → language='en'
+- Falls back to 'no_lang' if no language tag is present
+- Example: `<skos:prefLabel xml:lang="en">Sea surface temperature</skos:prefLabel>` → language='en', status='original'
+- Example: `<skos:prefLabel>Sea surface temperature</skos:prefLabel>` (no lang tag) → language='no_lang', status='original'
 
 #### Original Translation Creation:
 ```python
@@ -84,13 +74,17 @@ if has_new_schema:
 - Signed-in users get their preferences from `user_preferences` table
 
 **`selectBestTranslation(translations, preferredLanguages)`**
-- Selects the best translation based on user preferences
-- Priority order:
-  1. Preferred language + 'original' status
-  2. Preferred language + 'translated'/'merged' status
-  3. English + 'original' status
-  4. Any 'original' translation
-  5. First available translation
+- Selects the best translation based on user preferences and workflow status
+- Priority order (within each preferred language):
+  1. status='original' (100 points) - RDF ingested data
+  2. status='approved' (90 points) - Approved user translation
+  3. status='merged' (80 points) - Merged translation
+  4. status='review' (70 points) - In review
+  5. status='draft' (60 points) - Draft translation
+  6. status='rejected' (50 points) - Rejected (lowest)
+- Falls back to English original if no preferred language match
+- Falls back to any original if no English original
+- Returns highest priority translation regardless of language as last resort
 
 #### Browse API (browse.routes.js)
 
@@ -169,17 +163,17 @@ Accepts all four fields above and updates both:
 The migration is designed to be non-destructive:
 1. Drops dependent views and triggers
 2. Creates new translations table with updated schema
-3. Copies existing data, setting status='translated' for old translations
-4. Copies workflow status to new table
+3. Copies existing data, **preserving all workflow statuses** (draft, review, approved, rejected, merged)
+4. Adds 'user' as source for all existing translations
 5. Drops old table and renames new one
 6. Recreates indexes and triggers
 7. Recreates views with updated schemas
 8. Rebuilds FTS index
 
 All existing translations are preserved with:
-- status = 'translated' (or 'merged' if old status was 'merged')
+- status = original workflow status (draft, review, approved, rejected, or merged)
 - source = 'user'
-- Workflow status preserved in separate table
+- All workflow statuses maintained in single status field
 
 ## Usage Examples
 

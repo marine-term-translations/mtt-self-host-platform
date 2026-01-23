@@ -263,7 +263,8 @@ def insert_results(conn, collection_uri, results):
                 field_value = field_data.get("value")
                 # Extract language tag from RDF literal (if present)
                 # SPARQL returns language in xml:lang attribute
-                field_lang = field_data.get("xml:lang", "und")
+                # Use 'no_lang' if no language tag is present
+                field_lang = field_data.get("xml:lang", "no_lang")
                 
                 # Ensure we have a value
                 if not field_value:

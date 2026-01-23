@@ -8,16 +8,17 @@ DROP TRIGGER IF EXISTS translations_fts_insert;
 DROP TRIGGER IF EXISTS translations_fts_update;
 DROP TRIGGER IF EXISTS translations_fts_delete;
 
--- Step 2: Remove language constraint and allow all ISO 639-1/3 codes and 'und' (undetermined)
--- We need to recreate the translations table without the CHECK constraint
+-- Step 2: Remove language constraint and allow all ISO 639-1/3 codes and 'no_lang' (for terms without language tags)
+-- Add 'original' to the existing status values to preserve workflow statuses
+-- We need to recreate the translations table
 
--- Create new translations table without language constraint
+-- Create new translations table with extended status constraint
 CREATE TABLE translations_new (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     term_field_id  INTEGER NOT NULL REFERENCES term_fields(id) ON DELETE CASCADE,
-    language       TEXT    NOT NULL DEFAULT 'und',
+    language       TEXT    NOT NULL DEFAULT 'no_lang',
     value          TEXT    NOT NULL,
-    status         TEXT    NOT NULL DEFAULT 'translated' CHECK(status IN ('original', 'translated', 'merged')),
+    status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('original', 'draft', 'review', 'approved', 'rejected', 'merged')),
     source         TEXT,  -- e.g. 'rdf-ingest', 'user:123', 'ai:claude-3.5', 'merged'
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -28,8 +29,7 @@ CREATE TABLE translations_new (
     UNIQUE(term_field_id, language, status)
 );
 
--- Copy existing data, setting status to 'translated' and source to 'user'
--- Old status values (draft, review, approved, rejected, merged) are preserved in a new column
+-- Copy existing data, preserving all original status values
 INSERT INTO translations_new (
     id, term_field_id, language, value, status, source,
     created_at, updated_at, created_by_id, modified_at, modified_by_id, reviewed_by_id
@@ -39,10 +39,7 @@ SELECT
     term_field_id, 
     language, 
     value,
-    CASE 
-        WHEN status = 'merged' THEN 'merged'
-        ELSE 'translated'
-    END as status,
+    status,  -- Preserve original status (draft, review, approved, rejected, merged)
     'user' as source,
     created_at, 
     updated_at, 
@@ -51,19 +48,6 @@ SELECT
     modified_by_id, 
     reviewed_by_id
 FROM translations;
-
--- Store old workflow status in a separate table for backward compatibility
-CREATE TABLE translation_workflow_status (
-    translation_id INTEGER PRIMARY KEY REFERENCES translations_new(id) ON DELETE CASCADE,
-    workflow_status TEXT NOT NULL DEFAULT 'draft' CHECK(workflow_status IN ('draft', 'review', 'approved', 'rejected')),
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Copy workflow status for existing translations
-INSERT INTO translation_workflow_status (translation_id, workflow_status)
-SELECT id, status 
-FROM translations
-WHERE status IN ('draft', 'review', 'approved', 'rejected');
 
 -- Drop old table and rename new one
 DROP TABLE translations;
@@ -75,7 +59,7 @@ CREATE INDEX idx_translations_lang ON translations(language);
 CREATE INDEX idx_translations_concept_status_lang ON translations(term_field_id, status, language);
 CREATE INDEX idx_translations_source ON translations(source);
 
--- Step 2: Create user_preferences table for language settings
+-- Step 3: Create user_preferences table for language settings
 CREATE TABLE user_preferences (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     preferred_languages TEXT NOT NULL DEFAULT '["en"]',  -- JSON array of language codes
@@ -85,7 +69,7 @@ CREATE TABLE user_preferences (
 
 CREATE INDEX idx_user_preferences_updated ON user_preferences(updated_at);
 
--- Step 3: Update FTS5 triggers to handle new status column
+-- Step 4: Update FTS5 triggers to handle new status column
 -- Drop old triggers
 DROP TRIGGER IF EXISTS translations_fts_insert;
 DROP TRIGGER IF EXISTS translations_fts_update;
@@ -125,17 +109,7 @@ SELECT
     tr.language,
     tr.status,
     tr.value as translation_value,
-    tr.source,
-    COALESCE(tws.workflow_status, 'approved') as workflow_status
+    tr.source
 FROM terms t
 LEFT JOIN term_fields tf ON t.id = tf.term_id
-LEFT JOIN translations tr ON tf.id = tr.term_field_id
-LEFT JOIN translation_workflow_status tws ON tr.id = tws.translation_id;
-
--- Step 7: Add a view to make it easier to query translations with workflow status
-CREATE VIEW translations_with_workflow AS
-SELECT 
-    t.*,
-    COALESCE(tws.workflow_status, 'approved') as workflow_status
-FROM translations t
-LEFT JOIN translation_workflow_status tws ON t.id = tws.translation_id;
+LEFT JOIN translations tr ON tf.id = tr.term_field_id;
