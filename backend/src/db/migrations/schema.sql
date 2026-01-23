@@ -5,7 +5,7 @@ CREATE TABLE terms (
     uri         TEXT    NOT NULL UNIQUE,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    source_id   INTEGER REFERENCES sources(id) ON DELETE SET NULL
+    source_id   INTEGER REFERENCES sources(source_id) ON DELETE SET NULL
 );
 
 -- term_fields: Removed field_term and field_role columns as requested
@@ -16,7 +16,7 @@ CREATE TABLE term_fields (
     original_value TEXT   NOT NULL,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-    source_id     INTEGER REFERENCES sources(id) ON DELETE SET NULL,
+    source_id     INTEGER REFERENCES sources(source_id) ON DELETE SET NULL,
     UNIQUE(term_id, field_uri)
 );
 
@@ -81,6 +81,8 @@ CREATE INDEX idx_translations_concept_status_lang ON translations(term_field_id,
 CREATE INDEX idx_translations_source ON translations(source);
 CREATE INDEX idx_appeals_status     ON appeals(status);
 CREATE INDEX idx_term_fields_term_id ON term_fields(term_id);
+CREATE INDEX idx_terms_source_id ON terms(source_id);
+CREATE INDEX idx_term_fields_source_id ON term_fields(source_id);
 CREATE INDEX idx_user_preferences_updated ON user_preferences(updated_at);
 
 -- Generic activity / history table
@@ -122,25 +124,27 @@ CREATE TABLE reputation_events (
 
 CREATE INDEX idx_reputation_user ON reputation_events(user_id, created_at DESC);
 
--- Sources table
+-- Sources table (maintains backward compatibility with existing code)
 CREATE TABLE sources (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL,
-    type        TEXT NOT NULL CHECK(type IN ('sparql', 'rdf_file', 'ldes', 'graphdb')),
-    endpoint    TEXT,
-    file_path   TEXT,
+    source_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_path TEXT NOT NULL,
+    source_type TEXT CHECK(source_type IN ('LDES', 'Static_file')) DEFAULT 'Static_file',
     graph_name  TEXT,
-    config      TEXT,  -- JSON config for translation source
+    translation_config TEXT,  -- JSON config for RDF type and predicate paths
     description TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    last_modified DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_sources_path ON sources(source_path);
+CREATE INDEX idx_sources_graph ON sources(graph_name);
+CREATE INDEX idx_sources_type ON sources(source_type);
 
 -- Tasks table
 CREATE TABLE tasks (
     task_id     INTEGER PRIMARY KEY AUTOINCREMENT,
     task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
-    source_id   INTEGER REFERENCES sources(id) ON DELETE CASCADE,
+    source_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,
     status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed')),
     metadata    TEXT,  -- JSON metadata
     log         TEXT,  -- Task execution log
@@ -158,7 +162,7 @@ CREATE TABLE task_schedulers (
     scheduler_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
     task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
-    source_id   INTEGER REFERENCES sources(id) ON DELETE CASCADE,
+    source_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,
     schedule_config TEXT NOT NULL,  -- JSON: { "type": "cron", "expression": "0 0 * * *" } or { "type": "interval", "seconds": 3600 }
     enabled     INTEGER DEFAULT 1,
     last_run    DATETIME,
