@@ -74,21 +74,19 @@ if has_new_schema:
 - Signed-in users get their preferences from `user_preferences` table
 
 **`selectBestTranslation(translations, preferredLanguages)`**
-- Selects the best translation based on user preferences and workflow status
+- Selects the best translation based on user preferences
+- **Only considers translations with status 'original' or 'merged'**
 - Priority order (within each preferred language):
   1. status='original' (100 points) - RDF ingested data
-  2. status='approved' (90 points) - Approved user translation
-  3. status='merged' (80 points) - Merged translation
-  4. status='review' (70 points) - In review
-  5. status='draft' (60 points) - Draft translation
-  6. status='rejected' (50 points) - Rejected (lowest)
+  2. status='merged' (80 points) - Merged translation
 - Falls back to English original if no preferred language match
 - Falls back to any original if no English original
 - Returns highest priority translation regardless of language as last resort
+- **Note**: Draft, review, approved, and rejected translations are stored in the database but not displayed in browse or detail views
 
 #### Browse API (browse.routes.js)
 
-Enhanced response format:
+Enhanced response format with simplified labelField:
 ```json
 {
   "uri": "http://example.org/term1",
@@ -105,35 +103,62 @@ Enhanced response format:
     {
       "language": "nl",
       "value": "Zee oppervlakte temperatuur",
-      "status": "translated"
+      "status": "merged"
     }
-  ]
+  ],
+  "labelField": {
+    "field_uri": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "field_term": "skos:prefLabel"
+  },
+  "referenceField": {
+    "field_uri": "http://www.w3.org/2004/02/skos/core#definition",
+    "field_term": "skos:definition"
+  }
 }
 ```
 
+**Note**: `labelField` and `referenceField` now only contain `field_uri` and `field_term`. The UI should search through the `fields` array to find translations for display.
+
 #### Term Detail API (terms.routes.js)
 
-Enhanced field objects:
+Enhanced field objects with simplified structure:
 ```json
 {
+  "id": 1,
+  "uri": "http://example.org/term1",
   "fields": [
     {
       "id": 1,
-      "field_term": "skos:prefLabel",
-      "original_value": "Sea surface temperature",
-      "translations": [...],
-      "bestTranslation": {
-        "language": "en",
-        "value": "Sea surface temperature",
-        "status": "original"
-      }
+      "field_uri": "http://schema.org/name",
+      "field_term": "name",
+      "field_role": "label",
+      "translations": [
+        {
+          "id": 1,
+          "language": "nl",
+          "value": "Amersfoort/RD nieuw",
+          "status": "original",
+          "source": "rdf-ingest"
+        }
+      ]
     }
   ],
+  "labelField": {
+    "field_uri": "http://schema.org/name",
+    "field_term": "name"
+  },
+  "referenceFields": [],
   "userPreferences": {
     "preferredLanguages": ["en", "nl"]
   }
 }
 ```
+
+**Display Logic for UI**:
+1. Use `labelField.field_uri` to find the corresponding field in the `fields` array
+2. From that field's `translations`, filter to only those with `status='original'` or `status='merged'`
+3. Select the translation matching the user's preferred language
+4. If no match, fall back to English original, then any original
 
 #### User Preferences API (user.routes.js)
 
@@ -184,9 +209,24 @@ All existing translations are preserved with:
 const response = await fetch('/api/terms/123');
 const term = await response.json();
 
-// Use bestTranslation for each field
-const labelField = term.fields.find(f => f.field_term === 'skos:prefLabel');
-const displayValue = labelField.bestTranslation?.value || labelField.original_value;
+// Find the label field using labelField.field_uri
+const labelField = term.fields.find(f => f.field_uri === term.labelField.field_uri);
+
+// Filter to only 'original' or 'merged' translations
+const displayableTranslations = labelField.translations.filter(t => 
+  t.status === 'original' || t.status === 'merged'
+);
+
+// Get user's preferred language (from userPreferences or default to 'en')
+const preferredLang = term.userPreferences?.preferredLanguages?.[0] || 'en';
+
+// Find best translation
+const bestTranslation = displayableTranslations.find(t => t.language === preferredLang)
+  || displayableTranslations.find(t => t.language === 'en' && t.status === 'original')
+  || displayableTranslations.find(t => t.status === 'original')
+  || displayableTranslations[0];
+
+const displayValue = bestTranslation?.value || labelField.original_value;
 ```
 
 #### Set user language preferences:
@@ -210,10 +250,11 @@ When ingesting RDF data, the harvest script automatically:
 
 ### For Translators
 
-The existing workflow remains unchanged:
-- Create translations with status='translated'
+The existing workflow remains for managing translation quality:
+- Create translations with status='draft', 'review', 'approved', 'rejected'
 - Translations go through draft → review → approved workflow
-- Workflow status stored separately from translation status
+- **Note**: Only translations with status='original' or 'merged' are displayed in browse and term detail views
+- Draft, review, approved, and rejected translations are stored but only shown in the translation management/editing interface
 
 ## Backward Compatibility
 
