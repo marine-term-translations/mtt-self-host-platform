@@ -336,6 +336,10 @@ class ApiService {
   public async updateTranslationLanguage(translationId: number, language: string): Promise<any> {
     return this.put(`/admin/translations/${translationId}/language`, { language });
   }
+
+  public async createAppealForTranslation(translationId: number, reason: string): Promise<any> {
+    return this.post(`/admin/translations/${translationId}/appeal`, { reason });
+  }
 }
 
 // Export pre-configured instances

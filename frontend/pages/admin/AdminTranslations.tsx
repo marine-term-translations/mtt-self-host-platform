@@ -16,6 +16,9 @@ interface Translation {
   field_name: string;
   term_id: number;
   uri: string;
+  created_by_username: string;
+  modified_by_username: string;
+  reviewed_by_username: string;
 }
 
 const AdminTranslations: React.FC = () => {
@@ -29,6 +32,8 @@ const AdminTranslations: React.FC = () => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editStatus, setEditStatus] = useState('');
   const [editLanguage, setEditLanguage] = useState('');
+  const [appealingId, setAppealingId] = useState<number | null>(null);
+  const [appealReason, setAppealReason] = useState('');
 
   const statuses = ['draft', 'review', 'approved', 'rejected', 'merged'];
   const languages = ['nl', 'fr', 'de', 'es', 'it', 'pt'];
@@ -98,6 +103,22 @@ const AdminTranslations: React.FC = () => {
     }
     if (editStatus === originalStatus && editLanguage === originalLanguage) {
       setEditingId(null);
+    }
+  };
+
+  const handleAppeal = async (translationId: number) => {
+    if (!appealReason.trim()) {
+      toast.error("Please provide a reason for the appeal");
+      return;
+    }
+    try {
+      await backendApi.createAppealForTranslation(translationId, appealReason);
+      toast.success("Appeal created successfully");
+      setAppealingId(null);
+      setAppealReason('');
+      fetchTranslations();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create appeal");
     }
   };
 
@@ -199,6 +220,8 @@ const AdminTranslations: React.FC = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Translation</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Term</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Last Modified By</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Language</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Updated</th>
@@ -217,6 +240,23 @@ const AdminTranslations: React.FC = () => {
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           {translation.field_name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {translation.term_id ? (
+                          <Link 
+                            to={`/term/${translation.term_id}`}
+                            className="text-sm text-marine-600 hover:text-marine-800 dark:text-marine-400 dark:hover:text-marine-300 underline"
+                          >
+                            View Term #{translation.term_id}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-900 dark:text-white">
+                          {translation.modified_by_username || translation.created_by_username || 'Unknown'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -273,12 +313,22 @@ const AdminTranslations: React.FC = () => {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => startEditing(translation)}
-                            className="text-marine-600 hover:text-marine-900 dark:text-marine-400 dark:hover:text-marine-300"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => startEditing(translation)}
+                              className="text-marine-600 hover:text-marine-900 dark:text-marine-400 dark:hover:text-marine-300"
+                            >
+                              Edit
+                            </button>
+                            {translation.status === 'review' && (
+                              <button
+                                onClick={() => setAppealingId(translation.id)}
+                                className="text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300"
+                              >
+                                Appeal
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -314,6 +364,42 @@ const AdminTranslations: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Appeal Dialog */}
+      {appealingId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Create Appeal</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Provide a reason for appealing this translation. This will create an appeal that can be reviewed.
+            </p>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 outline-none"
+              rows={4}
+              placeholder="Reason for appeal..."
+              value={appealReason}
+              onChange={(e) => setAppealReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setAppealingId(null);
+                  setAppealReason('');
+                }}
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAppeal(appealingId)}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+              >
+                Create Appeal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

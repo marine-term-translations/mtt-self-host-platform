@@ -6,6 +6,7 @@ const { getDatabase } = require("../db/database");
 const { requireAdmin } = require("../middleware/admin");
 const { apiLimiter } = require("../middleware/rateLimit");
 const datetime = require("../utils/datetime");
+const { applyReputationForTranslationStatusChange } = require("../services/reputation.service");
 
 /**
  * @openapi
@@ -272,10 +273,16 @@ router.get("/admin/translations", requireAdmin, apiLimiter, (req, res) => {
         t.reviewed_by_id,
         tf.field_term as field_name,
         term.id as term_id,
-        term.uri
+        term.uri,
+        created_user.username as created_by_username,
+        modified_user.username as modified_by_username,
+        reviewed_user.username as reviewed_by_username
       FROM translations t
       LEFT JOIN term_fields tf ON t.term_field_id = tf.id
       LEFT JOIN terms term ON tf.term_id = term.id
+      LEFT JOIN users created_user ON t.created_by_id = created_user.id
+      LEFT JOIN users modified_user ON t.modified_by_id = modified_user.id
+      LEFT JOIN users reviewed_user ON t.reviewed_by_id = reviewed_user.id
       WHERE 1=1
     `;
     
@@ -354,13 +361,37 @@ router.put("/admin/translations/:id/status", requireAdmin, apiLimiter, (req, res
       return res.status(400).json({ error: 'Invalid status value' });
     }
     
+    // Get current translation to check previous status and created_by
+    const translation = db.prepare('SELECT * FROM translations WHERE id = ?').get(translationId);
+    
+    if (!translation) {
+      return res.status(404).json({ error: 'Translation not found' });
+    }
+    
+    const previousStatus = translation.status;
+    
     // Update translation status
     const result = db.prepare(
-      'UPDATE translations SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).run(status, translationId);
+      'UPDATE translations SET status = ?, updated_at = CURRENT_TIMESTAMP, modified_by_id = ? WHERE id = ?'
+    ).run(status, req.session.user.id, translationId);
     
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Translation not found' });
+    }
+    
+    // Apply reputation points to the user who created the translation
+    if (translation.created_by_id) {
+      try {
+        applyReputationForTranslationStatusChange(
+          translation.created_by_id,
+          previousStatus,
+          status,
+          translationId
+        );
+      } catch (reputationError) {
+        console.error('[Admin Translations] Error applying reputation:', reputationError);
+        // Don't fail the request if reputation update fails
+      }
     }
     
     res.json({ success: true, message: 'Translation status updated' });
@@ -435,6 +466,68 @@ router.put("/admin/translations/:id/language", requireAdmin, apiLimiter, (req, r
   } catch (err) {
     console.error('[Admin Translations] Error updating language:', err);
     res.status(500).json({ error: 'Failed to update translation language' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/translations/:id/appeal:
+ *   post:
+ *     summary: Create an appeal for a translation (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Appeal created successfully
+ */
+router.post("/admin/translations/:id/appeal", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const translationId = parseInt(req.params.id);
+    const { reason } = req.body;
+    const db = getDatabase();
+    
+    // Check if translation exists
+    const translation = db.prepare('SELECT * FROM translations WHERE id = ?').get(translationId);
+    if (!translation) {
+      return res.status(404).json({ error: 'Translation not found' });
+    }
+    
+    // Check if there's already an open appeal for this translation
+    const existingAppeal = db.prepare(
+      'SELECT id FROM appeals WHERE translation_id = ? AND status = ?'
+    ).get(translationId, 'open');
+    
+    if (existingAppeal) {
+      return res.status(409).json({ error: 'An open appeal already exists for this translation' });
+    }
+    
+    // Create appeal
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    const result = db.prepare(
+      'INSERT INTO appeals (translation_id, opened_by_id, resolution, status) VALUES (?, ?, ?, ?)'
+    ).run(translationId, currentUserId, reason || 'Appeal created by admin', 'open');
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Appeal created successfully',
+      appealId: result.lastInsertRowid 
+    });
+  } catch (err) {
+    console.error('[Admin Translations] Error creating appeal:', err);
+    res.status(500).json({ error: 'Failed to create appeal' });
   }
 });
 
