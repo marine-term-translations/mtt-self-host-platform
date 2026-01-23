@@ -16,6 +16,9 @@ interface Translation {
   field_name: string;
   term_id: number;
   uri: string;
+  created_by_id: number;
+  modified_by_id: number;
+  reviewed_by_id: number;
   created_by_username: string;
   modified_by_username: string;
   reviewed_by_username: string;
@@ -243,21 +246,35 @@ const AdminTranslations: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {translation.term_id ? (
+                        {translation.uri ? (
                           <Link 
-                            to={`/term/${translation.term_id}`}
+                            to={`/term/${encodeURIComponent(translation.uri)}`}
                             className="text-sm text-marine-600 hover:text-marine-800 dark:text-marine-400 dark:hover:text-marine-300 underline"
                           >
-                            View Term #{translation.term_id}
+                            View Term
                           </Link>
                         ) : (
                           <span className="text-sm text-slate-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-slate-900 dark:text-white">
-                          {translation.modified_by_username || translation.created_by_username || 'Unknown'}
-                        </div>
+                        {translation.modified_by_username ? (
+                          <Link
+                            to={`/user/${translation.modified_by_id}`}
+                            className="text-sm text-marine-600 hover:text-marine-800 dark:text-marine-400 dark:hover:text-marine-300 underline"
+                          >
+                            {translation.modified_by_username}
+                          </Link>
+                        ) : translation.created_by_username ? (
+                          <Link
+                            to={`/user/${translation.created_by_id}`}
+                            className="text-sm text-marine-600 hover:text-marine-800 dark:text-marine-400 dark:hover:text-marine-300 underline"
+                          >
+                            {translation.created_by_username}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-slate-400">Unknown</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {editingId === translation.id ? (
