@@ -211,6 +211,12 @@ def insert_results(conn, collection_uri, results):
 
     # Track processed terms to avoid redundant updates
     terms_processed = set()
+    
+    # Check if migration 014 has been applied (translations table has status column)
+    # Do this once before the loop to avoid repeated PRAGMA queries
+    cursor.execute("PRAGMA table_info(translations)")
+    columns = [col[1] for col in cursor.fetchall()]
+    has_new_schema = 'status' in columns and 'source' in columns
 
     for binding in bindings:
         concept_uri = binding.get("concept", {}).get("value", "")
@@ -287,11 +293,6 @@ def insert_results(conn, collection_uri, results):
                 if not term_field_row:
                     continue
                 term_field_id = term_field_row[0]
-                
-                # Check if migration 014 has been applied (translations table has status column)
-                cursor.execute("PRAGMA table_info(translations)")
-                columns = [col[1] for col in cursor.fetchall()]
-                has_new_schema = 'status' in columns and 'source' in columns
                 
                 if has_new_schema:
                     # Create or update 'original' translation with the language from RDF

@@ -78,10 +78,18 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
       const userPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages FROM user_preferences WHERE user_id = ?').get(userId);
       
       if (userPrefs) {
-        preferences = {
-          preferredLanguages: JSON.parse(userPrefs.preferred_languages),
-          visibleExtraLanguages: JSON.parse(userPrefs.visible_extra_languages)
-        };
+        try {
+          preferences = {
+            preferredLanguages: JSON.parse(userPrefs.preferred_languages),
+            visibleExtraLanguages: JSON.parse(userPrefs.visible_extra_languages)
+          };
+        } catch (err) {
+          console.error('[User Preferences] Failed to parse user preferences JSON:', err);
+          preferences = {
+            preferredLanguages: ['en'],
+            visibleExtraLanguages: []
+          };
+        }
       } else {
         // Initialize with defaults
         preferences = {
@@ -92,7 +100,14 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
     }
     
     // Also get legacy preferences from extra field for backward compatibility
-    const extra = user.extra ? JSON.parse(user.extra) : {};
+    const extra = user.extra ? (() => {
+      try {
+        return JSON.parse(user.extra);
+      } catch (err) {
+        console.error('[User Preferences] Failed to parse user extra JSON:', err);
+        return {};
+      }
+    })() : {};
     preferences.nativeLanguage = extra.nativeLanguage || '';
     preferences.translationLanguages = extra.translationLanguages || [];
     
@@ -154,7 +169,14 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
     }
     
     // Parse existing extra data
-    const extra = user.extra ? JSON.parse(user.extra) : {};
+    const extra = user.extra ? (() => {
+      try {
+        return JSON.parse(user.extra);
+      } catch (err) {
+        console.error('[User Preferences] Failed to parse user extra JSON:', err);
+        return {};
+      }
+    })() : {};
     
     // Update legacy preferences
     if (nativeLanguage !== undefined) extra.nativeLanguage = nativeLanguage;
