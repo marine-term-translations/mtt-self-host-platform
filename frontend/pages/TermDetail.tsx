@@ -654,7 +654,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
     );
     // Only show fields that match the original filter (translatable/label/reference/definition)
     const isTranslatableType = f.original_value && (
-      f.field_role === 'translatable'
+      f.field_role === 'translatable' || f.field_role === 'label' || f.field_role === 'reference'
     );
     return isTranslatableType && (hasPreferred || canTranslateAny);
   });
@@ -789,15 +789,40 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                  <Globe size={20} className="text-marine-500" /> Translation Workspace
                </h2>
                <div className="flex items-center gap-2">
-                   <span className="text-sm text-slate-500">Language:</span>
-                   <select 
-                      value={selectedLang} 
-                      onChange={(e) => setSelectedLang(e.target.value)}
-                      disabled={!canTranslate}
-                      className="rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm py-1.5"
-                    >
-                      {allowedLanguages.length === 0 ? <option>No permissions</option> : allowedLanguages.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                 <span className="text-sm text-slate-500">Language:</span>
+                 <div className="flex gap-2">
+                   {allowedLanguages.length === 0 ? (
+                     <span className="text-xs text-red-500">No permissions</span>
+                   ) : (
+                     allowedLanguages.map(lang => {
+                       // Highlight if this language needs translation by the user
+                       // Needs translation if for any translatable field, there is no translation by this user in this language
+                       const needsTranslation = translatableFields.some(field => {
+                         return !field.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase() && (t.created_by_id === (user?.id || user?.user_id)));
+                       });
+                       return (
+                         <label key={lang} className={`inline-flex items-center px-3 py-1 rounded-lg border cursor-pointer text-sm font-medium transition-colors
+                           ${selectedLang === lang ? 'bg-marine-600 text-white border-marine-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600'}
+                           ${needsTranslation ? 'ring-2 ring-amber-400 border-amber-400' : ''}
+                         `}>
+                           <input
+                             type="radio"
+                             name="translation-language"
+                             value={lang}
+                             checked={selectedLang === lang}
+                             onChange={() => setSelectedLang(lang)}
+                             disabled={!canTranslate}
+                             className="form-radio accent-marine-600 mr-2"
+                           />
+                           {lang}
+                           {needsTranslation && (
+                             <span className="ml-1 text-amber-600 text-xs font-semibold">Needs translation</span>
+                           )}
+                         </label>
+                       );
+                     })
+                   )}
+                 </div>
                </div>
            </div>
 
