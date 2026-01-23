@@ -641,12 +641,23 @@ Original Text (${field.field_term}): "${field.original_value}"`;
 
   const canTranslate = allowedLanguages.length > 0;
   
-  // Filter translatable fields using field_role with backward compatibility
-  const translatableFields = term.fields.filter(f => 
-    f.original_value && 
-    (f.field_role === 'translatable' || f.field_role === 'label' || f.field_role === 'reference' ||
-     f.field_term.includes('prefLabel') || f.field_term.includes('altLabel') || f.field_term.includes('definition'))
-  );
+  // Filter fields: only show those for which the user has a language preference set
+  // (i.e., at least one translation in a preferred language exists, or user can translate into that language)
+  const translatableFields = term.fields.filter(f => {
+    // Only show if at least one preferred language is present in translations or allowedLanguages
+    const hasPreferred = preferredLanguages.some(lang =>
+      f.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase())
+    );
+    // Also show if user can translate into this language (for input)
+    const canTranslateAny = allowedLanguages.some(lang =>
+      !f.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase())
+    );
+    // Only show fields that match the original filter (translatable/label/reference/definition)
+    const isTranslatableType = f.original_value && (
+      f.field_role === 'translatable'
+    );
+    return isTranslatableType && (hasPreferred || canTranslateAny);
+  });
 
   const getFieldIcon = (uri: string, field_role?: string) => {
     if (field_role === 'label' || uri.includes('prefLabel')) return <Tag size={16} className="text-blue-500" />;
@@ -888,7 +899,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
-                               disabled={!canTranslate}
+                               disabled={!canTranslate || currentTranslation?.status === 'original' || currentTranslation?.status === 'merged'}
                                placeholder="Enter translation..."
                              />
                          ) : (
@@ -897,7 +908,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
-                               disabled={!canTranslate}
+                               disabled={!canTranslate || currentTranslation?.status === 'original' || currentTranslation?.status === 'merged'}
                                placeholder="Enter translation..."
                              />
                          )}
