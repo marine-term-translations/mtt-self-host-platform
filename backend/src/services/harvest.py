@@ -78,6 +78,7 @@ def escape_sparql_uri(uri):
 def create_sparql_query(collection_uri, limit=None, offset=None):
     """
     Create SPARQL query to fetch all concepts from a collection.
+    Fetches ALL language variants for each property (prefLabel, altLabel, definition).
 
     Args:
         collection_uri: URI of the collection to query (will be validated)
@@ -90,19 +91,20 @@ def create_sparql_query(collection_uri, limit=None, offset=None):
     # Validate and escape URI before using in query
     safe_uri = escape_sparql_uri(collection_uri)
 
+    # Note: We don't use SELECT DISTINCT here because we want ALL language variants
+    # This means we'll get multiple rows per concept if there are multiple languages
     query = f"""
     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
     PREFIX dc: <http://purl.org/dc/terms/>
     PREFIX owl: <http://www.w3.org/2002/07/owl#>
     
-    SELECT DISTINCT ?concept ?prefLabel ?altLabel ?definition 
+    SELECT ?concept ?property ?value
     WHERE {{
         <{safe_uri}> skos:member ?concept .
-        OPTIONAL {{ ?concept skos:prefLabel ?prefLabel }}
-        OPTIONAL {{ ?concept skos:altLabel ?altLabel }}
-        OPTIONAL {{ ?concept skos:definition ?definition }}
+        ?concept ?property ?value .
+        FILTER (?property IN (skos:prefLabel, skos:altLabel, skos:definition, skos:notation, skos:broader, skos:narrower, skos:related))
     }}
-    ORDER BY ?concept
+    ORDER BY ?concept ?property
     """
     if limit is not None:
         query += f"\nLIMIT {limit}"
@@ -185,11 +187,17 @@ def query_sparql_endpoint(
 def insert_results(conn, collection_uri, results):
     """
     Insert or update query results into the SQLite database.
+    
+    Processes ALL language variants from RDF data.
+    For each property value:
+    - If it has a language tag (xml:lang), use that language
+    - If no language tag, use 'undefined'
+    - Insert as 'original' status translation
 
     For existing databases:
     - Existing terms are updated with new `updated_at` timestamp
     - New term fields are added, duplicates are ignored
-    - Original translations are created from ingested RDF data
+    - Original translations are created from ingested RDF data with all language variants
     - Existing translations, appeals, etc. are preserved
 
     Args:
@@ -217,12 +225,29 @@ def insert_results(conn, collection_uri, results):
     cursor.execute("PRAGMA table_info(translations)")
     columns = [col[1] for col in cursor.fetchall()]
     has_new_schema = 'status' in columns and 'source' in columns
-
+    
+    # Group bindings by concept to process all properties together
+    concept_data = {}
     for binding in bindings:
         concept_uri = binding.get("concept", {}).get("value", "")
         if not concept_uri:
             continue
+            
+        if concept_uri not in concept_data:
+            concept_data[concept_uri] = []
+        
+        property_uri = binding.get("property", {}).get("value", "")
+        value_data = binding.get("value", {})
+        
+        if property_uri and value_data:
+            concept_data[concept_uri].append({
+                "property": property_uri,
+                "value": value_data.get("value"),
+                "language": value_data.get("xml:lang", "undefined")  # Use 'undefined' if no language tag
+            })
 
+    # Process each concept
+    for concept_uri, properties in concept_data.items():
         # Check if term already exists
         if concept_uri not in terms_processed:
             cursor.execute("SELECT id FROM terms WHERE uri = ?", (concept_uri,))
@@ -256,57 +281,66 @@ def insert_results(conn, collection_uri, results):
             continue
         term_id = term_row[0]
 
-        # Insert term fields for each SKOS property
-        for field_name, (field_uri, field_term) in FIELD_MAPPINGS.items():
-            field_data = binding.get(field_name)
-            if field_data:
-                field_value = field_data.get("value")
-                # Extract language tag from RDF literal (if present)
-                # SPARQL returns language in xml:lang attribute
-                # Use 'no_lang' if no language tag is present
-                field_lang = field_data.get("xml:lang", "no_lang")
+        # Process each property-value pair
+        for prop_data in properties:
+            property_uri = prop_data["property"]
+            value = prop_data["value"]
+            language = prop_data["language"]
+            
+            if not value:
+                continue
+            
+            # Map property URI to field info
+            field_info = None
+            for field_name, (field_uri, field_term) in FIELD_MAPPINGS.items():
+                if property_uri == field_uri:
+                    field_info = (field_uri, field_term)
+                    break
+            
+            if not field_info:
+                continue
                 
-                # Ensure we have a value
-                if not field_value:
-                    continue
-                
-                # Try to insert term_field, ignore if duplicate (preserves existing translations)
+            field_uri, field_term = field_info
+            
+            # Try to insert term_field using the first value we encounter for this field
+            # We only store one original_value per field (for backward compatibility)
+            cursor.execute(
+                """
+                SELECT id FROM term_fields 
+                WHERE term_id = ? AND field_uri = ?
+                """,
+                (term_id, field_uri),
+            )
+            term_field_row = cursor.fetchone()
+            
+            if not term_field_row:
+                # Insert new term_field with this value as original_value
                 cursor.execute(
                     """
-                    INSERT OR IGNORE INTO term_fields 
+                    INSERT INTO term_fields 
                     (term_id, field_uri, field_term, original_value)
                     VALUES (?, ?, ?, ?)
                 """,
-                    (term_id, field_uri, field_term, field_value),
+                    (term_id, field_uri, field_term, value),
                 )
-                if cursor.rowcount > 0:
-                    term_fields_inserted += 1
-                
-                # Get the term_field_id (whether just inserted or already exists)
+                term_fields_inserted += 1
+                term_field_id = cursor.lastrowid
+            else:
+                term_field_id = term_field_row[0]
+            
+            if has_new_schema:
+                # Insert 'original' translation for each language variant
+                # Use INSERT OR IGNORE to avoid duplicates (same field, language, status combination)
                 cursor.execute(
                     """
-                    SELECT id FROM term_fields 
-                    WHERE term_id = ? AND field_uri = ? AND original_value = ?
+                    INSERT OR IGNORE INTO translations 
+                    (term_field_id, language, value, status, source)
+                    VALUES (?, ?, ?, 'original', 'rdf-ingest')
                     """,
-                    (term_id, field_uri, field_value),
+                    (term_field_id, language, value),
                 )
-                term_field_row = cursor.fetchone()
-                if not term_field_row:
-                    continue
-                term_field_id = term_field_row[0]
-                
-                if has_new_schema:
-                    # Create or update 'original' translation with the language from RDF
-                    cursor.execute(
-                        """
-                        INSERT OR REPLACE INTO translations 
-                        (term_field_id, language, value, status, source)
-                        VALUES (?, ?, ?, 'original', 'rdf-ingest')
-                        """,
-                        (term_field_id, field_lang, field_value),
-                    )
-                    if cursor.rowcount > 0:
-                        originals_inserted += 1
+                if cursor.rowcount > 0:
+                    originals_inserted += 1
 
     conn.commit()
 

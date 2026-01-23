@@ -216,7 +216,7 @@ router.get("/browse", apiLimiter, (req, res) => {
         original_value: prefLabelField?.original_value || definitionField?.original_value || null,
         // Include best matching translation based on user preferences
         displayValue: bestLabelTranslation?.value || prefLabelField?.original_value || definitionField?.original_value || null,
-        displayLanguage: bestLabelTranslation?.language || 'no_lang',
+        displayLanguage: bestLabelTranslation?.language || 'undefined',
         displayStatus: bestLabelTranslation?.status || 'original',
         // Include all translations for clients that want to show multiple languages
         translations: fieldsWithTranslations.flatMap(f => f.translations).map(t => ({

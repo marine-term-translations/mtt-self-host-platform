@@ -8,7 +8,7 @@ DROP TRIGGER IF EXISTS translations_fts_insert;
 DROP TRIGGER IF EXISTS translations_fts_update;
 DROP TRIGGER IF EXISTS translations_fts_delete;
 
--- Step 2: Remove language constraint and allow all ISO 639-1/3 codes and 'no_lang' (for terms without language tags)
+-- Step 2: Remove language constraint and allow all ISO 639-1/3 codes and 'undefined' (for terms without language tags)
 -- Add 'original' to the existing status values to preserve workflow statuses
 -- We need to recreate the translations table
 
@@ -16,7 +16,7 @@ DROP TRIGGER IF EXISTS translations_fts_delete;
 CREATE TABLE translations_new (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     term_field_id  INTEGER NOT NULL REFERENCES term_fields(id) ON DELETE CASCADE,
-    language       TEXT    NOT NULL DEFAULT 'no_lang',
+    language       TEXT    NOT NULL DEFAULT 'undefined',
     value          TEXT    NOT NULL,
     status         TEXT    NOT NULL DEFAULT 'draft' CHECK(status IN ('original', 'draft', 'review', 'approved', 'rejected', 'merged')),
     source         TEXT,  -- e.g. 'rdf-ingest', 'user:123', 'ai:claude-3.5', 'merged'

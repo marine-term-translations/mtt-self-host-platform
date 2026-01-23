@@ -42,22 +42,33 @@ CREATE TABLE user_preferences (
 ### 2. Harvest Script Updates (harvest.py)
 
 #### Language Tag Extraction:
+- Fetches **ALL language variants** from RDF data for each property
+- Uses updated SPARQL query that retrieves all property-value pairs (not just one per property)
 - Extracts language tags from RDF literals using the `xml:lang` attribute
-- Falls back to 'no_lang' if no language tag is present
+- Falls back to 'undefined' if no language tag is present
 - Example: `<skos:prefLabel xml:lang="en">Sea surface temperature</skos:prefLabel>` → language='en', status='original'
-- Example: `<skos:prefLabel>Sea surface temperature</skos:prefLabel>` (no lang tag) → language='no_lang', status='original'
+- Example: `<skos:prefLabel xml:lang="nl">Zeeoppervlaktetemperatuur</skos:prefLabel>` → language='nl', status='original'
+- Example: `<skos:prefLabel>SST</skos:prefLabel>` (no lang tag) → language='undefined', status='original'
+
+#### All Language Variants Inserted:
+- For each term and each field, **ALL translations from the RDF source are inserted**
+- Each language variant becomes a separate row in the translations table
+- No user configuration controls which languages are inserted - all are captured
+- This ensures complete preservation of the original RDF data
 
 #### Original Translation Creation:
 ```python
-if has_new_schema:
-    cursor.execute(
-        """
-        INSERT OR REPLACE INTO translations 
+# New approach: Process all property-value pairs
+for prop_data in properties:
+    property_uri = prop_data["property"]
+    value = prop_data["value"]
+    language = prop_data["language"]  # From xml:lang or 'undefined'
+    
+    cursor.execute("""
+        INSERT OR IGNORE INTO translations 
         (term_field_id, language, value, status, source)
         VALUES (?, ?, ?, 'original', 'rdf-ingest')
-        """,
-        (term_field_id, field_lang, field_value),
-    )
+    """, (term_field_id, language, value))
 ```
 
 #### Performance Optimization:
