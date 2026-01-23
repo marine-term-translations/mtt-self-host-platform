@@ -189,6 +189,7 @@ def insert_results(conn, collection_uri, results):
     For existing databases:
     - Existing terms are updated with new `updated_at` timestamp
     - New term fields are added, duplicates are ignored
+    - Original translations are created from ingested RDF data
     - Existing translations, appeals, etc. are preserved
 
     Args:
@@ -206,6 +207,7 @@ def insert_results(conn, collection_uri, results):
     terms_inserted = 0
     terms_updated = 0
     term_fields_inserted = 0
+    originals_inserted = 0
 
     # Track processed terms to avoid redundant updates
     terms_processed = set()
@@ -250,9 +252,18 @@ def insert_results(conn, collection_uri, results):
 
         # Insert term fields for each SKOS property
         for field_name, (field_uri, field_term) in FIELD_MAPPINGS.items():
-            field_value = binding.get(field_name, {}).get("value")
-            if field_value:
-                # Try to insert, ignore if duplicate (preserves existing translations)
+            field_data = binding.get(field_name)
+            if field_data:
+                field_value = field_data.get("value")
+                # Extract language tag from RDF literal (if present)
+                # SPARQL returns language in xml:lang attribute
+                field_lang = field_data.get("xml:lang", "und")
+                
+                # Ensure we have a value
+                if not field_value:
+                    continue
+                
+                # Try to insert term_field, ignore if duplicate (preserves existing translations)
                 cursor.execute(
                     """
                     INSERT OR IGNORE INTO term_fields 
@@ -263,6 +274,37 @@ def insert_results(conn, collection_uri, results):
                 )
                 if cursor.rowcount > 0:
                     term_fields_inserted += 1
+                
+                # Get the term_field_id (whether just inserted or already exists)
+                cursor.execute(
+                    """
+                    SELECT id FROM term_fields 
+                    WHERE term_id = ? AND field_uri = ? AND original_value = ?
+                    """,
+                    (term_id, field_uri, field_value),
+                )
+                term_field_row = cursor.fetchone()
+                if not term_field_row:
+                    continue
+                term_field_id = term_field_row[0]
+                
+                # Check if migration 014 has been applied (translations table has status column)
+                cursor.execute("PRAGMA table_info(translations)")
+                columns = [col[1] for col in cursor.fetchall()]
+                has_new_schema = 'status' in columns and 'source' in columns
+                
+                if has_new_schema:
+                    # Create or update 'original' translation with the language from RDF
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO translations 
+                        (term_field_id, language, value, status, source)
+                        VALUES (?, ?, ?, 'original', 'rdf-ingest')
+                        """,
+                        (term_field_id, field_lang, field_value),
+                    )
+                    if cursor.rowcount > 0:
+                        originals_inserted += 1
 
     conn.commit()
 
@@ -271,6 +313,7 @@ def insert_results(conn, collection_uri, results):
     print(f"  - New terms inserted: {terms_inserted}")
     print(f"  - Existing terms updated: {terms_updated}")
     print(f"  - New term fields inserted: {term_fields_inserted}")
+    print(f"  - Original translations inserted: {originals_inserted}")
 
 
 def main():
