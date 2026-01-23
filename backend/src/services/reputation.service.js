@@ -554,6 +554,32 @@ function applyCreationReward(userIdentifier, translationId) {
   );
 }
 
+/**
+ * Apply appropriate reputation changes when a translation status changes (for admin actions)
+ * @param {number|string} userIdentifier - User ID or username who created the translation
+ * @param {string} oldStatus - Previous status
+ * @param {string} newStatus - New status
+ * @param {number} translationId - The translation ID
+ * @returns {object} Result of the reputation change
+ */
+function applyReputationForTranslationStatusChange(userIdentifier, oldStatus, newStatus, translationId) {
+  // Only apply changes for certain status transitions
+  if (oldStatus === newStatus) {
+    return { applied: false, message: 'No status change' };
+  }
+  
+  // Apply rewards
+  if (newStatus === 'approved' && oldStatus !== 'approved') {
+    return applyApprovalReward(userIdentifier, translationId);
+  } else if (newStatus === 'merged' && oldStatus !== 'merged') {
+    return applyMergeReward(userIdentifier, translationId);
+  } else if (newStatus === 'rejected' && oldStatus !== 'rejected') {
+    return applyRejectionPenalty(userIdentifier, translationId);
+  }
+  
+  return { applied: false, message: 'No reputation change for this transition' };
+}
+
 module.exports = {
   // Constants
   REPUTATION_TIERS,
@@ -581,6 +607,9 @@ module.exports = {
   applyApprovalReward,
   applyMergeReward,
   applyCreationReward,
+
+  // Admin helper functions
+  applyReputationForTranslationStatusChange,
 
   // Utility functions
   isImmuneToRejectionPenalty,

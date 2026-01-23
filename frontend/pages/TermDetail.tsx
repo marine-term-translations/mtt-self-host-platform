@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen, 
   CheckCircle, XCircle, Clock, History, AlertCircle, PlayCircle, ChevronRight, 
-  Edit3, MessageSquare, AlertTriangle, CheckSquare, MessageCircle, Sparkles, Loader2
+  Edit3, MessageSquare, AlertTriangle, CheckSquare, MessageCircle, Sparkles, Loader2, Flag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
@@ -51,6 +51,17 @@ const TermDetail: React.FC = () => {
     isOpen: false,
     fieldId: null,
     translationId: null,
+    reason: ''
+  });
+
+  // Report Message Modal State
+  const [reportModal, setReportModal] = useState<{
+    isOpen: boolean;
+    messageId: number | null;
+    reason: string;
+  }>({
+    isOpen: false,
+    messageId: null,
     reason: ''
   });
 
@@ -406,10 +417,32 @@ Original Text (${field.field_term}): "${field.original_value}"`;
       await submitUpdate(rejectionModal.fieldId, 'rejected');
 
       setRejectionModal(prev => ({ ...prev, isOpen: false, reason: '' }));
+      toast.success("Translation rejected and appeal created");
     } catch (error) {
       console.error("Rejection failed", error);
       toast.error("Failed to submit rejection appeal.");
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReportMessage = (messageId: number) => {
+    setReportModal({
+      isOpen: true,
+      messageId,
+      reason: ''
+    });
+  };
+
+  const confirmReportMessage = async () => {
+    if (!reportModal.messageId || !reportModal.reason.trim()) return;
+    
+    try {
+      await backendApi.reportAppealMessage(reportModal.messageId, reportModal.reason);
+      toast.success("Message reported successfully");
+      setReportModal({ isOpen: false, messageId: null, reason: '' });
+    } catch (error) {
+      console.error("Report failed", error);
+      toast.error("Failed to report message");
     }
   };
 
@@ -610,6 +643,45 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                >
                  {isSubmitting ? 'Submitting...' : 'Confirm Reject'}
+               </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Message Modal */}
+      {reportModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700">
+             <div className="flex items-center gap-3 mb-4 text-red-600 dark:text-red-400">
+                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <Flag size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Report Message</h3>
+             </div>
+             <p className="text-slate-600 dark:text-slate-300 mb-4 text-sm">
+                Please provide a reason for reporting this message. An admin will review your report.
+             </p>
+             <textarea
+               className="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white p-3 mb-4 focus:ring-red-500 focus:border-red-500"
+               rows={4}
+               placeholder="Reason for reporting (e.g., harassment, spam, inappropriate content)..."
+               value={reportModal.reason}
+               onChange={(e) => setReportModal(prev => ({ ...prev, reason: e.target.value }))}
+             />
+             <div className="flex justify-end gap-3">
+               <button
+                 onClick={() => setReportModal({ isOpen: false, messageId: null, reason: '' })}
+                 className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg font-medium"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={confirmReportMessage}
+                 disabled={!reportModal.reason.trim()}
+                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+               >
+                 Submit Report
                </button>
              </div>
           </div>
@@ -878,12 +950,23 @@ Original Text (${field.field_term}): "${field.original_value}"`;
 
                                             <div className="mt-3 pl-3 border-l-2 border-slate-200 dark:border-slate-700 space-y-2">
                                                 {appeal.messages?.map(msg => (
-                                                    <div key={msg.id} className="text-sm">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.author}</span>
-                                                            <span className="text-xs text-slate-400">{format(parse(msg.created_at), 'YYYY-MM-DD')}</span>
+                                                    <div key={msg.id} className="text-sm bg-white dark:bg-slate-800 p-2 rounded">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.author}</span>
+                                                                <span className="text-xs text-slate-400">{format(parse(msg.created_at), 'YYYY-MM-DD')}</span>
+                                                            </div>
+                                                            {user && (
+                                                                <button
+                                                                    onClick={() => handleReportMessage(msg.id)}
+                                                                    className="text-red-500 hover:text-red-700 p-1"
+                                                                    title="Report this message"
+                                                                >
+                                                                    <Flag size={12} />
+                                                                </button>
+                                                            )}
                                                         </div>
-                                                        <p className="text-slate-600 dark:text-slate-400">{msg.message}</p>
+                                                        <p className="text-slate-600 dark:text-slate-400 mt-1">{msg.message}</p>
                                                     </div>
                                                 ))}
                                             </div>

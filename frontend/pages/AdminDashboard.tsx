@@ -1,7 +1,7 @@
 
 
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search, Box } from 'lucide-react';
+import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search, Box, Languages } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -165,7 +165,7 @@ const AdminDashboard: React.FC = () => {
                     <Database size={20} />
                 </div>
             </div>
-             <p className="text-xs text-slate-400"> across {stats.termCount} terms</p>
+            <Link to="/admin/translations" className="text-xs font-medium text-green-600 hover:text-green-700">Manage Translations &rarr;</Link>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
