@@ -57,8 +57,8 @@ function selectBestTranslation(translations, preferredLanguages) {
   for (const lang of preferredLanguages) {
     const langTranslations = translations.filter(t => t.language === lang);
     if (langTranslations.length > 0) {
-      // Sort by workflow priority and return the best one
-      const best = langTranslations.sort((a, b) => 
+      // Sort by workflow priority and return the best one (create copy to avoid mutation)
+      const best = [...langTranslations].sort((a, b) => 
         (workflowPriority[b.status] || 0) - (workflowPriority[a.status] || 0)
       )[0];
       return best;
@@ -72,8 +72,8 @@ function selectBestTranslation(translations, preferredLanguages) {
   const anyOriginal = translations.find(t => t.status === 'original');
   if (anyOriginal) return anyOriginal;
   
-  // Last resort - return highest priority translation regardless of language
-  const sorted = translations.sort((a, b) => 
+  // Last resort - return highest priority translation regardless of language (create copy to avoid mutation)
+  const sorted = [...translations].sort((a, b) => 
     (workflowPriority[b.status] || 0) - (workflowPriority[a.status] || 0)
   );
   return sorted[0];
