@@ -213,4 +213,177 @@ router.patch("/appeals/:id", writeLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/appeals/{id}/messages:
+ *   get:
+ *     summary: Get all messages for an appeal
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The appeal ID
+ *     responses:
+ *       200:
+ *         description: List of messages for the appeal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   appeal_id:
+ *                     type: integer
+ *                   author_id:
+ *                     type: integer
+ *                   author_username:
+ *                     type: string
+ *                   message:
+ *                     type: string
+ *                   created_at:
+ *                     type: string
+ */
+router.get("/appeals/:id/messages", apiLimiter, (req, res) => {
+  const { id } = req.params;
+  
+  // Validate appeal ID
+  const appealId = parseInt(id, 10);
+  if (isNaN(appealId) || appealId < 1) {
+    return res.status(400).json({ error: "Invalid appeal ID" });
+  }
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if appeal exists
+    const appeal = db.prepare("SELECT id FROM appeals WHERE id = ?").get(appealId);
+    if (!appeal) {
+      return res.status(404).json({ error: "Appeal not found" });
+    }
+    
+    // Get all messages for the appeal with author information
+    const messages = db.prepare(`
+      SELECT 
+        am.id,
+        am.appeal_id,
+        am.author_id,
+        am.message,
+        am.created_at,
+        u.username as author_username
+      FROM appeal_messages am
+      LEFT JOIN users u ON am.author_id = u.id
+      WHERE am.appeal_id = ?
+      ORDER BY am.created_at ASC
+    `).all(appealId);
+    
+    res.json(messages);
+  } catch (err) {
+    console.error("Error fetching appeal messages:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/appeals/{id}/messages:
+ *   post:
+ *     summary: Add a new message to an appeal
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The appeal ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Message created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 appeal_id:
+ *                   type: integer
+ *                 author_id:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                 created_at:
+ *                   type: string
+ */
+router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+  
+  // Validate appeal ID
+  const appealId = parseInt(id, 10);
+  if (isNaN(appealId) || appealId < 1) {
+    return res.status(400).json({ error: "Invalid appeal ID" });
+  }
+  
+  // Validate message
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+  
+  // Verify user is authenticated via session
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  const currentUserId = req.session.user.id || req.session.user.user_id;
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if appeal exists
+    const appeal = db.prepare("SELECT id, status FROM appeals WHERE id = ?").get(appealId);
+    if (!appeal) {
+      return res.status(404).json({ error: "Appeal not found" });
+    }
+    
+    // Insert the message
+    const stmt = db.prepare(
+      "INSERT INTO appeal_messages (appeal_id, author_id, message) VALUES (?, ?, ?)"
+    );
+    const info = stmt.run(appealId, currentUserId, message.trim());
+    
+    // Get the created message with author info
+    const createdMessage = db.prepare(`
+      SELECT 
+        am.id,
+        am.appeal_id,
+        am.author_id,
+        am.message,
+        am.created_at,
+        u.username as author_username
+      FROM appeal_messages am
+      LEFT JOIN users u ON am.author_id = u.id
+      WHERE am.id = ?
+    `).get(info.lastInsertRowid);
+    
+    res.status(201).json(createdMessage);
+  } catch (err) {
+    console.error("Error creating appeal message:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
