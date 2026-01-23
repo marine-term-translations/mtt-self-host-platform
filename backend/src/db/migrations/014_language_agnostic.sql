@@ -2,7 +2,13 @@
 -- This migration converts the translation system from English-centric to truly language-agnostic.
 -- It introduces the concept of "original" labels from ingestion sources and user language preferences.
 
--- Step 1: Remove language constraint and allow all ISO 639-1/3 codes and 'und' (undetermined)
+-- Step 1: Drop views and triggers that depend on the translations table
+DROP VIEW IF EXISTS term_summary;
+DROP TRIGGER IF EXISTS translations_fts_insert;
+DROP TRIGGER IF EXISTS translations_fts_update;
+DROP TRIGGER IF EXISTS translations_fts_delete;
+
+-- Step 2: Remove language constraint and allow all ISO 639-1/3 codes and 'und' (undetermined)
 -- We need to recreate the translations table without the CHECK constraint
 
 -- Create new translations table without language constraint
@@ -101,12 +107,32 @@ CREATE TRIGGER translations_fts_delete AFTER DELETE ON translations BEGIN
     DELETE FROM translations_fts WHERE rowid = old.id;
 END;
 
--- Step 4: Rebuild FTS index to include existing translations
+-- Step 5: Rebuild FTS index to include existing translations
 DELETE FROM translations_fts;
 INSERT INTO translations_fts(rowid, value, language)
 SELECT id, value, language FROM translations;
 
--- Step 5: Add a view to make it easier to query translations with workflow status
+-- Step 6: Recreate the term_summary view to work with the new schema
+CREATE VIEW term_summary AS
+SELECT 
+    t.id as term_id,
+    t.uri,
+    tf.id as term_field_id,
+    tf.field_uri,
+    tf.field_term,
+    tf.original_value,
+    tr.id as translation_id,
+    tr.language,
+    tr.status,
+    tr.value as translation_value,
+    tr.source,
+    COALESCE(tws.workflow_status, 'approved') as workflow_status
+FROM terms t
+LEFT JOIN term_fields tf ON t.id = tf.term_id
+LEFT JOIN translations tr ON tf.id = tr.term_field_id
+LEFT JOIN translation_workflow_status tws ON tr.id = tws.translation_id;
+
+-- Step 7: Add a view to make it easier to query translations with workflow status
 CREATE VIEW translations_with_workflow AS
 SELECT 
     t.*,
