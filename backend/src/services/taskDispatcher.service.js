@@ -263,7 +263,6 @@ async function executeSyncTask(task, addLog) {
     const labelFieldUri = source.label_field_uri;
     const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
     const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
-    const languageTag = translationConfig.languageTag || '@en';
     
     // Helper function to determine field role
     const getFieldRole = (fieldUri) => {
@@ -338,11 +337,8 @@ async function executeSyncTask(task, addLog) {
           const fieldTerm = pathConfig.label || predicatePath;
           const fieldRole = getFieldRole(predicatePath);
           
-          // Use per-path language tag, fallback to global, then to '@en'
-          const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
-          
           // Query for the value at this predicate path
-          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
+          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath);
           
           if (valueQuery && valueQuery.length > 0) {
             for (const value of valueQuery) {
@@ -397,7 +393,7 @@ async function executeSyncTask(task, addLog) {
  * Supports nested paths like "ex:hasAuthor/foaf:name"
  * Filters by language tag if provided
  */
-async function getValueForPath(graphName, subjectUri, predicatePath, languageTag) {
+async function getValueForPath(graphName, subjectUri, predicatePath) {
   // Validate inputs
   if (!graphName || !subjectUri || !predicatePath) {
     console.error('Invalid parameters for getValueForPath:', { graphName, subjectUri, predicatePath });
@@ -433,13 +429,7 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     // Otherwise wrap it
     return `<${p}>`;
   }).join(' / ');
-  
-  // Determine language filter
-  let languageFilter = '';
-  if (languageTag && languageTag !== '@en') {
-    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
-    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
-  }
+
   
   const sparqlQuery = `
     SELECT DISTINCT ?value
@@ -447,7 +437,6 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
-        ${languageFilter}
       }
     }
     LIMIT 100
