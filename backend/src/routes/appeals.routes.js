@@ -386,4 +386,86 @@ router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/appeals/messages/{id}/report:
+ *   post:
+ *     summary: Report an appeal message for moderation
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The appeal message ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Report created successfully
+ */
+router.post("/appeals/messages/:id/report", writeLimiter, (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  
+  // Validate message ID
+  const messageId = parseInt(id, 10);
+  if (isNaN(messageId) || messageId < 1) {
+    return res.status(400).json({ error: "Invalid message ID" });
+  }
+  
+  // Validate reason
+  if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+    return res.status(400).json({ error: "Reason is required" });
+  }
+  
+  // Verify user is authenticated via session
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  const currentUserId = req.session.user.id || req.session.user.user_id;
+  
+  try {
+    const db = getDatabase();
+    
+    // Check if message exists
+    const message = db.prepare("SELECT id, appeal_id FROM appeal_messages WHERE id = ?").get(messageId);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+    
+    // Check if user already reported this message
+    const existingReport = db.prepare(
+      "SELECT id FROM message_reports WHERE appeal_message_id = ? AND reported_by_id = ?"
+    ).get(messageId, currentUserId);
+    
+    if (existingReport) {
+      return res.status(409).json({ error: "You have already reported this message" });
+    }
+    
+    // Create the report
+    const stmt = db.prepare(
+      "INSERT INTO message_reports (appeal_message_id, reported_by_id, reason) VALUES (?, ?, ?)"
+    );
+    const info = stmt.run(messageId, currentUserId, reason.trim());
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Report submitted successfully',
+      reportId: info.lastInsertRowid 
+    });
+  } catch (err) {
+    console.error("Error creating message report:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

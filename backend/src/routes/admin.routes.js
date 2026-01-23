@@ -531,4 +531,269 @@ router.post("/admin/translations/:id/appeal", requireAdmin, apiLimiter, (req, re
   }
 });
 
+/**
+ * @openapi
+ * /api/admin/moderation/reports:
+ *   get:
+ *     summary: Get all message reports (admin only)
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, reviewed, dismissed, action_taken]
+ *     responses:
+ *       200:
+ *         description: List of message reports
+ */
+router.get("/admin/moderation/reports", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { status } = req.query;
+    const db = getDatabase();
+    
+    let query = `
+      SELECT 
+        mr.id,
+        mr.appeal_message_id,
+        mr.reported_by_id,
+        mr.reason,
+        mr.status,
+        mr.reviewed_by_id,
+        mr.admin_notes,
+        mr.created_at,
+        mr.reviewed_at,
+        reporter.username as reported_by_username,
+        reviewer.username as reviewed_by_username,
+        am.message,
+        am.author_id as message_author_id,
+        author.username as message_author_username,
+        am.appeal_id
+      FROM message_reports mr
+      LEFT JOIN users reporter ON mr.reported_by_id = reporter.id
+      LEFT JOIN users reviewer ON mr.reviewed_by_id = reviewer.id
+      LEFT JOIN appeal_messages am ON mr.appeal_message_id = am.id
+      LEFT JOIN users author ON am.author_id = author.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    
+    if (status) {
+      query += ' AND mr.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY mr.created_at DESC';
+    
+    const reports = db.prepare(query).all(...params);
+    
+    res.json(reports);
+  } catch (err) {
+    console.error('[Admin Moderation] Error fetching reports:', err);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/moderation/reports/{id}/review:
+ *   put:
+ *     summary: Review a message report (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [reviewed, dismissed, action_taken]
+ *               admin_notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Report reviewed successfully
+ */
+router.put("/admin/moderation/reports/:id/review", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id);
+    const { status, admin_notes } = req.body;
+    const db = getDatabase();
+    
+    // Validate status
+    const validStatuses = ['reviewed', 'dismissed', 'action_taken'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    
+    // Update report
+    const result = db.prepare(
+      'UPDATE message_reports SET status = ?, reviewed_by_id = ?, admin_notes = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(status, currentUserId, admin_notes || null, reportId);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    
+    res.json({ success: true, message: 'Report reviewed successfully' });
+  } catch (err) {
+    console.error('[Admin Moderation] Error reviewing report:', err);
+    res.status(500).json({ error: 'Failed to review report' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/moderation/appeals/{id}/messages:
+ *   get:
+ *     summary: Get appeal messages with report info (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of appeal messages with report information
+ */
+router.get("/admin/moderation/appeals/:id/messages", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const appealId = parseInt(req.params.id);
+    const db = getDatabase();
+    
+    // Get appeal messages with author and report info
+    const messages = db.prepare(`
+      SELECT 
+        am.id,
+        am.appeal_id,
+        am.author_id,
+        am.message,
+        am.created_at,
+        u.username as author_username,
+        COUNT(mr.id) as report_count,
+        SUM(CASE WHEN mr.status = 'pending' THEN 1 ELSE 0 END) as pending_reports
+      FROM appeal_messages am
+      LEFT JOIN users u ON am.author_id = u.id
+      LEFT JOIN message_reports mr ON am.id = mr.appeal_message_id
+      WHERE am.appeal_id = ?
+      GROUP BY am.id
+      ORDER BY am.created_at ASC
+    `).all(appealId);
+    
+    res.json(messages);
+  } catch (err) {
+    console.error('[Admin Moderation] Error fetching appeal messages:', err);
+    res.status(500).json({ error: 'Failed to fetch appeal messages' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/moderation/users/{id}/penalty:
+ *   post:
+ *     summary: Apply reputation penalty or ban to a user (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [reputation_penalty, ban]
+ *               penalty_amount:
+ *                 type: integer
+ *               ban_reason:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Penalty applied successfully
+ */
+router.post("/admin/moderation/users/:id/penalty", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { action, penalty_amount, ban_reason, reason } = req.body;
+    const db = getDatabase();
+    
+    // Validate action
+    if (!['reputation_penalty', 'ban'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+    
+    // Check if user exists
+    const user = db.prepare('SELECT id, extra FROM users WHERE id = ?').get(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Parse extra field
+    const userExtra = user.extra ? JSON.parse(user.extra) : {};
+    
+    // Check if trying to penalize a superadmin
+    if (userExtra.is_superadmin) {
+      return res.status(403).json({ error: 'Cannot penalize superadmin' });
+    }
+    
+    if (action === 'reputation_penalty') {
+      if (!penalty_amount || penalty_amount <= 0) {
+        return res.status(400).json({ error: 'Penalty amount must be positive' });
+      }
+      
+      // Apply reputation penalty
+      db.prepare('UPDATE users SET reputation = reputation - ? WHERE id = ?')
+        .run(penalty_amount, userId);
+      
+      // Log the penalty
+      db.prepare(
+        'INSERT INTO reputation_events (user_id, delta, reason) VALUES (?, ?, ?)'
+      ).run(userId, -penalty_amount, reason || 'Admin moderation penalty');
+      
+      res.json({ 
+        success: true, 
+        message: `Reputation penalty of ${penalty_amount} applied successfully` 
+      });
+      
+    } else if (action === 'ban') {
+      if (!ban_reason || ban_reason.trim().length === 0) {
+        return res.status(400).json({ error: 'Ban reason is required' });
+      }
+      
+      // Ban the user
+      userExtra.is_banned = true;
+      userExtra.ban_reason = ban_reason.trim();
+      userExtra.banned_at = new Date().toISOString();
+      
+      db.prepare('UPDATE users SET extra = ? WHERE id = ?')
+        .run(JSON.stringify(userExtra), userId);
+      
+      res.json({ 
+        success: true, 
+        message: 'User banned successfully' 
+      });
+    }
+  } catch (err) {
+    console.error('[Admin Moderation] Error applying penalty:', err);
+    res.status(500).json({ error: 'Failed to apply penalty' });
+  }
+});
+
 module.exports = router;

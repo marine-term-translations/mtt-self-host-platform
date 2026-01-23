@@ -340,6 +340,34 @@ class ApiService {
   public async createAppealForTranslation(translationId: number, reason: string): Promise<any> {
     return this.post(`/admin/translations/${translationId}/appeal`, { reason });
   }
+
+  // Moderation endpoints
+  public async getModerationReports(status?: string): Promise<any[]> {
+    const params: Record<string, string> = {};
+    if (status) params.status = status;
+    return this.get('/admin/moderation/reports', params);
+  }
+
+  public async reviewReport(reportId: number, status: string, adminNotes?: string): Promise<any> {
+    return this.put(`/admin/moderation/reports/${reportId}/review`, { status, admin_notes: adminNotes });
+  }
+
+  public async getAppealMessagesForModeration(appealId: number): Promise<any[]> {
+    return this.get(`/admin/moderation/appeals/${appealId}/messages`);
+  }
+
+  public async applyUserPenalty(userId: number, action: string, penaltyAmount?: number, banReason?: string, reason?: string): Promise<any> {
+    return this.post(`/admin/moderation/users/${userId}/penalty`, { 
+      action, 
+      penalty_amount: penaltyAmount, 
+      ban_reason: banReason,
+      reason 
+    });
+  }
+
+  public async reportAppealMessage(messageId: number, reason: string): Promise<any> {
+    return this.post(`/appeals/messages/${messageId}/report`, { reason });
+  }
 }
 
 // Export pre-configured instances
