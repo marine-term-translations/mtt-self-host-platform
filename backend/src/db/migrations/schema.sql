@@ -143,11 +143,13 @@ CREATE INDEX idx_sources_type ON sources(source_type);
 -- Tasks table
 CREATE TABLE tasks (
     task_id     INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
+    task_type   TEXT NOT NULL CHECK(task_type IN ('file_upload', 'ldes_sync', 'ldes_feed', 'triplestore_sync', 'harvest', 'other')),
     source_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,
-    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed')),
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
     metadata    TEXT,  -- JSON metadata
     log         TEXT,  -- Task execution log
+    error_message TEXT,  -- Error details if task failed
+    logs        TEXT,  -- Execution logs (alias for compatibility)
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
     started_at  DATETIME,
@@ -161,14 +163,15 @@ CREATE INDEX idx_tasks_source ON tasks(source_id);
 CREATE TABLE task_schedulers (
     scheduler_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT NOT NULL,
-    task_type   TEXT NOT NULL CHECK(task_type IN ('triplestore_sync', 'ldes_sync', 'ldes_feed')),
+    task_type   TEXT NOT NULL CHECK(task_type IN ('file_upload', 'ldes_sync', 'ldes_feed', 'triplestore_sync', 'harvest', 'other')),
     source_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,
     schedule_config TEXT NOT NULL,  -- JSON: { "type": "cron", "expression": "0 0 * * *" } or { "type": "interval", "seconds": 3600 }
-    enabled     INTEGER DEFAULT 1,
+    enabled     INTEGER DEFAULT 1 CHECK(enabled IN (0, 1)),
     last_run    DATETIME,
     next_run    DATETIME,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by  TEXT
 );
 
 CREATE INDEX idx_task_schedulers_enabled ON task_schedulers(enabled);
