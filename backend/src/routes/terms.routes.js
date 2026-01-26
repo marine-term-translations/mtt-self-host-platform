@@ -951,17 +951,43 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           console.log("Updated term_field", { field_uri, fieldId });
         }
       } else {
-        // Insert new field
+        // Insert new field - determine field_role based on existing term's source configuration
+        let fieldRole = null;
+        const termSourceId = db.prepare("SELECT source_id FROM terms WHERE id = ?").get(id)?.source_id;
+        if (termSourceId) {
+          const source = db.prepare("SELECT label_field_uri, reference_field_uris, translatable_field_uris FROM sources WHERE source_id = ?").get(termSourceId);
+          if (source) {
+            if (source.label_field_uri === field_uri) {
+              fieldRole = 'label';
+            } else if (source.reference_field_uris) {
+              try {
+                const refUris = JSON.parse(source.reference_field_uris);
+                if (Array.isArray(refUris) && refUris.includes(field_uri)) {
+                  fieldRole = 'reference';
+                }
+              } catch (e) {}
+            } else if (source.translatable_field_uris) {
+              try {
+                const transUris = JSON.parse(source.translatable_field_uris);
+                if (Array.isArray(transUris) && transUris.includes(field_uri)) {
+                  fieldRole = 'translatable';
+                }
+              } catch (e) {}
+            }
+          }
+        }
+        
         const fieldStmt = db.prepare(
-          "INSERT INTO term_fields (term_id, field_uri, original_value) VALUES (?, ?, ?)"
+          "INSERT INTO term_fields (term_id, field_uri, field_role, original_value) VALUES (?, ?, ?, ?)"
         );
         const fieldInfo = fieldStmt.run(
           id,
           field_uri,
+          fieldRole,
           original_value
         );
         fieldId = fieldInfo.lastInsertRowid;
-        console.log("Inserted term_field", { field_uri, fieldId });
+        console.log("Inserted term_field", { field_uri, fieldId, fieldRole });
       }
       newFieldIdMap[field_uri] = fieldId;
 

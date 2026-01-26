@@ -151,28 +151,13 @@ const TermDetail: React.FC = () => {
 
       // 5. Extract Meta Info
       // Extract display values using field roles
-      // Priority: field_role > hardcoded skos fields (backward compatibility)
-      // Patch: Ensure field_term is present for all fields
-      const patchedFields = foundApiTerm.fields.map(f => {
-        if (typeof f.field_term === 'string' && f.field_term.length > 0) return f;
-        let fieldTerm = f.field_uri;
-        if (fieldTerm) {
-          const hashIdx = fieldTerm.lastIndexOf('#');
-          const slashIdx = fieldTerm.lastIndexOf('/');
-          const idx = Math.max(hashIdx, slashIdx);
-          if (idx !== -1 && idx < fieldTerm.length - 1) {
-            fieldTerm = fieldTerm.substring(idx + 1);
-          }
-        }
-        return { ...f, field_term: fieldTerm };
-      });
+      // Priority: field_role > URI-based detection
+      const labelField = foundApiTerm.fields.find(f => f.field_role === 'label') 
+        || foundApiTerm.fields.find(f => f.field_uri?.includes('prefLabel'));
+      const definitionField = foundApiTerm.fields.find(f => f.field_role === 'reference') 
+        || foundApiTerm.fields.find(f => f.field_uri?.includes('definition'));
 
-      const labelField = patchedFields.find(f => f.field_role === 'label') 
-        || patchedFields.find(f => f.field_term === 'skos:prefLabel');
-      const definitionField = patchedFields.find(f => f.field_role === 'reference') 
-        || patchedFields.find(f => f.field_term === 'skos:definition');
-
-      setTerm({ ...foundApiTerm, fields: patchedFields });
+      setTerm(foundApiTerm);
       setDisplayLabel(labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term');
       setDisplayDef(definitionField?.original_value || 'No definition available.');
       
@@ -292,12 +277,13 @@ const TermDetail: React.FC = () => {
         throw new Error("No free models available");
       }
 
-      const type = field.field_term.includes('definition') ? 'definition' : 'term';
+      const type = field.field_uri?.includes('definition') ? 'definition' : 'term';
+      const fieldName = field.field_uri?.split('#').pop() || field.field_uri?.split('/').pop() || 'field';
       const prompt = `You are a professional marine scientist and translator.
 Translate the following ${type} into ${selectedLang}.
 Keep the translation scientific, accurate, and natural.
 Do not add explanations, only provide the translation.
-Original Text (${field.field_term}): "${field.original_value}"`;
+Original Text (${fieldName}): "${field.original_value}"`;
       
       console.log("Prompt prepared:", prompt);
 

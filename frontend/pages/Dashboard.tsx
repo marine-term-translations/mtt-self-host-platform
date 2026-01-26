@@ -52,9 +52,9 @@ const Dashboard: React.FC = () => {
           const terms = await backendApi.getTermsByIds(termIds);
           terms.forEach((t: ApiTerm) => {
             // Map ID to Label for activity feed lookup
-            const prefLabel = t.labelField?.original_value || 
-                             t.fields.find(f => f.field_term.includes('prefLabel'))?.original_value || 
-                             'Unknown Term';
+            const labelField = t.fields.find(f => f.field_role === 'label')
+              || t.fields.find(f => f.field_uri?.includes('prefLabel'));
+            const prefLabel = labelField?.original_value || 'Unknown Term';
             termIdToLabel[t.id] = prefLabel;
           });
         }

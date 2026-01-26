@@ -167,12 +167,18 @@ const Browse: React.FC = () => {
         
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
           // Use labelField and referenceFields from API response with fallback
-          const labelField = apiTerm.labelField 
-            || apiTerm.fields.find(f => f.field_role === 'label') 
-            || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-          const refField = (apiTerm.referenceFields && apiTerm.referenceFields[0])
-            || apiTerm.fields.find(f => f.field_role === 'reference')
-            || apiTerm.fields.find(f => f.field_term === 'skos:definition');
+          // labelField is now just { field_uri: string }, find the actual field
+          const labelFieldUri = apiTerm.labelField?.field_uri;
+          const labelField = labelFieldUri 
+            ? apiTerm.fields.find(f => f.field_uri === labelFieldUri)
+            : apiTerm.fields.find(f => f.field_role === 'label') 
+              || apiTerm.fields.find(f => f.field_uri?.includes('prefLabel'));
+          
+          const refFieldUri = apiTerm.referenceFields?.[0]?.field_uri;
+          const refField = refFieldUri
+            ? apiTerm.fields.find(f => f.field_uri === refFieldUri)
+            : apiTerm.fields.find(f => f.field_role === 'reference')
+              || apiTerm.fields.find(f => f.field_uri?.includes('definition'));
           
           const translations: Record<string, string | null> = {
             en_plain: null,
@@ -199,7 +205,7 @@ const Browse: React.FC = () => {
             if (field.translations) {
               field.translations.forEach(t => {
                 // Use reference field for translations display
-                if ((field.field_role === 'reference' || field.field_term === 'skos:definition') && t.language) {
+                if ((field.field_role === 'reference' || field.field_uri?.includes('definition')) && t.language) {
                    translations[t.language] = t.value;
                 }
                 if (t.status) {

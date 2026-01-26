@@ -29,8 +29,8 @@ const History: React.FC = () => {
         if (termIds.length > 0) {
           const terms = await backendApi.getTermsByIds(termIds);
           terms.forEach((t: ApiTerm) => {
-            const labelField = t.labelField || t.fields.find(f => f.field_role === 'label') 
-              || t.fields.find(f => f.field_term.includes('prefLabel'));
+            const labelField = t.fields.find(f => f.field_role === 'label') 
+              || t.fields.find(f => f.field_uri?.includes('prefLabel'));
             const prefLabel = labelField?.original_value || t.uri.split('/').pop() || 'Unknown Term';
             tMap[t.id] = prefLabel;
           });
