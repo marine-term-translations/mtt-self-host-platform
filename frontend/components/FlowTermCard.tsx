@@ -72,7 +72,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
 Translate the following text into ${selectedLanguage}.
 Keep the translation scientific, accurate, and natural.
 Do not add explanations, only provide the translation.
-Original Text (${task.field_term}): "${task.original_value}"`;
+Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
       let suggestion: string | null = null;
       
@@ -196,7 +196,7 @@ Original Text (${task.field_term}): "${task.original_value}"`;
         <div className="mb-8">
             <div className="flex items-center gap-2 mb-3">
                 <span className="px-2.5 py-1 rounded-md bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-300 text-xs font-mono font-bold border border-marine-200 dark:border-marine-800">
-                    {task.field_term || 'Unknown Field'}
+                    {task.field_uri?.split('/').pop()?.split('#').pop() || 'Unknown Field'}
                 </span>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Source Text to {taskType === 'review' ? 'Verify' : 'Translate'}
