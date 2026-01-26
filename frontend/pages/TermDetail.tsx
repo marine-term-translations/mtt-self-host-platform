@@ -814,8 +814,8 @@ Original Text (${fieldName}): "${field.original_value}"`;
 
            {/* Fields Loop */}
            {translatableFields.map(field => {
-              const label = getFieldLabel(field.field_term);
-              const isTextArea = field.field_term.includes('definition');
+              const label = getFieldLabel(field.field_uri, field.field_role);
+              const isTextArea = field.field_role === 'reference' || field.field_uri?.includes('definition');
               const currentTranslation = field.translations?.find(t => t.language.toLowerCase() === selectedLang.toLowerCase());
               const status = currentTranslation?.status || 'draft';
               // Check if this is the current user's translation using user_id
@@ -848,7 +848,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
                    {/* Field Header */}
                    <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                          {getFieldIcon(field.field_term, field.field_role)}
+                          {getFieldIcon(field.field_uri, field.field_role)}
                           <span className="font-bold text-slate-700 dark:text-slate-200">{label}</span>
                           {hasActiveAppeal && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 animate-pulse">
