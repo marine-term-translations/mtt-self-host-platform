@@ -684,7 +684,7 @@ router.get("/admin/moderation/appeals/:id/messages", requireAdmin, apiLimiter, (
         SUM(CASE WHEN mr.status = 'pending' THEN 1 ELSE 0 END) as pending_reports
       FROM appeal_messages am
       LEFT JOIN users u ON am.author_id = u.id
-      LEFT JOIN message_reports mr ON am.id = mr.appeal_message_id
+      LEFT JOIN message_reports mr ON am.id = mr.message_id
       WHERE am.appeal_id = ?
       GROUP BY am.id
       ORDER BY am.created_at ASC
