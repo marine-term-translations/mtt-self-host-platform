@@ -41,7 +41,7 @@ CREATE TABLE translations (
 CREATE TABLE appeals (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     translation_id  INTEGER NOT NULL REFERENCES translations(id) ON DELETE CASCADE,
-    opened_by       TEXT    NOT NULL,
+    opened_by_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     opened_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     closed_at       DATETIME,
     status          TEXT    NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'closed', 'resolved')),
@@ -52,7 +52,7 @@ CREATE TABLE appeals (
 CREATE TABLE appeal_messages (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     appeal_id   INTEGER NOT NULL REFERENCES appeals(id) ON DELETE CASCADE,
-    author      TEXT    NOT NULL,
+    author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     message     TEXT    NOT NULL,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
