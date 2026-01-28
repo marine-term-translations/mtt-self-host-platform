@@ -181,29 +181,60 @@ function getRandomUntranslated(userIdentifier, language = null) {
 /**
  * Get the next task for the user (review or translate)
  * @param {number|string} userIdentifier - User ID or username
- * @param {string} language - Optional language filter
+ * @param {string} language - Optional language filter (if not provided, cycles through user's translation languages)
  * @returns {object} Next task object
  */
 function getNextTask(userIdentifier, language = null) {
-  // Priority 1: Pending reviews
-  const review = getPendingReviews(userIdentifier, language);
-  if (review) {
-    return {
-      type: 'review',
-      task: review,
-    };
+  const db = getDatabase();
+  const { getUserTranslationLanguages } = require('../utils/languagePreferences');
+  
+  // Resolve user identifier to user_id
+  let userId = typeof userIdentifier === 'number' ? userIdentifier : parseInt(userIdentifier, 10);
+  if (isNaN(userId)) {
+    const { resolveUsernameToId } = require("../db/database");
+    userId = resolveUsernameToId(userIdentifier);
+    if (!userId) {
+      return {
+        type: 'none',
+        message: 'User not found',
+      };
+    }
   }
   
-  // Priority 2: Untranslated terms
-  const untranslated = getRandomUntranslated(userIdentifier, language);
-  if (untranslated) {
-    return {
-      type: 'translate',
-      task: untranslated,
-    };
+  // If language is not specified, get user's translation languages and try each one
+  let languagesToCheck = language ? [language] : getUserTranslationLanguages(db, userId);
+  
+  // If no translation languages configured, default to common languages
+  if (languagesToCheck.length === 0) {
+    languagesToCheck = ['nl', 'fr', 'de', 'es'];
   }
   
-  // No tasks available
+  console.log('[Flow] Checking languages for tasks:', languagesToCheck);
+  
+  // Try each language in priority order
+  for (const lang of languagesToCheck) {
+    // Priority 1: Pending reviews for this language
+    const review = getPendingReviews(userIdentifier, lang);
+    if (review) {
+      return {
+        type: 'review',
+        task: review,
+        language: lang,
+      };
+    }
+    
+    // Priority 2: Untranslated terms for this language
+    const untranslated = getRandomUntranslated(userIdentifier, lang);
+    if (untranslated) {
+      return {
+        type: 'translate',
+        task: untranslated,
+        language: lang,
+      };
+    }
+  }
+  
+  // No tasks available in any language
   return {
     type: 'none',
     message: 'No tasks available at the moment. Great job!',
