@@ -99,12 +99,12 @@ function getRandomUntranslated(userIdentifier, language = null) {
   
   if (language) {
     query += ` AND tf.id NOT IN (
-         SELECT term_field_id FROM translations WHERE language = ? AND (status = 'original' OR status = 'merged')
+         SELECT term_field_id FROM translations WHERE language = ? AND status IN ('draft', 'review', 'approved', 'merged')
        )`;
     params.push(language);
   } else {
     query += ` AND tf.id NOT IN (
-         SELECT term_field_id FROM translations WHERE language IN ('nl', 'fr', 'de', 'es', 'it', 'pt') AND (status = 'original' OR status = 'merged')
+         SELECT term_field_id FROM translations WHERE language IN ('nl', 'fr', 'de', 'es', 'it', 'pt') AND status IN ('draft', 'review', 'approved', 'merged')
        )`;
   }
   
@@ -119,9 +119,9 @@ function getRandomUntranslated(userIdentifier, language = null) {
               (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     if (language) {
-      partialQuery += ` AND language = ? AND (status = 'original' OR status = 'merged')`;
+      partialQuery += ` AND language = ? AND status IN ('draft', 'review', 'approved', 'merged')`;
     } else {
-      partialQuery += ` AND (status = 'original' OR status = 'merged')`;
+      partialQuery += ` AND status IN ('draft', 'review', 'approved', 'merged')`;
     }
     
     partialQuery += `) as translation_count
@@ -133,12 +133,12 @@ function getRandomUntranslated(userIdentifier, language = null) {
     const partialParams = [];
     
     if (language) {
-      partialQuery += ` AND language = ? AND (status = 'original' OR status = 'merged')`;
+      partialQuery += ` AND language = ? AND status IN ('draft', 'review', 'approved', 'merged')`;
       partialParams.push(language); // First parameter for SELECT COUNT subquery
       partialParams.push(language); // Second parameter for WHERE clause subquery
       partialQuery += `) < 1`;
     } else {
-      partialQuery += ` AND (status = 'original' OR status = 'merged')`;
+      partialQuery += ` AND status IN ('draft', 'review', 'approved', 'merged')`;
       partialQuery += `) < 6`;
     }
     
