@@ -1,5 +1,6 @@
 
 
+
 import { CONFIG } from '../config';
 import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal } from '../types';
 
@@ -363,6 +364,18 @@ class ApiService {
       ban_reason: banReason,
       reason 
     });
+  }
+
+    /**
+   * Fetch user preferences (languages, etc.)
+   */
+  public async getUserPreferences(): Promise<{
+    nativeLanguage?: string;
+    translationLanguages?: string[];
+    preferredLanguages?: string[];
+    visibleExtraLanguages?: string[];
+  }> {
+    return this.get('/user/preferences');
   }
 
   public async reportAppealMessage(messageId: number, reason: string): Promise<any> {

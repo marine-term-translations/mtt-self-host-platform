@@ -29,6 +29,7 @@ const TermDetail: React.FC = () => {
   
   const [selectedLang, setSelectedLang] = useState('');
   const [allowedLanguages, setAllowedLanguages] = useState<string[]>([]);
+  const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // AI State
@@ -72,6 +73,28 @@ const TermDetail: React.FC = () => {
 
   // Helper to normalize URIs for comparison (remove trailing slashes)
   const normalizeUri = (uri: string) => uri.replace(/\/+$/, '');
+
+  // Fetch user preferences (preferredLanguages, translationLanguages, etc.)
+  const fetchUserPreferences = async () => {
+    try {
+      const res = await backendApi.getUserPreferences();
+      if (res) {
+        // preferredLanguages: array of language codes (e.g. ["en", "nl"])
+        setPreferredLanguages(res.preferredLanguages || []);
+        setAllowedLanguages(res.translationLanguages || []);
+        // Set default selectedLang to first allowed or preferred
+        setSelectedLang((prev) => {
+          if (prev && (res.translationLanguages || []).includes(prev)) return prev;
+          if ((res.translationLanguages || []).length > 0) return res.translationLanguages[0];
+          return '';
+        });
+      }
+    } catch (e) {
+      // fallback: no preferences
+      setPreferredLanguages([]);
+      setAllowedLanguages([]);
+    }
+  };
 
   const fetchTermData = async () => {
     setLoading(true);
@@ -128,12 +151,13 @@ const TermDetail: React.FC = () => {
 
       // 5. Extract Meta Info
       // Extract display values using field roles
-      // Priority: field_role > hardcoded skos fields (backward compatibility)
+      // Priority: field_role > URI-based detection
       const labelField = foundApiTerm.fields.find(f => f.field_role === 'label') 
-        || foundApiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
+        || foundApiTerm.fields.find(f => f.field_uri?.includes('prefLabel'));
       const definitionField = foundApiTerm.fields.find(f => f.field_role === 'reference') 
-        || foundApiTerm.fields.find(f => f.field_term === 'skos:definition');
+        || foundApiTerm.fields.find(f => f.field_uri?.includes('definition'));
 
+      setTerm(foundApiTerm);
       setDisplayLabel(labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term');
       setDisplayDef(definitionField?.original_value || 'No definition available.');
       
@@ -179,10 +203,14 @@ const TermDetail: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      // Fetch user preferences first, then term data
+      fetchUserPreferences().then(() => {
         fetchTermData();
+      });
     }
   }, [id, user]);
 
+  // Set form values for the selected language
   useEffect(() => {
     if (term && selectedLang) {
       const newValues: Record<number, string> = {};
@@ -193,6 +221,18 @@ const TermDetail: React.FC = () => {
       setFormValues(newValues);
     }
   }, [term, selectedLang]);
+
+  // Helper: get the best translation for a field based on preferredLanguages
+  const getBestTranslation = (field: ApiField): { value: string, language: string } => {
+    if (field.translations && preferredLanguages.length > 0) {
+      for (const lang of preferredLanguages) {
+        const t = field.translations.find(tr => tr.language.toLowerCase() === lang.toLowerCase());
+        if (t) return { value: t.value, language: t.language };
+      }
+    }
+    // fallback: show original value (assume original is in English)
+    return { value: field.original_value, language: 'en' };
+  };
 
   const handleInputChange = (fieldId: number, value: string) => {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
@@ -237,12 +277,13 @@ const TermDetail: React.FC = () => {
         throw new Error("No free models available");
       }
 
-      const type = field.field_term.includes('definition') ? 'definition' : 'term';
+      const type = field.field_uri?.includes('definition') ? 'definition' : 'term';
+      const fieldName = field.field_uri?.split('#').pop() || field.field_uri?.split('/').pop() || 'field';
       const prompt = `You are a professional marine scientist and translator.
 Translate the following ${type} into ${selectedLang}.
 Keep the translation scientific, accurate, and natural.
 Do not add explanations, only provide the translation.
-Original Text (${field.field_term}): "${field.original_value}"`;
+Original Text (${fieldName}): "${field.original_value}"`;
       
       console.log("Prompt prepared:", prompt);
 
@@ -586,12 +627,25 @@ Original Text (${field.field_term}): "${field.original_value}"`;
 
   const canTranslate = allowedLanguages.length > 0;
   
-  // Filter translatable fields using field_role with backward compatibility
-  const translatableFields = term.fields.filter(f => 
-    f.original_value && 
-    (f.field_role === 'translatable' || f.field_role === 'label' || f.field_role === 'reference' ||
-     f.field_term.includes('prefLabel') || f.field_term.includes('altLabel') || f.field_term.includes('definition'))
-  );
+  // Filter fields: only show those for which the user has a language preference set
+  // (i.e., at least one translation in a preferred language exists, or user can translate into that language)
+  const translatableFields = term.fields.filter(f => {
+    // Only show if at least one preferred language is present in translations or allowedLanguages
+    const hasPreferred = preferredLanguages.some(lang =>
+      f.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase())
+    );
+    // Also show if user can translate into this language (for input)
+    const canTranslateAny = allowedLanguages.some(lang =>
+      !f.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase())
+    );
+    // Only show fields that match the original filter (translatable/label/reference/definition)
+    const isTranslatableType = f.original_value && (
+      f.field_role === 'translatable' || f.field_role === 'label' || f.field_role === 'reference'
+    );
+    return isTranslatableType && (hasPreferred || canTranslateAny);
+  });
+
+  console.log("Translatable fields:", translatableFields);
 
   const getFieldIcon = (uri: string, field_role?: string) => {
     if (field_role === 'label' || uri.includes('prefLabel')) return <Tag size={16} className="text-blue-500" />;
@@ -723,22 +777,55 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                  <Globe size={20} className="text-marine-500" /> Translation Workspace
                </h2>
                <div className="flex items-center gap-2">
-                   <span className="text-sm text-slate-500">Language:</span>
-                   <select 
-                      value={selectedLang} 
-                      onChange={(e) => setSelectedLang(e.target.value)}
-                      disabled={!canTranslate}
-                      className="rounded-lg border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white text-sm py-1.5"
-                    >
-                      {allowedLanguages.length === 0 ? <option>No permissions</option> : allowedLanguages.map(l => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                 <span className="text-sm text-slate-500">Language:</span>
+                 <div className="flex gap-2">
+                   {allowedLanguages.length === 0 ? (
+                     <span className="text-xs text-red-500">No permissions</span>
+                   ) : (
+                     allowedLanguages.map(lang => {
+                       // Highlight if this language needs translation by the user
+                       // Needs translation if for any translatable field, there is no translation by this user in this language
+                      
+                      const needsReview = translatableFields.some(field => 
+                        field.translations?.some(t => t.status === 'review')
+                      );
+                      const needsTranslation = translatableFields.some((field) => {
+                        return !field.translations?.some(
+                          (t) =>
+                            t.language.toLowerCase() === lang.toLowerCase() &&
+                            t.created_by_id === (user?.id || user?.user_id) &&
+                            t.status !== 'merged' &&
+                            t.status !== 'original'
+                        );
+                      
+                      });  return (
+                         <label key={lang} className={`inline-flex items-center px-3 py-1 rounded-lg border cursor-pointer text-sm font-medium transition-colors
+                           ${selectedLang === lang ? 'bg-marine-600 text-white border-marine-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600'}
+                           ${needsTranslation ? 'ring-2 ring-amber-400 border-amber-400' : ''}
+                           ${needsReview ? 'ring-2 ring-blue-400 border-blue-400' : ''}
+                         `}>
+                           <input
+                             type="radio"
+                             name="translation-language"
+                             value={lang}
+                             checked={selectedLang === lang}
+                             onChange={() => setSelectedLang(lang)}
+                             disabled={!canTranslate}
+                             className="form-radio accent-marine-600 mr-2"
+                           />
+                           {lang}
+                         </label>
+                       );
+                     })
+                   )}
+                 </div>
                </div>
            </div>
 
            {/* Fields Loop */}
            {translatableFields.map(field => {
-              const label = getFieldLabel(field.field_term);
-              const isTextArea = field.field_term.includes('definition');
+              const label = getFieldLabel(field.field_uri, field.field_role);
+              const isTextArea = field.field_role === 'reference' || field.field_uri?.includes('definition');
               const currentTranslation = field.translations?.find(t => t.language.toLowerCase() === selectedLang.toLowerCase());
               const status = currentTranslation?.status || 'draft';
               // Check if this is the current user's translation using user_id
@@ -771,7 +858,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                    {/* Field Header */}
                    <div className="bg-slate-50 dark:bg-slate-900/40 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                          {getFieldIcon(field.field_term, field.field_role)}
+                          {getFieldIcon(field.field_uri, field.field_role)}
                           <span className="font-bold text-slate-700 dark:text-slate-200">{label}</span>
                           {hasActiveAppeal && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 animate-pulse">
@@ -780,15 +867,23 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                           )}
                       </div>
                       <div className="flex items-center gap-2">
-                         <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">EN</span>
-                         <span className="text-xs text-slate-400">Original</span>
+                        {(() => {
+                          const best = getBestTranslation(field);
+                          return <>
+                            <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-mono">{best.language.toUpperCase()}</span>
+                            <span className="text-xs text-slate-400">{preferredLanguages.length > 0 ? 'Preferred' : 'Original'}</span>
+                          </>;
+                        })()}
                       </div>
                    </div>
 
                    <div className="p-6">
-                      {/* Original Value */}
+                      {/* Best Translation or Original Value */}
                       <div className="mb-6 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 italic">
-                         "{field.original_value}"
+                        {(() => {
+                          const best = getBestTranslation(field);
+                          return `"${best.value}"`;
+                        })()}
                       </div>
 
                       {/* Input Area */}
@@ -825,7 +920,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
-                               disabled={!canTranslate}
+                               disabled={!canTranslate || currentTranslation?.status === 'original' || currentTranslation?.status === 'merged'}
                                placeholder="Enter translation..."
                              />
                          ) : (
@@ -834,7 +929,7 @@ Original Text (${field.field_term}): "${field.original_value}"`;
                                className="block w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm focus:border-marine-500 focus:ring-marine-500 sm:text-sm p-3"
                                value={formValues[field.id] || ''}
                                onChange={(e) => handleInputChange(field.id, e.target.value)}
-                               disabled={!canTranslate}
+                               disabled={!canTranslate || currentTranslation?.status === 'original' || currentTranslation?.status === 'merged'}
                                placeholder="Enter translation..."
                              />
                          )}

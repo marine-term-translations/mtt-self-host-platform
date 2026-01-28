@@ -263,14 +263,17 @@ async function executeSyncTask(task, addLog) {
     const labelFieldUri = source.label_field_uri;
     const referenceFieldUris = source.reference_field_uris ? JSON.parse(source.reference_field_uris) : [];
     const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
-    const languageTag = translationConfig.languageTag || '@en';
     
-    // Helper function to determine field role
-    const getFieldRole = (fieldUri) => {
-      if (fieldUri === labelFieldUri) return 'label';
-      if (referenceFieldUris.includes(fieldUri)) return 'reference';
-      if (translatableFieldUris.includes(fieldUri)) return 'translatable';
-      return 'translatable'; // default
+    // Helper function to determine field roles (can have multiple roles)
+    // A field can be both label AND translatable, for example
+    const getFieldRoles = (fieldUri) => {
+      const roles = [];
+      if (fieldUri === labelFieldUri) roles.push('label');
+      if (referenceFieldUris.includes(fieldUri)) roles.push('reference');
+      if (translatableFieldUris.includes(fieldUri)) roles.push('translatable');
+      // If no roles assigned, default to translatable
+      if (roles.length === 0) roles.push('translatable');
+      return roles;
     };
     
     // Process each configured type and its predicates
@@ -332,36 +335,46 @@ async function executeSyncTask(task, addLog) {
           termsUpdated++;
         }
         
-        // For each selected predicate path, create term_field
+        // For each selected predicate path, create term_field and translations
         for (const pathConfig of selectedPaths) {
           const predicatePath = pathConfig.path;
-          const fieldTerm = pathConfig.label || predicatePath;
-          const fieldRole = getFieldRole(predicatePath);
           
-          // Use per-path language tag, fallback to global, then to '@en'
-          const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
+          // Query for the values at this predicate path (with language tags)
+          const valueResults = await getValueForPath(source.graph_name, subjectUri, predicatePath);
           
-          // Query for the value at this predicate path
-          const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
-          
-          if (valueQuery && valueQuery.length > 0) {
-            for (const value of valueQuery) {
-              // Check if term_field exists
-              const existingField = db.prepare(
-                "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
-              ).get(term.id, predicatePath, value);
-              
-              if (!existingField) {
-                // Create new term_field with field_role
+          if (valueResults && valueResults.length > 0) {
+            // Check if migration 014 has been applied (translations table has status column)
+            const tableInfo = db.prepare("PRAGMA table_info(translations)").all();
+            const columns = tableInfo.map(col => col.name);
+            const hasNewSchema = columns.includes('status') && columns.includes('source');
+            
+            // Get or create term_field using the first value
+            const firstValue = valueResults[0].value;
+            let termField = db.prepare(
+              "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"
+            ).get(term.id, predicatePath);
+            
+            if (!termField) {
+              // Create new term_field with first value as original_value
+              // Determine field_roles based on source configuration (can be multiple roles)
+              const fieldRoles = getFieldRoles(predicatePath);
+              const insertField = db.prepare(
+                "INSERT INTO term_fields (term_id, field_uri, field_roles, original_value, source_id) VALUES (?, ?, ?, ?, ?)"
+              );
+              const fieldInfo = insertField.run(term.id, predicatePath, JSON.stringify(fieldRoles), firstValue, task.source_id);
+              termField = db.prepare("SELECT * FROM term_fields WHERE id = ?").get(fieldInfo.lastInsertRowid);
+              fieldsCreated++;
+            }
+            
+            // If new schema is available, create 'original' translations for ALL language variants
+            if (hasNewSchema) {
+              for (const result of valueResults) {
+                const { value, language } = result;
+                
+                // Insert original translation (OR IGNORE to avoid duplicates)
                 db.prepare(
-                  "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
-                ).run(term.id, predicatePath, fieldTerm, value, task.source_id, fieldRole);
-                fieldsCreated++;
-              } else if (!existingField.field_role) {
-                // Update existing field with role if not set
-                db.prepare(
-                  "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).run(fieldRole, existingField.id);
+                  "INSERT OR IGNORE INTO translations (term_field_id, language, value, status, source) VALUES (?, ?, ?, 'original', 'rdf-ingest')"
+                ).run(termField.id, language, value);
               }
             }
           }
@@ -393,11 +406,11 @@ async function executeSyncTask(task, addLog) {
 }
 
 /**
- * Helper function to get values for a predicate path
+ * Helper function to get values for a predicate path with language tags
  * Supports nested paths like "ex:hasAuthor/foaf:name"
- * Filters by language tag if provided
+ * Returns array of objects with value and language information
  */
-async function getValueForPath(graphName, subjectUri, predicatePath, languageTag) {
+async function getValueForPath(graphName, subjectUri, predicatePath) {
   // Validate inputs
   if (!graphName || !subjectUri || !predicatePath) {
     console.error('Invalid parameters for getValueForPath:', { graphName, subjectUri, predicatePath });
@@ -433,21 +446,15 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     // Otherwise wrap it
     return `<${p}>`;
   }).join(' / ');
+
   
-  // Determine language filter
-  let languageFilter = '';
-  if (languageTag && languageTag !== '@en') {
-    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
-    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
-  }
-  
+  // Query to get values with their language tags
   const sparqlQuery = `
-    SELECT DISTINCT ?value
+    SELECT DISTINCT ?value (LANG(?value) as ?lang)
     WHERE {
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
-        ${languageFilter}
       }
     }
     LIMIT 100
@@ -466,8 +473,13 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
       timeout: 30000
     });
     
-    const values = response.data.results.bindings.map(b => b.value.value);
-    return values;
+    // Return array of {value, language} objects
+    const results = response.data.results.bindings.map(b => ({
+      value: b.value.value,
+      language: b.lang?.value || 'undefined'  // Use 'undefined' if no language tag
+    }));
+    
+    return results;
   } catch (error) {
     console.error('Error querying GraphDB:', error.message);
     return [];

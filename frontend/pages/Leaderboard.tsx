@@ -64,19 +64,37 @@ const Leaderboard: React.FC = () => {
             };
         }).sort((a: any, b: any) => b.reputation - a.reputation);
 
-        // Transform Language Stats from stats endpoint
-        const mappedLangStats = Object.keys(statsData.byLanguage).map(code => ({
-            code,
-            total: statsData.byLanguage[code].total,
-            status: statsData.byLanguage[code].byStatus,
-            config: LANG_CONFIG[code] || { name: code.toUpperCase(), color: 'bg-slate-400', baseClass: 'slate' }
-        })).sort((a, b) => b.total - a.total);
+        // Transform Language Stats from stats endpoint, filtering out 'undefined'
+        const mappedLangStats = Object.keys(statsData.byLanguage)
+          .filter(code => code !== 'undefined')
+          .map(code => {
+            // Remove undefined from status breakdown
+            const status = Object.fromEntries(
+              Object.entries(statsData.byLanguage[code].byStatus || {})
+                .filter(([k, _]) => k !== 'undefined')
+            );
+            // Recalculate total without undefined
+            const total = Object.values(status).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+            return {
+              code,
+              total,
+              status,
+              config: LANG_CONFIG[code] || { name: code.toUpperCase(), color: 'bg-slate-400', baseClass: 'slate' }
+            };
+          })
+          .sort((a, b) => b.total - a.total);
+
+        // Remove undefined from global byStatus and recalc total
+        const filteredGlobalStatus = Object.fromEntries(
+          Object.entries(statsData.byStatus || {}).filter(([k, _]) => k !== 'undefined')
+        );
+        const filteredGlobalTotal = Object.values(filteredGlobalStatus).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
 
         setUsers(mappedUsers);
         setGlobalStats({
-            total: statsData.totalTranslations,
+            total: filteredGlobalTotal,
             activeUsers: apiUsers.length,
-            byStatus: statsData.byStatus
+            byStatus: filteredGlobalStatus
         });
         setLangStats(mappedLangStats);
 

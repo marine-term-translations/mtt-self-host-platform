@@ -27,8 +27,9 @@ router.get("/admin/users", requireAdmin, apiLimiter, (req, res) => {
         u.reputation,
         u.joined_at,
         u.extra,
-        u.created_at,
-        u.updated_at
+        u.is_admin,
+        u.is_banned,
+        u.ban_reason
       FROM users u
       ORDER BY u.id ASC
     `).all();
@@ -271,7 +272,7 @@ router.get("/admin/translations", requireAdmin, apiLimiter, (req, res) => {
         t.created_by_id,
         t.modified_by_id,
         t.reviewed_by_id,
-        tf.field_term as field_name,
+        tf.field_uri as field_name,
         term.id as term_id,
         term.uri,
         created_user.username as created_by_username,
@@ -684,7 +685,7 @@ router.get("/admin/moderation/appeals/:id/messages", requireAdmin, apiLimiter, (
         SUM(CASE WHEN mr.status = 'pending' THEN 1 ELSE 0 END) as pending_reports
       FROM appeal_messages am
       LEFT JOIN users u ON am.author_id = u.id
-      LEFT JOIN message_reports mr ON am.id = mr.appeal_message_id
+      LEFT JOIN message_reports mr ON am.id = mr.message_id
       WHERE am.appeal_id = ?
       GROUP BY am.id
       ORDER BY am.created_at ASC

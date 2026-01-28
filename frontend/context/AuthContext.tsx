@@ -93,8 +93,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               isAdmin: data.is_admin || false, // Use is_admin from backend session
               isSuperAdmin: data.is_superadmin || false, // Use is_superadmin from backend session
               orcid: data.orcid, // Keep ORCID for reference
-              reputation: data.reputation // Include reputation if available
+              reputation: data.reputation, // Include reputation if available
+              languagePreferences: {
+                nativeLanguage: 'en',
+                translationLanguages: ['en'],
+                preferredLanguages: ['en'],
+                visibleExtraLanguages: []
+              }
             };
+            
+            // Fetch user language preferences
+            try {
+              const preferences = await backendApi.getUserPreferences();
+              if (preferences) {
+                userData.languagePreferences = {
+                  nativeLanguage: preferences.nativeLanguage || 'en',
+                  translationLanguages: preferences.translationLanguages || ['en'],
+                  preferredLanguages: preferences.preferredLanguages || ['en'],
+                  visibleExtraLanguages: preferences.visibleExtraLanguages || []
+                };
+              }
+            } catch (e) {
+              console.log('Could not fetch user language preferences, using defaults', e);
+            }
+            
             setUser(userData);
           }
         }

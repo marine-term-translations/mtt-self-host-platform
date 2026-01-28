@@ -51,7 +51,6 @@ interface PredicatePath {
   label: string;
   isTranslatable: boolean;
   role?: 'label' | 'reference' | 'translatable';
-  languageTag?: string;
   availableLanguages?: string[];
 }
 
@@ -406,12 +405,6 @@ WHERE {
     } else {
       setReferenceFields([...referenceFields, path]);
     }
-  };
-
-  const handleLanguageChange = (pathString: string, language: string) => {
-    setSelectedPaths(selectedPaths.map(p => 
-      p.path === pathString ? { ...p, languageTag: language } : p
-    ));
   };
 
   // Save configuration
@@ -866,21 +859,18 @@ WHERE {
                       </button>
                     </div>
                   </div>
-                  {/* Language selector if languages are available */}
+                  {/* Show available languages info (read-only) */}
                   {path.availableLanguages && path.availableLanguages.length > 0 && (
                     <div className="mt-2 flex items-center gap-2">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">
-                        Language:
-                      </label>
-                      <select
-                        value={path.languageTag || path.availableLanguages?.[0] || ''}
-                        onChange={(e) => handleLanguageChange(path.path, e.target.value)}
-                        className="text-xs px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white font-mono"
-                      >
-                        {path.availableLanguages && path.availableLanguages.map(lang => (
-                          <option key={lang} value={lang}>{lang}</option>
-                        ))}
-                      </select>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        Available languages:
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">
+                        {path.availableLanguages.join(', ')}
+                      </span>
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        (all will be imported)
+                      </span>
                     </div>
                   )}
                 </div>

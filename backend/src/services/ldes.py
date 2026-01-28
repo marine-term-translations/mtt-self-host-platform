@@ -195,7 +195,6 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
             t.created_at,
             tf.id as term_field_id,
             tf.field_uri,
-            tf.field_term,
             tf.original_value,
             tm.id as term_id,
             tm.uri as term_uri
@@ -236,7 +235,6 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
             'modified_at': row['modified_at'] or row['created_at'],
             'term_field_id': row['term_field_id'],
             'field_uri': row['field_uri'],
-            'field_term': row['field_term'],
             'original_value': row['original_value'],
             'term_id': row['term_id'],
             'term_uri': row['term_uri'],
