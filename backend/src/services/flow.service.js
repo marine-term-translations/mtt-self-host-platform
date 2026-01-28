@@ -46,7 +46,7 @@ function getPendingReviews(userIdentifier, language = null) {
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
        AND (t.reviewed_by_id IS NULL)
-       AND tf.field_role = 'translatable'`;
+       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
   
   const params = [userId];
   
@@ -68,7 +68,7 @@ function getPendingReviews(userIdentifier, language = null) {
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND tf.field_role = 'translatable'`
+     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
   ).all(reviews.term_id);
   
   return {
@@ -80,7 +80,7 @@ function getPendingReviews(userIdentifier, language = null) {
 /**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
- * Only returns fields with field_role = 'translatable'
+ * Only returns fields with 'translatable' in field_roles
  * @param {number|string} userIdentifier - User ID or username (optional, for filtering)
  * @param {string} language - Optional language filter
  * @returns {object|null} Term field needing translation
@@ -93,7 +93,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE tf.field_role = 'translatable'`;
+     WHERE (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
   
   const params = [];
   
@@ -127,7 +127,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       WHERE tf.field_role = 'translatable'
+       WHERE (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
@@ -155,7 +155,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
       `SELECT tf.field_uri, tf.original_value 
        FROM term_fields tf
        WHERE tf.term_id = ?
-       AND tf.field_role = 'translatable'`
+       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
     ).all(partiallyTranslated.term_id);
     
     return {
@@ -169,7 +169,7 @@ function getRandomUntranslated(userIdentifier, language = null) {
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND tf.field_role = 'translatable'`
+     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
   ).all(untranslated.term_id);
   
   return {

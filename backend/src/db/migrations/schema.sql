@@ -8,12 +8,12 @@ CREATE TABLE terms (
     source_id   INTEGER REFERENCES sources(source_id) ON DELETE SET NULL
 );
 
--- term_fields: field_role added to mark fields as 'label', 'reference', or 'translatable'
+-- term_fields: field_roles stores JSON array of roles: ['label'], ['reference'], ['translatable'], or combinations like ['label', 'translatable']
 CREATE TABLE term_fields (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     term_id       INTEGER NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
     field_uri     TEXT    NOT NULL,
-    field_role    TEXT    CHECK(field_role IN ('label', 'reference', 'translatable')),
+    field_roles   TEXT    NOT NULL DEFAULT '[]' CHECK(json_valid(field_roles)),
     original_value TEXT   NOT NULL,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,

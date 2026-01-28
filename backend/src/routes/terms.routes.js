@@ -327,9 +327,9 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     }
     
     // Get fields for this term - filter to only translatable fields
-    // Use field_role to efficiently filter instead of parsing JSON arrays
+    // Use field_roles to efficiently filter instead of parsing JSON arrays
     const fields = db.prepare(
-      "SELECT * FROM term_fields WHERE term_id = ? AND field_role = 'translatable'"
+      "SELECT * FROM term_fields WHERE term_id = ? AND (field_roles LIKE '%\"translatable\"%' OR field_roles LIKE '%''translatable''%')"
     ).all(term.id);
     
     // Get all translations for all fields in a single query to avoid N+1 problem
@@ -952,42 +952,49 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         }
       } else {
         // Insert new field - determine field_role based on existing term's source configuration
-        let fieldRole = null;
+        let fieldRoles = [];
         const termSourceId = db.prepare("SELECT source_id FROM terms WHERE id = ?").get(id)?.source_id;
         if (termSourceId) {
           const source = db.prepare("SELECT label_field_uri, reference_field_uris, translatable_field_uris FROM sources WHERE source_id = ?").get(termSourceId);
           if (source) {
+            // A field can have multiple roles
             if (source.label_field_uri === field_uri) {
-              fieldRole = 'label';
-            } else if (source.reference_field_uris) {
+              fieldRoles.push('label');
+            }
+            if (source.reference_field_uris) {
               try {
                 const refUris = JSON.parse(source.reference_field_uris);
                 if (Array.isArray(refUris) && refUris.includes(field_uri)) {
-                  fieldRole = 'reference';
+                  fieldRoles.push('reference');
                 }
               } catch (e) {}
-            } else if (source.translatable_field_uris) {
+            }
+            if (source.translatable_field_uris) {
               try {
                 const transUris = JSON.parse(source.translatable_field_uris);
                 if (Array.isArray(transUris) && transUris.includes(field_uri)) {
-                  fieldRole = 'translatable';
+                  fieldRoles.push('translatable');
                 }
               } catch (e) {}
             }
           }
         }
+        // Default to translatable if no roles assigned
+        if (fieldRoles.length === 0) {
+          fieldRoles.push('translatable');
+        }
         
         const fieldStmt = db.prepare(
-          "INSERT INTO term_fields (term_id, field_uri, field_role, original_value) VALUES (?, ?, ?, ?)"
+          "INSERT INTO term_fields (term_id, field_uri, field_roles, original_value) VALUES (?, ?, ?, ?)"
         );
         const fieldInfo = fieldStmt.run(
           id,
           field_uri,
-          fieldRole,
+          JSON.stringify(fieldRoles),
           original_value
         );
         fieldId = fieldInfo.lastInsertRowid;
-        console.log("Inserted term_field", { field_uri, fieldId, fieldRole });
+        console.log("Inserted term_field", { field_uri, fieldId, fieldRoles });
       }
       newFieldIdMap[field_uri] = fieldId;
 
