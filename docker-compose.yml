@@ -58,6 +58,7 @@ services:
       - ./.env
     environment:
       - DOCKER_NETWORK=${COMPOSE_PROJECT_NAME:-kgap}_default
+      - HOST_PWD=${PWD}
     depends_on:
       graphdb:
         condition: service_healthy

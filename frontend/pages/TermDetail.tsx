@@ -645,6 +645,8 @@ Original Text (${fieldName}): "${field.original_value}"`;
     return isTranslatableType && (hasPreferred || canTranslateAny);
   });
 
+  console.log("Translatable fields:", translatableFields);
+
   const getFieldIcon = (uri: string, field_role?: string) => {
     if (field_role === 'label' || uri.includes('prefLabel')) return <Tag size={16} className="text-blue-500" />;
     if (uri.includes('altLabel')) return <Tag size={16} className="text-amber-500" />;
@@ -783,13 +785,24 @@ Original Text (${fieldName}): "${field.original_value}"`;
                      allowedLanguages.map(lang => {
                        // Highlight if this language needs translation by the user
                        // Needs translation if for any translatable field, there is no translation by this user in this language
-                       const needsTranslation = translatableFields.some(field => {
-                         return !field.translations?.some(t => t.language.toLowerCase() === lang.toLowerCase() && (t.created_by_id === (user?.id || user?.user_id)));
-                       });
-                       return (
+                      
+                      const needsReview = translatableFields.some(field => 
+                        field.translations?.some(t => t.status === 'review')
+                      );
+                      const needsTranslation = translatableFields.some((field) => {
+                        return !field.translations?.some(
+                          (t) =>
+                            t.language.toLowerCase() === lang.toLowerCase() &&
+                            t.created_by_id === (user?.id || user?.user_id) &&
+                            t.status !== 'merged' &&
+                            t.status !== 'original'
+                        );
+                      
+                      });  return (
                          <label key={lang} className={`inline-flex items-center px-3 py-1 rounded-lg border cursor-pointer text-sm font-medium transition-colors
                            ${selectedLang === lang ? 'bg-marine-600 text-white border-marine-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600'}
                            ${needsTranslation ? 'ring-2 ring-amber-400 border-amber-400' : ''}
+                           ${needsReview ? 'ring-2 ring-blue-400 border-blue-400' : ''}
                          `}>
                            <input
                              type="radio"
@@ -801,9 +814,6 @@ Original Text (${fieldName}): "${field.original_value}"`;
                              className="form-radio accent-marine-600 mr-2"
                            />
                            {lang}
-                           {needsTranslation && (
-                             <span className="ml-1 text-amber-600 text-xs font-semibold">Needs translation</span>
-                           )}
                          </label>
                        );
                      })

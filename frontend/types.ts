@@ -35,6 +35,12 @@ export interface User {
   isSuperAdmin?: boolean;
   orcid?: string;       // ORCID iD (still supported)
   reputation?: number;  // User reputation score
+  languagePreferences?: {
+    nativeLanguage?: string;
+    translationLanguages?: string[];
+    preferredLanguages?: string[];
+    visibleExtraLanguages?: string[];
+  };
 }
 
 export interface Stats {
