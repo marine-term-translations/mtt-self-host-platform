@@ -134,7 +134,8 @@ function getRandomUntranslated(userIdentifier, language = null) {
     
     if (language) {
       partialQuery += ` AND language = ? AND (status = 'original' OR status = 'merged')`;
-      partialParams.push(language);
+      partialParams.push(language); // First parameter for SELECT COUNT subquery
+      partialParams.push(language); // Second parameter for WHERE clause subquery
       partialQuery += `) < 1`;
     } else {
       partialQuery += ` AND (status = 'original' OR status = 'merged')`;
