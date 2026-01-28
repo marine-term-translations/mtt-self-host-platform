@@ -27,8 +27,9 @@ router.get("/admin/users", requireAdmin, apiLimiter, (req, res) => {
         u.reputation,
         u.joined_at,
         u.extra,
-        u.created_at,
-        u.updated_at
+        u.is_admin,
+        u.is_banned,
+        u.ban_reason
       FROM users u
       ORDER BY u.id ASC
     `).all();
