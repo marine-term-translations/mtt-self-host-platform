@@ -767,10 +767,12 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
         const languageTag = translationConfig.languageTag || '@en';
         
         // Helper function to determine field role
+        // Priority: translatable > reference > label
+        // A field in translatable_field_uris should be marked as 'translatable' even if it's also the label field
         const getFieldRole = (fieldUri) => {
-          if (fieldUri === labelFieldUri) return 'label';
-          if (referenceFieldUris.includes(fieldUri)) return 'reference';
           if (translatableFieldUris.includes(fieldUri)) return 'translatable';
+          if (referenceFieldUris.includes(fieldUri)) return 'reference';
+          if (fieldUri === labelFieldUri) return 'label';
           return 'translatable'; // default
         };
         
