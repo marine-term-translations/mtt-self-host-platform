@@ -875,8 +875,6 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
             // For each selected predicate path, create term_field
             for (const pathConfig of selectedPaths) {
               const predicatePath = pathConfig.path;
-              const fieldTerm = pathConfig.label || predicatePath;
-              const fieldRole = getFieldRole(predicatePath);
               
               // Use per-path language tag, fallback to global, then to '@en'
               const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
