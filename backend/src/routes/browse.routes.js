@@ -188,6 +188,7 @@ router.get("/browse", apiLimiter, (req, res) => {
       // Attach translations to fields
       const fieldsWithTranslations = fields.map((field) => ({
         ...field,
+        field_roles: JSON.parse(field.field_roles), // Parse JSON string to array for frontend
         translations: translationsByField[field.id] || []
       }));
       

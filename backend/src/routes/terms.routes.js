@@ -362,6 +362,7 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       
       return {
         ...field,
+        field_roles: JSON.parse(field.field_roles), // Parse JSON string to array for frontend
         translations: fieldTranslations,
         originalValueTranslation: originalValueTranslation, // English or undefined for reference
         bestTranslation: bestTranslation // Add best translation based on user preferences
