@@ -289,7 +289,7 @@ function applyReputationChange(
 
   // Update user reputation
   db.prepare(
-    "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    "UPDATE users SET reputation = reputation + ? WHERE id = ?"
   ).run(delta, userId);
 
   // Record the event
