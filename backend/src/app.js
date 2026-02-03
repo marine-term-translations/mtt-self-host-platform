@@ -96,6 +96,6 @@ app.use("/", tasksRoutes);
 app.use("/", taskSchedulersRoutes);
 app.use("/", ldesRoutes);
 app.use("/", adminRoutes);
-app.use("/api", languagesRoutes);
+app.use("/", languagesRoutes);
 
 module.exports = app;

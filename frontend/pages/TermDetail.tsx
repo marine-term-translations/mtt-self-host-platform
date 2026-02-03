@@ -983,7 +983,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
                           <button
                             type="button"
                             onClick={() => handleAiSuggest(field)}
-                            disabled={aiLoading[field.id] || status === 'original'}
+                            disabled={aiLoading[field.id] || status === 'original' || status === 'merged'}
                             className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
                             title="Generate AI Suggestion"
                           >
@@ -1077,7 +1077,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
 
                       <button
                         onClick={(e) => { e.preventDefault(); submitUpdate(); }}
-                        disabled={isSubmitting || !canTranslate || status === 'original'}
+                        disabled={isSubmitting || !canTranslate || status === 'original' || status === 'merged'}
                         className="flex items-center px-4 py-2 bg-marine-600 text-white hover:bg-marine-700 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Send size={14} className="mr-2" /> Save Draft
