@@ -89,7 +89,7 @@ const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/
  *       500:
  *         description: Server error
  */
-router.get("/browse", apiLimiter, (req, res) => {
+router.get("/api/browse", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     
