@@ -119,7 +119,7 @@ router.get("/api/browse", apiLimiter, (req, res) => {
     
     // If there's a search query, use FTS
     if (searchQuery) {
-      // Search in translations FTS table and term_fields original_value using LIKE
+      // Search in translations FTS table and term_fields.original_value using LIKE
       // translations_fts contains translation data (rowid = translation.id)
       whereClauses.push(`(
         tr.id IN (

@@ -304,6 +304,11 @@ const Browse: React.FC = () => {
     setCurrentPage(1); // Reset to first page on new search
   };
 
+  // Helper to extract display name from URI
+  const getDisplayNameFromUri = (uri: string): string => {
+    return uri.split('#').pop()?.split('/').pop() || uri;
+  };
+
   // Handle filter changes
   const handleLanguageFilter = (lang: string) => {
     if (languageFilter === lang) {
@@ -534,8 +539,7 @@ const Browse: React.FC = () => {
                 .slice(0, 10)
                 .map(([uri, count]) => {
                   const isActive = fieldUriFilter === uri;
-                  // Extract the last part of the URI for display
-                  const displayName = uri.split('#').pop()?.split('/').pop() || uri;
+                  const displayName = getDisplayNameFromUri(uri);
                   return (
                     <button
                       key={uri}
@@ -613,7 +617,7 @@ const Browse: React.FC = () => {
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
                   <Filter className="h-3 w-3" />
                   <span className="flex-1 truncate" title={fieldUriFilter}>
-                    {fieldUriFilter.split('#').pop()?.split('/').pop() || fieldUriFilter}
+                    {getDisplayNameFromUri(fieldUriFilter)}
                   </span>
                   <button onClick={() => setFieldUriFilter('')} className="hover:text-red-600">
                     <X className="h-3 w-3" />

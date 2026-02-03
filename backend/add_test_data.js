@@ -62,4 +62,3 @@ console.log('Test data inserted successfully!');
 console.log('Total terms:', db.prepare('SELECT COUNT(*) as count FROM terms').get().count);
 console.log('Total fields:', db.prepare('SELECT COUNT(*) as count FROM term_fields').get().count);
 console.log('Total translations:', db.prepare('SELECT COUNT(*) as count FROM translations').get().count);
-
