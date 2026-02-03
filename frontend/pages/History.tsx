@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { backendApi } from '../services/api';
 import { ApiUserActivity, ApiTerm } from '../types';
+import { getLanguagePriority } from '../src/utils/languageSelector';
 import toast from 'react-hot-toast';
 import { parse, format } from '@/src/utils/datetime';
 
@@ -29,8 +30,8 @@ const History: React.FC = () => {
         if (termIds.length > 0) {
           const terms = await backendApi.getTermsByIds(termIds);
           terms.forEach((t: ApiTerm) => {
-            const labelField = t.labelField || t.fields.find(f => f.field_role === 'label') 
-              || t.fields.find(f => f.field_term.includes('prefLabel'));
+            const labelField = t.fields?.find(f => f.field_role === 'label') 
+              || t.fields?.find(f => f.field_uri?.includes('prefLabel'));
             const prefLabel = labelField?.original_value || t.uri.split('/').pop() || 'Unknown Term';
             tMap[t.id] = prefLabel;
           });

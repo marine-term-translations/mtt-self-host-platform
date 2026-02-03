@@ -14,6 +14,7 @@ const {
   applyCreationReward,
 } = require("../services/reputation.service");
 const { harvestCollection, harvestCollectionWithProgress } = require("../services/harvest.service");
+const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/languagePreferences");
 
 /**
  * @openapi
@@ -122,13 +123,13 @@ router.get("/terms", apiLimiter, (req, res) => {
       });
       
       // Identify label and reference fields
-      const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-        || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+      const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel') 
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
       
       // Get reference fields: prefer field_role, fallback to field_term
-      let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+      let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
       if (referenceFields.length === 0) {
-        referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+        referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
       }
       
       return { 
@@ -231,20 +232,40 @@ router.get("/term-by-uri", apiLimiter, (req, res) => {
       translations: translationsByField[field.id] || []
     }));
     
+    // Try to get label_field_uri from source config if available
+    let labelFieldUri = null;
+    try {
+      const dbSource = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(term.source_id);
+      if (dbSource && dbSource.label_field_uri) {
+        labelFieldUri = dbSource.label_field_uri;
+      }
+    } catch (e) {}
+
     // Identify label and reference fields
-    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-    // Get reference fields: prefer field_role, fallback to field_term
-    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
-    if (referenceFields.length === 0) {
-      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+    let labelField = null;
+    if (labelFieldUri) {
+      labelField = fieldsWithTranslations.find(f => f.field_uri === labelFieldUri);
     }
-    
-    res.json({ 
-      ...term, 
+    if (!labelField) {
+      labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel')
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
+    }
+
+    // Get reference fields: prefer field_role, fallback to field_term
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
+    if (referenceFields.length === 0) {
+      referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
+    }
+
+    res.json({
+      ...term,
       fields: fieldsWithTranslations,
-      labelField: labelField || null,
-      referenceFields: referenceFields || []
+      labelField: labelField ? {
+        field_uri: labelField.field_uri,
+      } : null,
+      referenceFields: referenceFields.map(f => ({
+        field_uri: f.field_uri,
+      }))
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -294,6 +315,10 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     
+    // Get user ID from session if authenticated
+    const userId = req.session?.user?.id || req.session?.user?.user_id || null;
+    const userPrefs = getUserLanguagePreferences(db, userId);
+    
     // Get the term
     const term = db.prepare("SELECT * FROM terms WHERE id = ?").get(termId);
     
@@ -301,10 +326,11 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       return res.status(404).json({ error: "Term not found" });
     }
     
-    // Get fields for this term
-    const fields = db
-      .prepare("SELECT * FROM term_fields WHERE term_id = ?")
-      .all(term.id);
+    // Get fields for this term - filter to only translatable fields
+    // Use field_roles to efficiently filter instead of parsing JSON arrays
+    const fields = db.prepare(
+      "SELECT * FROM term_fields WHERE term_id = ? AND (field_roles LIKE '%\"translatable\"%' OR field_roles LIKE '%''translatable''%')"
+    ).all(term.id);
     
     // Get all translations for all fields in a single query to avoid N+1 problem
     const fieldIds = fields.map(f => f.id);
@@ -312,8 +338,9 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
     
     if (fieldIds.length > 0) {
       const placeholders = fieldIds.map(() => '?').join(',');
+      // Only get translations with status 'original' or 'merged' for display
       allTranslations = db
-        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders})`)
+        .prepare(`SELECT * FROM translations WHERE term_field_id IN (${placeholders}) AND (status = 'original' OR status = 'merged')`)
         .all(...fieldIds);
     }
     
@@ -326,26 +353,43 @@ router.get("/terms/:id", apiLimiter, (req, res) => {
       translationsByField[trans.term_field_id].push(trans);
     }
     
-    // Attach translations to fields
-    const fieldsWithTranslations = fields.map((field) => ({
-      ...field,
-      translations: translationsByField[field.id] || []
-    }));
+    // Attach translations to fields and add bestTranslation for each field
+    const fieldsWithTranslations = fields.map((field) => {
+      const fieldTranslations = translationsByField[field.id] || [];
+      // For original value, prefer English or undefined language
+      const originalValueTranslation = selectBestTranslation(fieldTranslations, ['en', 'undefined']);
+      const bestTranslation = selectBestTranslation(fieldTranslations, userPrefs.preferredLanguages);
+      
+      return {
+        ...field,
+        field_roles: JSON.parse(field.field_roles), // Parse JSON string to array for frontend
+        translations: fieldTranslations,
+        originalValueTranslation: originalValueTranslation, // English or undefined for reference
+        bestTranslation: bestTranslation // Add best translation based on user preferences
+      };
+    });
     
     // Identify label and reference fields
-    const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-      || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
+    const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel') 
+      || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'));
     // Get reference fields: prefer field_role, fallback to field_term
-    let referenceFields = fieldsWithTranslations.filter(f => f.field_role === 'reference');
+    let referenceFields = fieldsWithTranslations.filter(f => f.field_uri?.includes('definition') || f.field_uri?.includes('description'));
     if (referenceFields.length === 0) {
-      referenceFields = fieldsWithTranslations.filter(f => f.field_term === 'skos:definition');
+      referenceFields = fieldsWithTranslations.filter(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
     }
     
     res.json({ 
       ...term, 
       fields: fieldsWithTranslations,
-      labelField: labelField || null,
-      referenceFields: referenceFields || []
+      // Simplified labelField - just field_uri
+      labelField: labelField ? {
+        field_uri: labelField.field_uri,
+      } : null,
+      // Simplified referenceFields - array of objects with just field_uri
+      referenceFields: referenceFields.map(f => ({
+        field_uri: f.field_uri,
+      })),
+      userPreferences: userPrefs // Include user preferences so frontend knows what was used
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -399,14 +443,14 @@ router.post("/terms/by-ids", apiLimiter, (req, res) => {
       return res.json([]);
     }
     
-    // Get label fields for these terms
+    // Get label fields for these terms (using field_uri since field_role/field_term removed)
     const termIdsFound = terms.map(t => t.id);
     const labelFieldsPlaceholders = termIdsFound.map(() => '?').join(',');
     const labelFields = db
       .prepare(`
         SELECT * FROM term_fields 
         WHERE term_id IN (${labelFieldsPlaceholders}) 
-        AND (field_role = 'label' OR field_term = 'skos:prefLabel')
+        AND (field_uri LIKE '%prefLabel%' OR field_uri LIKE '%label%')
       `)
       .all(...termIdsFound);
     
@@ -765,8 +809,6 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *                   properties:
  *                     field_uri:
  *                       type: string
- *                     field_term:
- *                       type: string
  *                     original_value:
  *                       type: string
  *                     translations:
@@ -879,16 +921,14 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     // Process each incoming field
     const newFieldIdMap = {};
     for (const field of fields) {
-      const { field_uri, field_term, original_value, translations } = field;
+      const { field_uri, original_value, translations } = field;
       console.log("Processing field", {
         field_uri,
-        field_term,
         original_value,
         translations,
       });
       if (
         !field_uri ||
-        !field_term ||
         !original_value ||
         !Array.isArray(translations)
       ) {
@@ -904,27 +944,58 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         fieldId = existingField.id;
         usedFieldIds.add(fieldId);
         if (
-          existingField.field_term !== field_term ||
           existingField.original_value !== original_value
         ) {
           db.prepare(
-            "UPDATE term_fields SET field_term = ?, original_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-          ).run(field_term, original_value, fieldId);
+            "UPDATE term_fields SET original_value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+          ).run(original_value, fieldId);
           console.log("Updated term_field", { field_uri, fieldId });
         }
       } else {
-        // Insert new field
+        // Insert new field - determine field_role based on existing term's source configuration
+        let fieldRoles = [];
+        const termSourceId = db.prepare("SELECT source_id FROM terms WHERE id = ?").get(id)?.source_id;
+        if (termSourceId) {
+          const source = db.prepare("SELECT label_field_uri, reference_field_uris, translatable_field_uris FROM sources WHERE source_id = ?").get(termSourceId);
+          if (source) {
+            // A field can have multiple roles
+            if (source.label_field_uri === field_uri) {
+              fieldRoles.push('label');
+            }
+            if (source.reference_field_uris) {
+              try {
+                const refUris = JSON.parse(source.reference_field_uris);
+                if (Array.isArray(refUris) && refUris.includes(field_uri)) {
+                  fieldRoles.push('reference');
+                }
+              } catch (e) {}
+            }
+            if (source.translatable_field_uris) {
+              try {
+                const transUris = JSON.parse(source.translatable_field_uris);
+                if (Array.isArray(transUris) && transUris.includes(field_uri)) {
+                  fieldRoles.push('translatable');
+                }
+              } catch (e) {}
+            }
+          }
+        }
+        // Default to translatable if no roles assigned
+        if (fieldRoles.length === 0) {
+          fieldRoles.push('translatable');
+        }
+        
         const fieldStmt = db.prepare(
-          "INSERT INTO term_fields (term_id, field_uri, field_term, original_value) VALUES (?, ?, ?, ?)"
+          "INSERT INTO term_fields (term_id, field_uri, field_roles, original_value) VALUES (?, ?, ?, ?)"
         );
         const fieldInfo = fieldStmt.run(
           id,
           field_uri,
-          field_term,
+          JSON.stringify(fieldRoles),
           original_value
         );
         fieldId = fieldInfo.lastInsertRowid;
-        console.log("Inserted term_field", { field_uri, fieldId });
+        console.log("Inserted term_field", { field_uri, fieldId, fieldRoles });
       }
       newFieldIdMap[field_uri] = fieldId;
 

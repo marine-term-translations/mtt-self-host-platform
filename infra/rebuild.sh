@@ -9,8 +9,8 @@ fi
 docker compose down
 
 if [[ $WIPE -eq 1 ]]; then
-  echo "⚠️  WARNING: Wiping database..."
-  sudo rm -rf backend/data
+  echo "⚠️  WARNING: Wiping database and backend data"
+  sudo rm -rf backend/data/translations.db
   sudo rm -rf data
 fi
 

@@ -48,7 +48,7 @@ const PREDEFINED_QUERIES = {
   'fts_search_test': {
     name: 'Full-Text Search Test',
     description: 'Search terms using FTS (example: marine)',
-    sql: `SELECT tf.field_term, tf.original_value, t.uri 
+    sql: `SELECT tf.field_uri, tf.original_value, t.uri 
           FROM terms_fts 
           JOIN term_fields tf ON terms_fts.rowid = tf.id 
           JOIN terms t ON tf.term_id = t.id 

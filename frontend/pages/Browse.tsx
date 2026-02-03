@@ -4,6 +4,8 @@ import TermCard from '../components/TermCard';
 import { Search, Filter, Loader2, AlertTriangle, Globe, X } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, TermStats } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { getPreferredLabel, getLanguagePriority } from '../src/utils/languageSelector';
 import toast from 'react-hot-toast';
 
 // Collection Map for NERC P-codes
@@ -21,6 +23,7 @@ const COLLECTION_MAP: Record<string, string> = {
 };
 
 const Browse: React.FC = () => {
+  const { user } = useAuth();
   const [terms, setTerms] = useState<Term[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingMock, setUsingMock] = useState(false);
@@ -49,6 +52,7 @@ const Browse: React.FC = () => {
     try {
       console.log("Fetching terms from /api/browse...");
       const offset = (currentPage - 1) * pageSize;
+      const languagePriority = getLanguagePriority(user?.languagePreferences);
       
       interface BrowseParams {
         limit: number;
@@ -76,19 +80,21 @@ const Browse: React.FC = () => {
       
       interface BrowseResult {
         uri: string;
-        field_term?: string;
         original_value?: string;
+        displayValue?: string;
+        displayLanguage?: string;
+        displayStatus?: string;
         translations: Array<{
           language: string;
           value: string;
           status: string;
         }>;
         labelField?: {
-          field_term?: string;
+          field_uri?: string;
           original_value?: string;
         } | null;
         referenceField?: {
-          field_term?: string;
+          field_uri?: string;
           original_value?: string;
         } | null;
       }
@@ -136,9 +142,20 @@ const Browse: React.FC = () => {
            ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
            : collectionCode;
 
-        // Use labelField and referenceField from API response
-        const prefLabel = result.labelField?.original_value || result.uri?.split('/').pop() || 'Unknown Term';
-        const definition = result.referenceField?.original_value || prefLabel;
+        // Use language priority for label selection
+        const prefLabel = getPreferredLabel(
+          result.translations,
+          languagePriority,
+          result.uri?.split('/').pop() || 'Unknown Term'
+        );
+        
+        // For definition, try to get from referenceField first, then translations
+        const definition = result.referenceField?.original_value || 
+                          getPreferredLabel(
+                            result.translations,
+                            languagePriority,
+                            result.uri?.split('/').pop() || 'Unknown Term'
+                          );
 
         return {
           id: result.uri || 'unknown',
@@ -162,17 +179,24 @@ const Browse: React.FC = () => {
       
       // Fallback to old API
       try {
+        const languagePriority = getLanguagePriority(user?.languagePreferences);
         const offset = (currentPage - 1) * pageSize;
         const response = await backendApi.getTerms(pageSize, offset);
         
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
           // Use labelField and referenceFields from API response with fallback
-          const labelField = apiTerm.labelField 
-            || apiTerm.fields.find(f => f.field_role === 'label') 
-            || apiTerm.fields.find(f => f.field_term === 'skos:prefLabel');
-          const refField = (apiTerm.referenceFields && apiTerm.referenceFields[0])
-            || apiTerm.fields.find(f => f.field_role === 'reference')
-            || apiTerm.fields.find(f => f.field_term === 'skos:definition');
+          // labelField is now just { field_uri: string }, find the actual field
+          const labelFieldUri = apiTerm.labelField?.field_uri;
+          const labelField = labelFieldUri 
+            ? apiTerm.fields?.find(f => f.field_uri === labelFieldUri)
+            : apiTerm.fields?.find(f => f.field_role === 'label') 
+              || apiTerm.fields?.find(f => f.field_uri?.includes('prefLabel'));
+          
+          const refFieldUri = apiTerm.referenceFields?.[0]?.field_uri;
+          const refField = refFieldUri
+            ? apiTerm.fields?.find(f => f.field_uri === refFieldUri)
+            : apiTerm.fields?.find(f => f.field_role === 'reference')
+              || apiTerm.fields?.find(f => f.field_uri?.includes('definition'));
           
           const translations: Record<string, string | null> = {
             en_plain: null,
@@ -195,11 +219,11 @@ const Browse: React.FC = () => {
             merged: 0
           };
 
-          apiTerm.fields.forEach(field => {
+          apiTerm.fields?.forEach(field => {
             if (field.translations) {
               field.translations.forEach(t => {
                 // Use reference field for translations display
-                if ((field.field_role === 'reference' || field.field_term === 'skos:definition') && t.language) {
+                if ((field.field_role === 'reference' || field.field_uri?.includes('definition')) && t.language) {
                    translations[t.language] = t.value;
                 }
                 if (t.status) {
@@ -218,10 +242,17 @@ const Browse: React.FC = () => {
              ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
              : collectionCode;
 
-          // Use label field for prefLabel, fallback to URI
-          const prefLabel = labelField?.original_value || apiTerm.uri.split('/').pop() || 'Unknown Term';
+          // Convert translations to array format for getPreferredLabel
+          const translationArray = Object.entries(translations)
+            .filter(([_, value]) => value !== null)
+            .map(([language, value]) => ({ language, value, status: '' }));
+
+          // Use label field for prefLabel with language priority, fallback to URI
+          const prefLabel = labelField?.original_value || 
+                           getPreferredLabel(translationArray, languagePriority, apiTerm.uri.split('/').pop() || 'Unknown Term');
           // Use reference field for definition, fallback to prefLabel
           const definition = refField?.original_value || prefLabel;
+
 
           return {
             id: apiTerm.uri,
@@ -246,7 +277,7 @@ const Browse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, searchQuery, languageFilter, statusFilter]);
+  }, [currentPage, pageSize, searchQuery, languageFilter, statusFilter, user?.languagePreferences]);
 
   useEffect(() => {
     fetchTerms();

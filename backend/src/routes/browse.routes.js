@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter } = require("../middleware/rateLimit");
+const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/languagePreferences");
 
 /**
  * @openapi
@@ -77,6 +78,10 @@ const { apiLimiter } = require("../middleware/rateLimit");
 router.get("/browse", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
+    
+    // Get user ID from session if authenticated
+    const userId = req.session?.user?.id || req.session?.user?.user_id || null;
+    const userPrefs = getUserLanguagePreferences(db, userId);
     
     // Parse parameters
     const searchQuery = req.query.query || '';
@@ -183,29 +188,52 @@ router.get("/browse", apiLimiter, (req, res) => {
       // Attach translations to fields
       const fieldsWithTranslations = fields.map((field) => ({
         ...field,
+        field_roles: JSON.parse(field.field_roles), // Parse JSON string to array for frontend
         translations: translationsByField[field.id] || []
       }));
       
-      // Find key fields for simplified result format
-      const labelField = fieldsWithTranslations.find(f => f.field_role === 'label') 
-        || fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-      const referenceField = fieldsWithTranslations.find(f => f.field_role === 'reference')
-        || fieldsWithTranslations.find(f => f.field_term === 'skos:definition');
-      const prefLabelField = fieldsWithTranslations.find(f => f.field_term === 'skos:prefLabel');
-      const definitionField = fieldsWithTranslations.find(f => f.field_term === 'skos:definition');
+      // Find key fields for simplified result format (using field_uri since field_term/field_role removed)
+      const labelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel')
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('prefLabel'))
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('label'))
+        || fieldsWithTranslations[0];
+      const referenceField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition')
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('definition'))
+        || fieldsWithTranslations.find(f => f.field_uri?.includes('description'));
+      const prefLabelField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#prefLabel');
+      const definitionField = fieldsWithTranslations.find(f => f.field_uri === 'http://www.w3.org/2004/02/skos/core#definition');
+      
+      // Select best translation based on user language preferences
+      const bestLabelTranslation = selectBestTranslation(
+        prefLabelField?.translations || [],
+        userPrefs.preferredLanguages
+      );
+      
+      const bestDefinitionTranslation = selectBestTranslation(
+        definitionField?.translations || [],
+        userPrefs.preferredLanguages
+      );
       
       return {
         uri: term.uri,
-        field_term: prefLabelField?.field_term || null,
         original_value: prefLabelField?.original_value || definitionField?.original_value || null,
+        // Include best matching translation based on user preferences
+        displayValue: bestLabelTranslation?.value || prefLabelField?.original_value || definitionField?.original_value || null,
+        displayLanguage: bestLabelTranslation?.language || 'undefined',
+        displayStatus: bestLabelTranslation?.status || 'original',
+        // Include all translations for clients that want to show multiple languages
         translations: fieldsWithTranslations.flatMap(f => f.translations).map(t => ({
           language: t.language,
           value: t.value,
           status: t.status
         })),
-        // Include label and reference field information
-        labelField: labelField || null,
-        referenceField: referenceField || null
+        // Include label and reference field information (simplified - just URIs)
+        labelField: labelField ? {
+          field_uri: labelField.field_uri
+        } : null,
+        referenceField: referenceField ? {
+          field_uri: referenceField.field_uri
+        } : null
       };
     });
     

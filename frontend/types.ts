@@ -35,6 +35,12 @@ export interface User {
   isSuperAdmin?: boolean;
   orcid?: string;       // ORCID iD (still supported)
   reputation?: number;  // User reputation score
+  languagePreferences?: {
+    nativeLanguage?: string;
+    translationLanguages?: string[];
+    preferredLanguages?: string[];
+    visibleExtraLanguages?: string[];
+  };
 }
 
 export interface Stats {
@@ -62,12 +68,15 @@ export interface ApiField {
   id: number;
   term_id: number;
   field_uri: string;
-  field_term: string; // e.g. "skos:prefLabel", "skos:definition"
+  field_term?: string; // DEPRECATED: No longer in database, kept for backward compatibility
   original_value: string;
   translations: ApiTranslation[];
   created_at?: string;
   updated_at?: string;
-  field_role?: 'label' | 'reference' | 'translatable'; // New field role
+  source_id?: number;
+  field_role?: 'label' | 'reference' | 'translatable'; // Identifies field purpose
+  originalValueTranslation?: ApiTranslation; // English or undefined language translation for reference
+  bestTranslation?: ApiTranslation; // Best translation based on user preferences
 }
 
 export interface ApiTerm {
@@ -75,9 +84,10 @@ export interface ApiTerm {
   uri: string;
   created_at: string;
   updated_at: string;
+  source_id?: number;
   fields: ApiField[];
-  labelField?: ApiField | null;  // New: identified label field
-  referenceFields?: ApiField[];  // New: identified reference fields
+  labelField?: { field_uri: string } | null;  // Simplified: only field_uri
+  referenceFields?: { field_uri: string }[];  // Simplified: only field_uri array
 }
 
 export interface ApiUserActivity {

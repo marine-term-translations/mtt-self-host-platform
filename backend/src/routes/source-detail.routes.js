@@ -766,12 +766,16 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
         const translatableFieldUris = source.translatable_field_uris ? JSON.parse(source.translatable_field_uris) : [];
         const languageTag = translationConfig.languageTag || '@en';
         
-        // Helper function to determine field role
-        const getFieldRole = (fieldUri) => {
-          if (fieldUri === labelFieldUri) return 'label';
-          if (referenceFieldUris.includes(fieldUri)) return 'reference';
-          if (translatableFieldUris.includes(fieldUri)) return 'translatable';
-          return 'translatable'; // default
+        // Helper function to determine field roles (can have multiple roles)
+        // A field can be both label AND translatable, for example
+        const getFieldRoles = (fieldUri) => {
+          const roles = [];
+          if (fieldUri === labelFieldUri) roles.push('label');
+          if (referenceFieldUris.includes(fieldUri)) roles.push('reference');
+          if (translatableFieldUris.includes(fieldUri)) roles.push('translatable');
+          // If no roles assigned, default to translatable
+          if (roles.length === 0) roles.push('translatable');
+          return roles;
         };
         
         // Process each configured type and its predicates
@@ -871,34 +875,37 @@ router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
             // For each selected predicate path, create term_field
             for (const pathConfig of selectedPaths) {
               const predicatePath = pathConfig.path;
-              const fieldTerm = pathConfig.label || predicatePath;
-              const fieldRole = getFieldRole(predicatePath);
               
               // Use per-path language tag, fallback to global, then to '@en'
               const pathLanguageTag = pathConfig.languageTag || translationConfig.languageTag || '@en';
               
               // Query for the value at this predicate path
               const valueQuery = await getValueForPath(source.graph_name, subjectUri, predicatePath, pathLanguageTag);
-              
+
               if (valueQuery && valueQuery.length > 0) {
-                for (const value of valueQuery) {
-                  // Check if term_field exists
-                  const existingField = db.prepare(
-                    "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ? AND original_value = ?"
-                  ).get(term.id, predicatePath, value);
-                  
-                  if (!existingField) {
-                    // Create new term_field with field_role
-                    db.prepare(
-                      "INSERT INTO term_fields (term_id, field_uri, field_term, original_value, source_id, field_role) VALUES (?, ?, ?, ?, ?, ?)"
-                    ).run(term.id, predicatePath, fieldTerm, value, sourceId, fieldRole);
-                    fieldsCreated++;
-                  } else if (!existingField.field_role) {
-                    // Update existing field with role if not set
-                    db.prepare(
-                      "UPDATE term_fields SET field_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                    ).run(fieldRole, existingField.id);
-                  }
+                // Always use the same term_field for this (term_id, field_uri)
+                let termField = db.prepare(
+                  "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"
+                ).get(term.id, predicatePath);
+
+                if (!termField) {
+                  // Use the first value as original_value for the field
+                  // Determine field_roles based on source configuration (can be multiple roles)
+                  const fieldRoles = getFieldRoles(predicatePath);
+                  db.prepare(
+                    "INSERT INTO term_fields (term_id, field_uri, field_roles, original_value, source_id) VALUES (?, ?, ?, ?, ?)"
+                  ).run(term.id, predicatePath, JSON.stringify(fieldRoles), valueQuery[0].value, sourceId);
+                  fieldsCreated++;
+                  termField = db.prepare(
+                    "SELECT * FROM term_fields WHERE term_id = ? AND field_uri = ?"
+                  ).get(term.id, predicatePath);
+                }
+
+                // Insert or update translation for each value/languageTag
+                for (const { value, language } of valueQuery) {
+                  db.prepare(
+                    "INSERT OR REPLACE INTO translations (term_field_id, language, value, status, source) VALUES (?, ?, ?, 'original', 'rdf-ingest')"
+                  ).run(termField.id, language, value);
                 }
               }
             }
@@ -983,32 +990,24 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
     return `<${p}>`;
   }).join(' / ');
   
-  // Determine language filter
-  let languageFilter = '';
-  if (languageTag && languageTag !== '@en') {
-    const lang = languageTag.startsWith('@') ? languageTag.substring(1) : languageTag;
-    languageFilter = `FILTER(LANG(?value) = "" || LANG(?value) = "${lang}")`;
-  }
-  
+  // Query for value and language
   const sparqlQuery = `
-    SELECT DISTINCT ?value
+    SELECT DISTINCT ?value (LANG(?value) as ?lang)
     WHERE {
       GRAPH <${graphName}> {
         <${subjectUri}> ${propertyPath} ?value .
         FILTER(isLiteral(?value))
-        ${languageFilter}
       }
     }
     LIMIT 100
   `;
 
   console.log('SPARQL Query for getValueForPath:', sparqlQuery);
-  
   try {
     const graphdbUrl = config.graphdb.url;
     const repository = config.graphdb.repository;
     const endpoint = `${graphdbUrl}/repositories/${repository}`;
-    
+
     const response = await axios.post(endpoint, sparqlQuery, {
       headers: {
         'Content-Type': 'application/sparql-query',
@@ -1016,8 +1015,11 @@ async function getValueForPath(graphName, subjectUri, predicatePath, languageTag
       },
       timeout: 15000
     });
-    
-    return response.data.results.bindings.map(b => b.value.value);
+
+    return response.data.results.bindings.map(b => ({
+      value: b.value.value,
+      language: b.lang?.value || 'undefined'
+    }));
   } catch (err) {
     console.error(`Error querying path ${predicatePath}:`, err.message);
     if (err.response && err.response.data) {

@@ -444,7 +444,7 @@ router.post("/appeals/messages/:id/report", writeLimiter, (req, res) => {
     
     // Check if user already reported this message
     const existingReport = db.prepare(
-      "SELECT id FROM message_reports WHERE appeal_message_id = ? AND reported_by_id = ?"
+      "SELECT id FROM message_reports WHERE message_id = ? AND reported_by = ?"
     ).get(messageId, currentUserId);
     
     if (existingReport) {
@@ -453,7 +453,7 @@ router.post("/appeals/messages/:id/report", writeLimiter, (req, res) => {
     
     // Create the report
     const stmt = db.prepare(
-      "INSERT INTO message_reports (appeal_message_id, reported_by_id, reason) VALUES (?, ?, ?)"
+      "INSERT INTO message_reports (message_id, reported_by, reason) VALUES (?, ?, ?)"
     );
     const info = stmt.run(messageId, currentUserId, reason.trim());
     
