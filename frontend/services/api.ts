@@ -249,7 +249,9 @@ class ApiService {
     limit?: number;
     offset?: number;
     language?: string;
+    language_mode?: 'has' | 'missing';
     status?: string;
+    status_mode?: 'has' | 'missing';
     field_uri?: string;
     facets?: string[];
   }): Promise<{
@@ -265,7 +267,9 @@ class ApiService {
     if (params.limit !== undefined) queryParams.limit = params.limit.toString();
     if (params.offset !== undefined) queryParams.offset = params.offset.toString();
     if (params.language) queryParams.language = params.language;
+    if (params.language_mode) queryParams.language_mode = params.language_mode;
     if (params.status) queryParams.status = params.status;
+    if (params.status_mode) queryParams.status_mode = params.status_mode;
     if (params.field_uri) queryParams.field_uri = params.field_uri;
     if (params.facets && params.facets.length > 0) {
       queryParams.facets = params.facets.join(',');

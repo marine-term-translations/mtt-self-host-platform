@@ -33,12 +33,16 @@ const Browse: React.FC = () => {
   
   // Facet filters
   const [languageFilter, setLanguageFilter] = useState('');
+  const [languageMode, setLanguageMode] = useState<'has' | 'missing'>('has');
   const [statusFilter, setStatusFilter] = useState('');
+  const [statusMode, setStatusMode] = useState<'has' | 'missing'>('has');
+  const [fieldUriFilter, setFieldUriFilter] = useState('');
   
   // Facet data from API
   const [facets, setFacets] = useState<{
     language?: Record<string, number>;
     status?: Record<string, number>;
+    field_uri?: Record<string, number>;
   }>({});
   
   // Pagination state
@@ -60,18 +64,28 @@ const Browse: React.FC = () => {
         facets: string[];
         query?: string;
         language?: string;
+        language_mode?: 'has' | 'missing';
         status?: string;
+        status_mode?: 'has' | 'missing';
+        field_uri?: string;
       }
       
       const params: BrowseParams = {
         limit: pageSize,
         offset,
-        facets: ['language', 'status']
+        facets: ['language', 'status', 'field_uri']
       };
       
       if (searchQuery) params.query = searchQuery;
-      if (languageFilter) params.language = languageFilter;
-      if (statusFilter) params.status = statusFilter;
+      if (languageFilter) {
+        params.language = languageFilter;
+        params.language_mode = languageMode;
+      }
+      if (statusFilter) {
+        params.status = statusFilter;
+        params.status_mode = statusMode;
+      }
+      if (fieldUriFilter) params.field_uri = fieldUriFilter;
       
       const response = await backendApi.browse(params);
       
@@ -277,7 +291,7 @@ const Browse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, searchQuery, languageFilter, statusFilter, user?.languagePreferences]);
+  }, [currentPage, pageSize, searchQuery, languageFilter, languageMode, statusFilter, statusMode, fieldUriFilter, user?.languagePreferences]);
 
   useEffect(() => {
     fetchTerms();
@@ -292,12 +306,32 @@ const Browse: React.FC = () => {
 
   // Handle filter changes
   const handleLanguageFilter = (lang: string) => {
-    setLanguageFilter(lang === languageFilter ? '' : lang);
+    if (languageFilter === lang) {
+      // If clicking the same language, clear it
+      setLanguageFilter('');
+    } else {
+      setLanguageFilter(lang);
+    }
     setCurrentPage(1);
   };
 
   const handleStatusFilter = (status: string) => {
-    setStatusFilter(status === statusFilter ? '' : status);
+    if (statusFilter === status) {
+      // If clicking the same status, clear it
+      setStatusFilter('');
+    } else {
+      setStatusFilter(status);
+    }
+    setCurrentPage(1);
+  };
+
+  const handleFieldUriFilter = (uri: string) => {
+    if (fieldUriFilter === uri) {
+      // If clicking the same field_uri, clear it
+      setFieldUriFilter('');
+    } else {
+      setFieldUriFilter(uri);
+    }
     setCurrentPage(1);
   };
 
@@ -306,7 +340,10 @@ const Browse: React.FC = () => {
     setSearchTerm('');
     setSearchQuery('');
     setLanguageFilter('');
+    setLanguageMode('has');
     setStatusFilter('');
+    setStatusMode('has');
+    setFieldUriFilter('');
     setCurrentPage(1);
   };
 
@@ -327,7 +364,7 @@ const Browse: React.FC = () => {
     { code: 'merged', name: 'Merged' },
   ];
 
-  const hasActiveFilters = searchQuery || languageFilter || statusFilter;
+  const hasActiveFilters = searchQuery || languageFilter || statusFilter || fieldUriFilter;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -372,12 +409,40 @@ const Browse: React.FC = () => {
 
       {/* Active Filters & Facets */}
       {!useFallback && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Language Facet */}
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="h-4 w-4 text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Language</h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Language</h3>
+              </div>
+              {languageFilter && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setLanguageMode('has')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      languageMode === 'has'
+                        ? 'bg-marine-500 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                    title="Show terms WITH this translation"
+                  >
+                    Has
+                  </button>
+                  <button
+                    onClick={() => setLanguageMode('missing')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      languageMode === 'missing'
+                        ? 'bg-marine-500 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                    title="Show terms WITHOUT this translation"
+                  >
+                    Missing
+                  </button>
+                </div>
+              )}
             </div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {languages.map(lang => {
@@ -403,9 +468,37 @@ const Browse: React.FC = () => {
 
           {/* Status Facet */}
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="h-4 w-4 text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Status</h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Status</h3>
+              </div>
+              {statusFilter && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setStatusMode('has')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      statusMode === 'has'
+                        ? 'bg-marine-500 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                    title="Show terms WITH this status"
+                  >
+                    Has
+                  </button>
+                  <button
+                    onClick={() => setStatusMode('missing')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      statusMode === 'missing'
+                        ? 'bg-marine-500 text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                    title="Show terms WITHOUT this status"
+                  >
+                    Missing
+                  </button>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               {statuses.map(status => {
@@ -426,6 +519,42 @@ const Browse: React.FC = () => {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Field URI Facet */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="h-4 w-4 text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Property</h3>
+            </div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {Object.entries(facets.field_uri || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([uri, count]) => {
+                  const isActive = fieldUriFilter === uri;
+                  // Extract the last part of the URI for display
+                  const displayName = uri.split('#').pop()?.split('/').pop() || uri;
+                  return (
+                    <button
+                      key={uri}
+                      onClick={() => handleFieldUriFilter(uri)}
+                      className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${
+                        isActive
+                          ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                      title={uri}
+                    >
+                      <span className="truncate">{displayName}</span>
+                      <span className="text-xs ml-2">{count}</span>
+                    </button>
+                  );
+                })}
+              {Object.keys(facets.field_uri || {}).length === 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">No properties available</p>
+              )}
             </div>
           </div>
 
@@ -455,7 +584,12 @@ const Browse: React.FC = () => {
               {languageFilter && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
                   <Globe className="h-3 w-3" />
-                  <span className="flex-1">{languages.find(l => l.code === languageFilter)?.name}</span>
+                  <span className="flex-1">
+                    {languages.find(l => l.code === languageFilter)?.name}
+                    <span className="text-xs ml-1 opacity-70">
+                      ({languageMode === 'has' ? 'has' : 'missing'})
+                    </span>
+                  </span>
                   <button onClick={() => setLanguageFilter('')} className="hover:text-red-600">
                     <X className="h-3 w-3" />
                   </button>
@@ -464,8 +598,24 @@ const Browse: React.FC = () => {
               {statusFilter && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
                   <Filter className="h-3 w-3" />
-                  <span className="flex-1">{statuses.find(s => s.code === statusFilter)?.name}</span>
+                  <span className="flex-1">
+                    {statuses.find(s => s.code === statusFilter)?.name}
+                    <span className="text-xs ml-1 opacity-70">
+                      ({statusMode === 'has' ? 'has' : 'missing'})
+                    </span>
+                  </span>
                   <button onClick={() => setStatusFilter('')} className="hover:text-red-600">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {fieldUriFilter && (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
+                  <Filter className="h-3 w-3" />
+                  <span className="flex-1 truncate" title={fieldUriFilter}>
+                    {fieldUriFilter.split('#').pop()?.split('/').pop() || fieldUriFilter}
+                  </span>
+                  <button onClick={() => setFieldUriFilter('')} className="hover:text-red-600">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
