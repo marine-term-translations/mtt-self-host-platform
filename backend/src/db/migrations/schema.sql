@@ -287,6 +287,16 @@ CREATE TRIGGER translations_fts_delete AFTER DELETE ON translations BEGIN
     DELETE FROM translations_fts WHERE rowid = old.id;
 END;
 
+-- Languages table: ISO 639-1 language codes
+CREATE TABLE languages (
+    code        TEXT PRIMARY KEY,  -- ISO 639-1 two-letter code (e.g., 'en', 'de', 'fr')
+    name        TEXT NOT NULL,     -- Full language name (e.g., 'English', 'German', 'French')
+    native_name TEXT,              -- Native language name (e.g., 'English', 'Deutsch', 'Français')
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_languages_name ON languages(name);
+
 -- View for term summary
 CREATE VIEW term_summary AS
 SELECT 
