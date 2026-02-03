@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS languages (
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert ISO 639-1 language codes
+-- Insert ISO 639-1 language codes (using INSERT OR IGNORE to handle existing data)
 -- Source: https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes
-INSERT INTO languages (code, name, native_name) VALUES
+INSERT OR IGNORE INTO languages (code, name, native_name) VALUES
 ('aa', 'Afar', 'Afar'),
 ('ab', 'Abkhazian', 'Аҧсуа'),
 ('ae', 'Avestan', 'Avesta'),
@@ -196,7 +196,7 @@ INSERT INTO languages (code, name, native_name) VALUES
 ('zh', 'Chinese', '中文'),
 ('zu', 'Zulu', 'isiZulu');
 
--- Create index for faster lookups
-CREATE INDEX idx_languages_name ON languages(name);
+-- Create index for faster lookups (using IF NOT EXISTS to be idempotent)
+CREATE INDEX IF NOT EXISTS idx_languages_name ON languages(name);
 
 SELECT 'Migration 015: ISO 639 language codes table created successfully' as message;
