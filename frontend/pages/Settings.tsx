@@ -10,39 +10,43 @@ interface UserPreferences {
   translationLanguages?: string[];
 }
 
-const LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'nl', name: 'Dutch (Nederlands)' },
-  { code: 'fr', name: 'French (Français)' },
-  { code: 'de', name: 'German (Deutsch)' },
-  { code: 'es', name: 'Spanish (Español)' },
-  { code: 'it', name: 'Italian (Italiano)' },
-  { code: 'pt', name: 'Portuguese (Português)' },
-  { code: 'pl', name: 'Polish (Polski)' },
-  { code: 'cs', name: 'Czech (Čeština)' },
-  { code: 'sv', name: 'Swedish (Svenska)' },
-  { code: 'da', name: 'Danish (Dansk)' },
-  { code: 'no', name: 'Norwegian (Norsk)' },
-  { code: 'fi', name: 'Finnish (Suomi)' },
-  { code: 'el', name: 'Greek (Ελληνικά)' },
-  { code: 'ro', name: 'Romanian (Română)' },
-  { code: 'bg', name: 'Bulgarian (Български)' },
-  { code: 'hr', name: 'Croatian (Hrvatski)' },
-  { code: 'sk', name: 'Slovak (Slovenčina)' },
-  { code: 'sl', name: 'Slovenian (Slovenščina)' },
-  { code: 'et', name: 'Estonian (Eesti)' },
-  { code: 'lv', name: 'Latvian (Latviešu)' },
-  { code: 'lt', name: 'Lithuanian (Lietuvių)' },
-  { code: 'mt', name: 'Maltese (Malti)' },
-  { code: 'ga', name: 'Irish (Gaeilge)' },
-];
+interface Language {
+  code: string;
+  name: string;
+  native_name: string;
+}
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
   const [nativeLanguage, setNativeLanguage] = useState<string>('');
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
+  const [isLoadingLanguages, setIsLoadingLanguages] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Load available languages from API
+  useEffect(() => {
+    const loadLanguages = async () => {
+      try {
+        const response = await fetch(`${CONFIG.API_URL}/languages`);
+        if (response.ok) {
+          const languages = await response.json();
+          setAvailableLanguages(languages);
+        } else {
+          console.error('Failed to load languages from API');
+          // Keep empty array if API fails
+        }
+      } catch (error) {
+        console.error('Failed to load languages:', error);
+        // Keep empty array if API fails
+      } finally {
+        setIsLoadingLanguages(false);
+      }
+    };
+
+    loadLanguages();
+  }, []);
 
   // Load user preferences on mount
   useEffect(() => {
@@ -170,12 +174,15 @@ const Settings: React.FC = () => {
           <select
             value={nativeLanguage}
             onChange={(e) => handleNativeLanguageChange(e.target.value)}
-            className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-marine-500 focus:border-marine-500 text-slate-900 dark:text-white"
+            disabled={isLoadingLanguages}
+            className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-marine-500 focus:border-marine-500 text-slate-900 dark:text-white disabled:opacity-50"
           >
-            <option value="">Select your native language...</option>
-            {LANGUAGES.map(lang => (
+            <option value="">
+              {isLoadingLanguages ? 'Loading languages...' : 'Select your native language...'}
+            </option>
+            {availableLanguages.map(lang => (
               <option key={lang.code} value={lang.code}>
-                {lang.name}
+                {lang.name} ({lang.native_name})
               </option>
             ))}
           </select>
@@ -193,28 +200,35 @@ const Settings: React.FC = () => {
             Select all languages you're comfortable translating marine terminology into.
           </p>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {LANGUAGES.map(lang => (
-              <label
-                key={lang.code}
-                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedLanguages.includes(lang.code)
-                    ? 'border-marine-500 bg-marine-50 dark:bg-marine-900/20'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedLanguages.includes(lang.code)}
-                  onChange={() => handleLanguageToggle(lang.code)}
-                  className="w-5 h-5 text-marine-600 rounded focus:ring-marine-500"
-                />
-                <span className="text-sm font-medium text-slate-900 dark:text-white">
-                  {lang.name}
-                </span>
-              </label>
-            ))}
-          </div>
+          {isLoadingLanguages ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-marine-600"></div>
+              <span className="ml-3 text-slate-600 dark:text-slate-400">Loading languages...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {availableLanguages.map(lang => (
+                <label
+                  key={lang.code}
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    selectedLanguages.includes(lang.code)
+                      ? 'border-marine-500 bg-marine-50 dark:bg-marine-900/20'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedLanguages.includes(lang.code)}
+                    onChange={() => handleLanguageToggle(lang.code)}
+                    className="w-5 h-5 text-marine-600 rounded focus:ring-marine-500"
+                  />
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">
+                    {lang.name} ({lang.native_name})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Save Button */}

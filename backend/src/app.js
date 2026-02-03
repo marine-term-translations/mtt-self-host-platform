@@ -23,6 +23,7 @@ const tasksRoutes = require("./routes/tasks.routes");
 const taskSchedulersRoutes = require("./routes/task-schedulers.routes");
 const ldesRoutes = require("./routes/ldes.routes");
 const adminRoutes = require("./routes/admin.routes");
+const languagesRoutes = require("./routes/languages.routes");
 
 const app = express();
 
@@ -95,5 +96,6 @@ app.use("/", tasksRoutes);
 app.use("/", taskSchedulersRoutes);
 app.use("/", ldesRoutes);
 app.use("/", adminRoutes);
+app.use("/api", languagesRoutes);
 
 module.exports = app;
