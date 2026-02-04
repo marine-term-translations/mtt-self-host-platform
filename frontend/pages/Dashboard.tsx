@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
-import { ApiTerm, ApiUserActivity, ApiPublicUser } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiLanguage } from '../types';
 import toast from 'react-hot-toast';
 import { parse, fromNow } from '@/src/utils/datetime';
 
@@ -19,9 +19,10 @@ const Dashboard: React.FC = () => {
     needsTranslationCount: 0
   });
   const [activities, setActivities] = useState<ApiUserActivity[]>([]);
-  const [termsMap, setTermsMap] = useState<Record<number, string>>({});
+  const [termsMap, setTermsMap] = useState<Record<number, { label: string; uri: string }>>({});
   const [userLanguages, setUserLanguages] = useState<string[]>([]);
   const [selectedFlowLanguage, setSelectedFlowLanguage] = useState<string>('');
+  const [languages, setLanguages] = useState<ApiLanguage[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -30,40 +31,44 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
 
-        // Fetch data in parallel including user preferences
-        const [history, users, preferences] = await Promise.all([
+        // Fetch data in parallel including user preferences and languages
+        const [history, users, preferences, languagesData] = await Promise.all([
           backendApi.getUserHistory(user.id || user.user_id!), // Use user ID
           backendApi.getUsers(),
-          backendApi.get<{ nativeLanguage: string; translationLanguages: string[] }>('/user/preferences').catch(() => ({ nativeLanguage: '', translationLanguages: [] }))
+          backendApi.get<{ nativeLanguage: string; translationLanguages: string[] }>('/user/preferences').catch(() => ({ nativeLanguage: '', translationLanguages: [] })),
+          backendApi.get<ApiLanguage[]>('/languages').catch(() => [])
         ]);
 
+        // Set languages from API
+        setLanguages(languagesData);
+
         // Set user's translation languages
-        const languages = preferences.translationLanguages || [];
-        setUserLanguages(languages);
-        if (languages.length > 0) {
-          setSelectedFlowLanguage(languages[0]);
+        const userLangs = preferences.translationLanguages || [];
+        setUserLanguages(userLangs);
+        if (userLangs.length > 0) {
+          setSelectedFlowLanguage(userLangs[0]);
         }
 
         // 1. Extract unique term IDs from history and fetch only those terms
         const termIds = [...new Set(history.map(h => h.term_id).filter(id => id != null))] as number[];
         
-        let termIdToLabel: Record<number, string> = {};
+        let termIdToInfo: Record<number, { label: string; uri: string }> = {};
         if (termIds.length > 0) {
           const terms = await backendApi.getTermsByIds(termIds);
           terms.forEach((t: ApiTerm) => {
-            // Map ID to Label for activity feed lookup
+            // Map ID to both Label and URI for activity feed lookup
             // Add safety check for fields being undefined
             if (t.fields && Array.isArray(t.fields)) {
               const labelField = t.fields.find(f => f.field_role === 'label')
                 || t.fields.find(f => f.field_uri?.includes('prefLabel'));
               const prefLabel = labelField?.original_value || t.uri || 'Unknown Term';
-              termIdToLabel[t.id] = prefLabel;
+              termIdToInfo[t.id] = { label: prefLabel, uri: t.uri };
             } else {
-              termIdToLabel[t.id] = t.uri || 'Unknown Term';
+              termIdToInfo[t.id] = { label: t.uri || 'Unknown Term', uri: t.uri };
             }
           });
         }
-        setTermsMap(termIdToLabel);
+        setTermsMap(termIdToInfo);
 
         // 2. Process User Ranking & Reputation
         const sortedUsers = users.sort((a: ApiPublicUser, b: ApiPublicUser) => b.reputation - a.reputation);
@@ -110,15 +115,12 @@ const Dashboard: React.FC = () => {
   };
 
   const getLanguageName = (code: string) => {
-    const languageMap: Record<string, string> = {
-      'nl': 'Dutch',
-      'fr': 'French',
-      'de': 'German',
-      'es': 'Spanish',
-      'it': 'Italian',
-      'pt': 'Portuguese'
-    };
-    return languageMap[code] || code.toUpperCase();
+    const language = languages.find(l => l.code === code);
+    if (language) {
+      return language.name;
+    }
+    // Fallback to uppercase code if language not found in API
+    return code.toUpperCase();
   };
 
   const parseExtra = (extra: string | null) => {
@@ -282,7 +284,9 @@ const Dashboard: React.FC = () => {
               ))
             ) : activities.length > 0 ? (
               activities.map((activity) => {
-                const termLabel = activity.term_id ? termsMap[activity.term_id] : 'Deleted Term';
+                const termInfo = activity.term_id ? termsMap[activity.term_id] : null;
+                const termLabel = termInfo?.label || 'Deleted Term';
+                const termUri = termInfo?.uri || '';
                 const details = parseExtra(activity.extra);
                 
                 return (
@@ -292,9 +296,15 @@ const Dashboard: React.FC = () => {
                       <p className="text-sm text-slate-800 dark:text-slate-200">
                         <span className="capitalize font-medium">{formatActivityAction(activity.action)}</span>
                         {' '}for{' '}
-                        <Link to={`/term/${encodeURIComponent(activity.term_id ? '' : '')}`} className="font-medium text-marine-600 hover:underline">
-                           "{termLabel}"
-                        </Link>
+                        {termUri ? (
+                          <Link to={`/term/${encodeURIComponent(termUri)}`} className="font-medium text-marine-600 hover:underline">
+                            "{termLabel}"
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-slate-500">
+                            "{termLabel}"
+                          </span>
+                        )}
                       </p>
                       {details && (
                           <p className="text-xs text-slate-500 dark:text-slate-500 italic mt-0.5">
