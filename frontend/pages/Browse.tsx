@@ -9,6 +9,8 @@ import { getPreferredLabel, getLanguagePriority } from '../src/utils/languageSel
 import toast from 'react-hot-toast';
 
 // Collection Map for NERC P-codes
+// TODO: Move the naming of the collections to the backend or just use the collection code as the name
+// Or use the source id as the code or add a config file for each source when added 
 const COLLECTION_MAP: Record<string, string> = {
   'P01': 'BODC Parameter Usage Vocabulary',
   'P02': 'SeaDataNet Parameter Discovery Vocabulary',
@@ -30,17 +32,27 @@ const Browse: React.FC = () => {
   const [useFallback, setUseFallback] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchQuery, setSearchQuery] = useState(''); // Actual search query sent to API
-  
+
   // Facet filters
   const [languageFilter, setLanguageFilter] = useState('');
+  const [languageMode, setLanguageMode] = useState<'has' | 'missing'>('has');
   const [statusFilter, setStatusFilter] = useState('');
-  
+  const [statusMode, setStatusMode] = useState<'has' | 'missing'>('has');
+  const [fieldUriFilter, setFieldUriFilter] = useState('');
+
   // Facet data from API
   const [facets, setFacets] = useState<{
     language?: Record<string, number>;
     status?: Record<string, number>;
+    field_uri?: Record<string, number>;
   }>({});
-  
+
+  // Missing popup state
+
+  const [userTranslationLanguages, setUserTranslationLanguages] = useState<string[]>([]);
+  // Store full language objects from API
+  const [apiLanguages, setApiLanguages] = useState<Record<string, string>>({});
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalTerms, setTotalTerms] = useState(0);
@@ -53,31 +65,41 @@ const Browse: React.FC = () => {
       console.log("Fetching terms from /api/browse...");
       const offset = (currentPage - 1) * pageSize;
       const languagePriority = getLanguagePriority(user?.languagePreferences);
-      
+
       interface BrowseParams {
         limit: number;
         offset: number;
         facets: string[];
         query?: string;
         language?: string;
+        language_mode?: 'has' | 'missing';
         status?: string;
+        status_mode?: 'has' | 'missing';
+        field_uri?: string;
       }
-      
+
       const params: BrowseParams = {
         limit: pageSize,
         offset,
-        facets: ['language', 'status']
+        facets: ['language', 'status', 'field_uri']
       };
-      
+
       if (searchQuery) params.query = searchQuery;
-      if (languageFilter) params.language = languageFilter;
-      if (statusFilter) params.status = statusFilter;
-      
+      if (languageFilter) {
+        params.language = languageFilter;
+        params.language_mode = languageMode;
+      }
+      if (statusFilter) {
+        params.status = statusFilter;
+        params.status_mode = statusMode;
+      }
+      if (fieldUriFilter) params.field_uri = fieldUriFilter;
+
       const response = await backendApi.browse(params);
-      
+
       // Store facets
       setFacets(response.facets || {});
-      
+
       interface BrowseResult {
         uri: string;
         original_value?: string;
@@ -88,6 +110,7 @@ const Browse: React.FC = () => {
           language: string;
           value: string;
           status: string;
+          field_uri?: string;
         }>;
         labelField?: {
           field_uri?: string;
@@ -98,22 +121,9 @@ const Browse: React.FC = () => {
           original_value?: string;
         } | null;
       }
-      
+
       // Map browse results to Term format
       const mappedTerms: Term[] = response.results.map((result: BrowseResult) => {
-        const translations: Record<string, string | null> = {
-          en_plain: null,
-          es: null,
-          fr: null,
-          nl: null,
-          de: null,
-          it: null,
-          pt: null,
-          ru: null,
-          zh: null,
-          ja: null
-        };
-
         const stats: TermStats = {
           draft: 0,
           review: 0,
@@ -122,48 +132,124 @@ const Browse: React.FC = () => {
           merged: 0
         };
 
-        if (result.translations) {
-          result.translations.forEach((t) => {
-            if (t.language && t.value) {
-              translations[t.language] = t.value;
+        // Identify the URIs for label and reference
+        const labelFieldUri = result.labelField?.field_uri;
+        const refFieldUri = result.referenceField?.field_uri;
+
+        // Helper to find best translation for a specific field
+        // Filters for original/merged status and matches field_uri if present
+        // Helper to find best translation for a specific field
+        // Filters for original/merged status and matches field_uri if present
+        const getTranslationForField = (
+          targetUri: string | undefined,
+          originalVal: string | undefined,
+          excludeOriginalVal: string | undefined
+        ): string | null => {
+          if (!targetUri && !originalVal) return null;
+
+          // Filter translations applicable to this field
+          const applicableTranslations = result.translations.filter(t => {
+            // Must be original or merged
+            if (t.status !== 'original' && t.status !== 'merged') return false;
+
+            // If translation has field_uri, it MUST match
+            if (t.field_uri) {
+              return t.field_uri === targetUri;
             }
-            if (t.status) {
-              const statusKey = t.status as keyof TermStats;
-              if (stats[statusKey] !== undefined) {
-                stats[statusKey]++;
+
+            const normVal = t.value?.trim();
+            const normOrig = originalVal?.trim();
+            const normExclude = excludeOriginalVal?.trim();
+
+            // If status is original, value must match original_value (heuristic for when field_uri is missing)
+            if (t.status === 'original' && normOrig) {
+              return normVal === normOrig;
+            }
+
+            // If status is merged and no field_uri... 
+            if (t.status === 'merged') {
+              // 1. If it matches the TARGET original value, it's definitely ours
+              if (normOrig && normVal === normOrig) {
+                return true;
+              }
+
+              // 2. If it matches the EXCLUDED field's original value, it likely belongs to that other field.
+              // Use simplified comparison to catch minor diffs
+              if (normExclude && normVal === normExclude && normOrig !== normExclude) {
+                return false;
+              }
+
+              // 3. Heuristic: If we are looking for a Label (usually short) and the value is very long, 
+              // and the original label was short, reject it.
+              // Assuming labels are < 100 chars usually.
+              if (normOrig && normOrig.length < 50 && normVal.length > 200) {
+                return false;
               }
             }
+
+            return true;
           });
-        }
+
+          return getPreferredLabel(
+            applicableTranslations,
+            languagePriority,
+            null as unknown as string // Return null if not found, don't use string fallback here
+          );
+        };
+
+        // Calculate Stats (Global) & Build Translations Map (Preferring Label)
+        const translations: Record<string, string | null> = {};
+        Object.keys(apiLanguages).forEach(code => {
+          translations[code] = null;
+        });
+
+        result.translations.forEach((t) => {
+          // Populate stats
+          if (t.status) {
+            const statusKey = t.status as keyof TermStats;
+            if (stats[statusKey] !== undefined) stats[statusKey]++;
+          }
+
+          // Populate map - Prioritize Label translations if possible
+          if (t.language && t.value) {
+            const isLabel = (labelFieldUri && t.field_uri === labelFieldUri) ||
+              (t.status === 'original' && result.labelField?.original_value === t.value) ||
+              (!t.field_uri && !refFieldUri); // If no field URI and no ref field exists, assume label
+
+            // Overwrite if it's explicitly a label match, or if slot is empty
+            if (isLabel || !translations[t.language]) {
+              translations[t.language] = t.value;
+            }
+          }
+        });
 
         const collectionMatch = result.uri?.match(/\/collection\/([^/]+)\//);
         const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
-        const collectionName = COLLECTION_MAP[collectionCode] 
-           ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
-           : collectionCode;
+        const collectionName = COLLECTION_MAP[collectionCode]
+          ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}`
+          : collectionCode;
 
-        // Use language priority for label selection
-        const prefLabel = getPreferredLabel(
-          result.translations,
-          languagePriority,
-          result.uri?.split('/').pop() || 'Unknown Term'
-        );
-        
-        // For definition, try to get from referenceField first, then translations
-        const definition = result.referenceField?.original_value || 
-                          getPreferredLabel(
-                            result.translations,
-                            languagePriority,
-                            result.uri?.split('/').pop() || 'Unknown Term'
-                          );
+        // Get Preferred Label
+        // Logic: Try to find (Original|Merged) translation for Label Field -> Fallback to Label Original Value -> Fallback to URI Name
+        let prefLabel = getTranslationForField(labelFieldUri, result.labelField?.original_value, result.referenceField?.original_value);
+        if (!prefLabel) {
+          prefLabel = result.labelField?.original_value || result.uri?.split('/').pop() || 'Unknown Term';
+        }
+
+        // Get Definition
+        // Logic: Try to find (Original|Merged) translation for Ref Field -> Fallback to Ref Original Value -> Fallback to prefLabel (if desired, or empty)
+        let definition = getTranslationForField(refFieldUri, result.referenceField?.original_value, result.labelField?.original_value);
+        if (!definition) {
+          definition = result.referenceField?.original_value || prefLabel;
+        }
 
         return {
           id: result.uri || 'unknown',
           prefLabel: prefLabel,
           definition: definition,
-          category: collectionName, 
+          category: collectionName,
           translations: translations,
-          contributors: [], 
+          contributors: [],
           stats: stats
         };
       });
@@ -176,40 +262,32 @@ const Browse: React.FC = () => {
       console.error("Failed to fetch from /api/browse:", error);
       toast.error("Using fallback mode - advanced search unavailable");
       setUseFallback(true);
-      
+
       // Fallback to old API
       try {
         const languagePriority = getLanguagePriority(user?.languagePreferences);
         const offset = (currentPage - 1) * pageSize;
         const response = await backendApi.getTerms(pageSize, offset);
-        
+
         const mappedTerms: Term[] = response.terms.map((apiTerm: ApiTerm) => {
           // Use labelField and referenceFields from API response with fallback
           // labelField is now just { field_uri: string }, find the actual field
           const labelFieldUri = apiTerm.labelField?.field_uri;
-          const labelField = labelFieldUri 
+          const labelField = labelFieldUri
             ? apiTerm.fields?.find(f => f.field_uri === labelFieldUri)
-            : apiTerm.fields?.find(f => f.field_role === 'label') 
-              || apiTerm.fields?.find(f => f.field_uri?.includes('prefLabel'));
-          
+            : apiTerm.fields?.find(f => f.field_role === 'label')
+            || apiTerm.fields?.find(f => f.field_uri?.includes('prefLabel'));
+
           const refFieldUri = apiTerm.referenceFields?.[0]?.field_uri;
           const refField = refFieldUri
             ? apiTerm.fields?.find(f => f.field_uri === refFieldUri)
             : apiTerm.fields?.find(f => f.field_role === 'reference')
-              || apiTerm.fields?.find(f => f.field_uri?.includes('definition'));
-          
-          const translations: Record<string, string | null> = {
-            en_plain: null,
-            es: null,
-            fr: null,
-            nl: null,
-            de: null,
-            it: null,
-            pt: null,
-            ru: null,
-            zh: null,
-            ja: null
-          };
+            || apiTerm.fields?.find(f => f.field_uri?.includes('definition'));
+
+          const translations: Record<string, string | null> = {};
+          Object.keys(apiLanguages).forEach(code => {
+            translations[code] = null;
+          });
 
           const stats: TermStats = {
             draft: 0,
@@ -224,7 +302,7 @@ const Browse: React.FC = () => {
               field.translations.forEach(t => {
                 // Use reference field for translations display
                 if ((field.field_role === 'reference' || field.field_uri?.includes('definition')) && t.language) {
-                   translations[t.language] = t.value;
+                  translations[t.language] = t.value;
                 }
                 if (t.status) {
                   const statusKey = t.status as keyof TermStats;
@@ -238,9 +316,9 @@ const Browse: React.FC = () => {
 
           const collectionMatch = apiTerm.uri.match(/\/collection\/([^/]+)\//);
           const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
-          const collectionName = COLLECTION_MAP[collectionCode] 
-             ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}` 
-             : collectionCode;
+          const collectionName = COLLECTION_MAP[collectionCode]
+            ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}`
+            : collectionCode;
 
           // Convert translations to array format for getPreferredLabel
           const translationArray = Object.entries(translations)
@@ -248,8 +326,8 @@ const Browse: React.FC = () => {
             .map(([language, value]) => ({ language, value, status: '' }));
 
           // Use label field for prefLabel with language priority, fallback to URI
-          const prefLabel = labelField?.original_value || 
-                           getPreferredLabel(translationArray, languagePriority, apiTerm.uri.split('/').pop() || 'Unknown Term');
+          const prefLabel = labelField?.original_value ||
+            getPreferredLabel(translationArray, languagePriority, apiTerm.uri.split('/').pop() || 'Unknown Term');
           // Use reference field for definition, fallback to prefLabel
           const definition = refField?.original_value || prefLabel;
 
@@ -258,9 +336,9 @@ const Browse: React.FC = () => {
             id: apiTerm.uri,
             prefLabel: prefLabel,
             definition: definition,
-            category: collectionName, 
+            category: collectionName,
             translations: translations,
-            contributors: [], 
+            contributors: [],
             stats: stats
           };
         });
@@ -277,11 +355,35 @@ const Browse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, searchQuery, languageFilter, statusFilter, user?.languagePreferences]);
+  }, [currentPage, pageSize, searchQuery, languageFilter, languageMode, statusFilter, statusMode, fieldUriFilter, user?.languagePreferences, apiLanguages]);
 
   useEffect(() => {
     fetchTerms();
   }, [fetchTerms]);
+
+  // Fetch languages and user preferences
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch All Languages
+        const langs = await backendApi.getLanguages();
+        const langMap: Record<string, string> = {};
+        langs.forEach(l => {
+          langMap[l.code] = l.name;
+        });
+        setApiLanguages(langMap);
+
+        // Fetch User Preferences
+        const prefs = await backendApi.getUserPreferences();
+        if (prefs.translationLanguages) {
+          setUserTranslationLanguages(prefs.translationLanguages);
+        }
+      } catch (error) {
+        console.error("Failed to fetch initial data:", error);
+      }
+    };
+    fetchData();
+  }, [user]);
 
   // Handle search submission
   const handleSearch = (e: React.FormEvent) => {
@@ -290,14 +392,54 @@ const Browse: React.FC = () => {
     setCurrentPage(1); // Reset to first page on new search
   };
 
+  // Auto-search effect with debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      // Trigger search if 3 or more characters, or if cleared
+      if (searchTerm.length >= 3 || searchTerm.length === 0) {
+        if (searchTerm !== searchQuery) {
+          setSearchQuery(searchTerm);
+          setCurrentPage(1);
+        }
+      }
+    }, 600);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, searchQuery]);
+
+  // Helper to extract display name from URI
+  const getDisplayNameFromUri = (uri: string): string => {
+    return uri.split('#').pop()?.split('/').pop() || uri;
+  };
+
   // Handle filter changes
   const handleLanguageFilter = (lang: string) => {
-    setLanguageFilter(lang === languageFilter ? '' : lang);
+    if (languageFilter === lang) {
+      // If clicking the same language, clear it
+      setLanguageFilter('');
+    } else {
+      setLanguageFilter(lang);
+    }
     setCurrentPage(1);
   };
 
   const handleStatusFilter = (status: string) => {
-    setStatusFilter(status === statusFilter ? '' : status);
+    if (statusFilter === status) {
+      // If clicking the same status, clear it
+      setStatusFilter('');
+    } else {
+      setStatusFilter(status);
+    }
+    setCurrentPage(1);
+  };
+
+  const handleFieldUriFilter = (uri: string) => {
+    if (fieldUriFilter === uri) {
+      // If clicking the same field_uri, clear it
+      setFieldUriFilter('');
+    } else {
+      setFieldUriFilter(uri);
+    }
     setCurrentPage(1);
   };
 
@@ -306,18 +448,50 @@ const Browse: React.FC = () => {
     setSearchTerm('');
     setSearchQuery('');
     setLanguageFilter('');
+    setLanguageMode('has');
     setStatusFilter('');
+    setStatusMode('has');
+    setFieldUriFilter('');
     setCurrentPage(1);
   };
 
-  const languages = [
-    { code: 'nl', name: 'Dutch' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'it', name: 'Italian' },
-    { code: 'pt', name: 'Portuguese' },
-  ];
+  // Dynamic languages list based on facets
+  const availableLanguages = React.useMemo(() => {
+    if (languageMode === 'missing') {
+      // In missing mode, prioritize user's preferred languages
+      const currentTotal = totalTerms;
+      const langsToCheck = userTranslationLanguages.length > 0
+        ? userTranslationLanguages
+        : Object.keys(apiLanguages).length > 0 ? Object.keys(apiLanguages) : Object.keys(facets.language || {});
+
+      return langsToCheck
+        .map(code => {
+          const hasCount = facets.language?.[code] || 0;
+          // If we are actively filtering by this language in missing mode, 
+          // all returned terms represent the missing count for this language
+          // But logically, available facets return "has" counts.
+          // Missing count = Total terms in view - Terms that have this language
+          const missingCount = currentTotal - hasCount;
+          return {
+            code,
+            name: apiLanguages[code] || code.toUpperCase(),
+            count: missingCount
+          };
+        })
+        .filter(l => l.count > 0) // Only show languages that have missing translations
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Standard 'has' mode
+      return Object.entries((facets.language || {}) as Record<string, number>)
+        .filter(([_, count]) => count > 0) // Filter out 0 values
+        .map(([code, count]) => ({
+          code,
+          name: apiLanguages[code] || code.toUpperCase(), // Use API name or fallback
+          count
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
+    }
+  }, [facets.language, languageMode, apiLanguages, userTranslationLanguages, totalTerms]);
 
   const statuses = [
     { code: 'draft', name: 'Draft' },
@@ -327,7 +501,7 @@ const Browse: React.FC = () => {
     { code: 'merged', name: 'Merged' },
   ];
 
-  const hasActiveFilters = searchQuery || languageFilter || statusFilter;
+  const hasActiveFilters = searchQuery || languageFilter || statusFilter || fieldUriFilter;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -372,40 +546,93 @@ const Browse: React.FC = () => {
 
       {/* Active Filters & Facets */}
       {!useFallback && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Language Facet */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe className="h-4 w-4 text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Language</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Language</h3>
+              </div>
+              <div className="flex gap-1 relative">
+                <button
+                  onClick={() => setLanguageMode('has')}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${languageMode === 'has'
+                    ? 'bg-marine-500 text-white'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  title="Show terms WITH this translation"
+                >
+                  Has
+                </button>
+                <button
+                  onClick={() => setLanguageMode('missing')}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${languageMode === 'missing'
+                    ? 'bg-marine-500 text-white'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}
+                  title="Show terms WITHOUT this translation"
+                >
+                  Missing
+                </button>
+              </div>
             </div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
-              {languages.map(lang => {
-                const count = facets.language?.[lang.code] || 0;
+              {availableLanguages.map(lang => {
                 const isActive = languageFilter === lang.code;
                 return (
                   <button
                     key={lang.code}
                     onClick={() => handleLanguageFilter(lang.code)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${
-                      isActive
-                        ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
+                    className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${isActive
+                      ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
                   >
                     <span>{lang.name}</span>
-                    <span className="text-xs">{count}</span>
+                    <span className="text-xs">{lang.count}</span>
                   </button>
                 );
               })}
+              {availableLanguages.length === 0 && (
+                <div className="text-xs text-slate-500 dark:text-slate-400 py-2 text-center">
+                  No languages found
+                </div>
+              )}
             </div>
           </div>
 
           {/* Status Facet */}
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="h-4 w-4 text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Status</h3>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Status</h3>
+              </div>
+              {statusFilter && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setStatusMode('has')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${statusMode === 'has'
+                      ? 'bg-marine-500 text-white'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    title="Show terms WITH this status"
+                  >
+                    Has
+                  </button>
+                  <button
+                    onClick={() => setStatusMode('missing')}
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${statusMode === 'missing'
+                      ? 'bg-marine-500 text-white'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    title="Show terms WITHOUT this status"
+                  >
+                    Missing
+                  </button>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               {statuses.map(status => {
@@ -415,17 +642,50 @@ const Browse: React.FC = () => {
                   <button
                     key={status.code}
                     onClick={() => handleStatusFilter(status.code)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${
-                      isActive
-                        ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
-                        : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
-                    }`}
+                    className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${isActive
+                      ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
                   >
                     <span>{status.name}</span>
                     <span className="text-xs">{count}</span>
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Field URI Facet */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter className="h-4 w-4 text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Property</h3>
+            </div>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {Object.entries(facets.field_uri || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10)
+                .map(([uri, count]) => {
+                  const isActive = fieldUriFilter === uri;
+                  const displayName = getDisplayNameFromUri(uri);
+                  return (
+                    <button
+                      key={uri}
+                      onClick={() => handleFieldUriFilter(uri)}
+                      className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between transition-colors ${isActive
+                        ? 'bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 font-medium'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      title={uri}
+                    >
+                      <span className="truncate">{displayName}</span>
+                      <span className="text-xs ml-2">{count}</span>
+                    </button>
+                  );
+                })}
+              {Object.keys(facets.field_uri || {}).length === 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">No properties available</p>
+              )}
             </div>
           </div>
 
@@ -455,7 +715,12 @@ const Browse: React.FC = () => {
               {languageFilter && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
                   <Globe className="h-3 w-3" />
-                  <span className="flex-1">{languages.find(l => l.code === languageFilter)?.name}</span>
+                  <span className="flex-1">
+                    {apiLanguages[languageFilter] || languageFilter}
+                    <span className="text-xs ml-1 opacity-70">
+                      ({languageMode === 'has' ? 'has' : 'missing'})
+                    </span>
+                  </span>
                   <button onClick={() => setLanguageFilter('')} className="hover:text-red-600">
                     <X className="h-3 w-3" />
                   </button>
@@ -464,8 +729,24 @@ const Browse: React.FC = () => {
               {statusFilter && (
                 <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
                   <Filter className="h-3 w-3" />
-                  <span className="flex-1">{statuses.find(s => s.code === statusFilter)?.name}</span>
+                  <span className="flex-1">
+                    {statuses.find(s => s.code === statusFilter)?.name}
+                    <span className="text-xs ml-1 opacity-70">
+                      ({statusMode === 'has' ? 'has' : 'missing'})
+                    </span>
+                  </span>
                   <button onClick={() => setStatusFilter('')} className="hover:text-red-600">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {fieldUriFilter && (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-sm">
+                  <Filter className="h-3 w-3" />
+                  <span className="flex-1 truncate" title={fieldUriFilter}>
+                    {getDisplayNameFromUri(fieldUriFilter)}
+                  </span>
+                  <button onClick={() => setFieldUriFilter('')} className="hover:text-red-600">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
@@ -481,8 +762,8 @@ const Browse: React.FC = () => {
       {/* Content */}
       {loading ? (
         <div className="min-h-[40vh] flex flex-col items-center justify-center text-slate-500">
-           <Loader2 size={40} className="animate-spin text-marine-500 mb-4" />
-           <p>Loading terms library...</p>
+          <Loader2 size={40} className="animate-spin text-marine-500 mb-4" />
+          <p>Loading terms library...</p>
         </div>
       ) : terms.length > 0 ? (
         <>
@@ -491,14 +772,14 @@ const Browse: React.FC = () => {
               <TermCard key={term.id} term={term} />
             ))}
           </div>
-          
+
           {/* Pagination Controls */}
           {totalTerms > pageSize && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-slate-200 dark:border-slate-700">
               <div className="text-sm text-slate-600 dark:text-slate-400">
                 Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalTerms)} of {totalTerms} terms
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -507,15 +788,15 @@ const Browse: React.FC = () => {
                 >
                   Previous
                 </button>
-                
+
                 <div className="flex items-center gap-1">
                   {(() => {
                     const totalPages = Math.ceil(totalTerms / pageSize);
                     const numPagesToShow = Math.min(5, totalPages);
-                    
+
                     return Array.from({ length: numPagesToShow }, (_, i) => {
                       let pageNum: number;
-                      
+
                       if (totalPages <= 5) {
                         pageNum = i + 1;
                       } else if (currentPage <= 3) {
@@ -525,16 +806,15 @@ const Browse: React.FC = () => {
                       } else {
                         pageNum = currentPage - 2 + i;
                       }
-                      
+
                       return (
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                            currentPage === pageNum
-                              ? 'bg-marine-500 text-white'
-                              : 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
-                          }`}
+                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
+                            ? 'bg-marine-500 text-white'
+                            : 'text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -542,7 +822,7 @@ const Browse: React.FC = () => {
                     });
                   })()}
                 </div>
-                
+
                 <button
                   onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalTerms / pageSize), p + 1))}
                   disabled={currentPage >= Math.ceil(totalTerms / pageSize)}
@@ -557,7 +837,7 @@ const Browse: React.FC = () => {
       ) : (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-             <Search className="w-8 h-8 text-slate-400" />
+            <Search className="w-8 h-8 text-slate-400" />
           </div>
           <h3 className="text-lg font-medium text-slate-900 dark:text-white">No terms found</h3>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Try adjusting your search or filters.</p>

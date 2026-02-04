@@ -38,10 +38,24 @@ const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/
  *           type: string
  *         description: Filter by translation language (e.g., 'fr', 'nl', 'de')
  *       - in: query
+ *         name: language_mode
+ *         schema:
+ *           type: string
+ *           enum: [has, missing]
+ *           default: has
+ *         description: Mode for language filter - 'has' shows terms with translation in language, 'missing' shows terms without
+ *       - in: query
  *         name: status
  *         schema:
  *           type: string
  *         description: Filter by translation status (e.g., 'approved', 'draft', 'review')
+ *       - in: query
+ *         name: status_mode
+ *         schema:
+ *           type: string
+ *           enum: [has, missing]
+ *           default: has
+ *         description: Mode for status filter - 'has' shows terms with translation status, 'missing' shows terms without
  *       - in: query
  *         name: field_uri
  *         schema:
@@ -88,7 +102,9 @@ router.get("/browse", apiLimiter, (req, res) => {
     let limit = parseInt(req.query.limit) || 20;
     let offset = parseInt(req.query.offset) || 0;
     const languageFilter = req.query.language || null;
+    const languageMode = req.query.language_mode || 'has'; // 'has' or 'missing'
     const statusFilter = req.query.status || null;
+    const statusMode = req.query.status_mode || 'has'; // 'has' or 'missing'
     const fieldUriFilter = req.query.field_uri || null;
     const requestedFacets = req.query.facets ? req.query.facets.split(',').map(f => f.trim()) : [];
     
@@ -103,29 +119,54 @@ router.get("/browse", apiLimiter, (req, res) => {
     
     // If there's a search query, use FTS
     if (searchQuery) {
-      // Search in both terms and translations FTS tables
-      // terms_fts contains term_fields data (rowid = term_field.id)
+      // Search in translations FTS table and term_fields.original_value using LIKE
       // translations_fts contains translation data (rowid = translation.id)
       whereClauses.push(`(
-        tf.id IN (
-          SELECT rowid FROM terms_fts WHERE terms_fts MATCH ?
-        ) OR 
         tr.id IN (
           SELECT rowid FROM translations_fts WHERE translations_fts MATCH ?
-        )
+        ) OR 
+        tf.original_value LIKE ?
+        OR t.uri LIKE ?
       )`);
-      params.push(searchQuery, searchQuery);
+      // For FTS, use the query as-is; for LIKE, wrap in wildcards
+      params.push(searchQuery, `%${searchQuery}%`, `%${searchQuery}%`);
     }
     
     // Apply facet filters
     if (languageFilter) {
-      whereClauses.push('tr.language = ?');
-      params.push(languageFilter);
+      if (languageMode === 'missing') {
+        // Find terms that DON'T have a translation in this language
+        whereClauses.push(`t.id NOT IN (
+          SELECT DISTINCT t2.id 
+          FROM terms t2
+          JOIN term_fields tf2 ON t2.id = tf2.term_id
+          JOIN translations tr2 ON tf2.id = tr2.term_field_id
+          WHERE tr2.language = ?
+        )`);
+        params.push(languageFilter);
+      } else {
+        // Default: find terms that HAVE a translation in this language
+        whereClauses.push('tr.language = ?');
+        params.push(languageFilter);
+      }
     }
     
     if (statusFilter) {
-      whereClauses.push('tr.status = ?');
-      params.push(statusFilter);
+      if (statusMode === 'missing') {
+        // Find terms that DON'T have a translation with this status
+        whereClauses.push(`t.id NOT IN (
+          SELECT DISTINCT t2.id 
+          FROM terms t2
+          JOIN term_fields tf2 ON t2.id = tf2.term_id
+          JOIN translations tr2 ON tf2.id = tr2.term_field_id
+          WHERE tr2.status = ?
+        )`);
+        params.push(statusFilter);
+      } else {
+        // Default: find terms that HAVE a translation with this status
+        whereClauses.push('tr.status = ?');
+        params.push(statusFilter);
+      }
     }
     
     if (fieldUriFilter) {
@@ -227,12 +268,14 @@ router.get("/browse", apiLimiter, (req, res) => {
           value: t.value,
           status: t.status
         })),
-        // Include label and reference field information (simplified - just URIs)
+        // Include label and reference field information with original values
         labelField: labelField ? {
-          field_uri: labelField.field_uri
+          field_uri: labelField.field_uri,
+          original_value: labelField.original_value
         } : null,
         referenceField: referenceField ? {
-          field_uri: referenceField.field_uri
+          field_uri: referenceField.field_uri,
+          original_value: referenceField.original_value
         } : null
       };
     });

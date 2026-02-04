@@ -2,7 +2,7 @@
 
 
 import { CONFIG } from '../config';
-import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -52,7 +52,7 @@ class ApiService {
    */
   private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { token, params, ...fetchOptions } = options;
-    
+
     // Build URL with query params
     let url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
     if (params) {
@@ -108,7 +108,7 @@ class ApiService {
   public put<T>(endpoint: string, body: any, token?: string) {
     return this.request<T>(endpoint, { method: 'PUT', body: JSON.stringify(body), token });
   }
-  
+
   public patch<T>(endpoint: string, body: any, token?: string) {
     return this.request<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body), token });
   }
@@ -131,13 +131,13 @@ class ApiService {
     // Assumes term IDs are sequential starting from 1
     const termId = typeof id === 'string' ? parseInt(id, 10) : id;
     const offset = termId - 1; // Zero-based offset (term ID 1 is at offset 0)
-    
+
     const response = await this.getTerms(1, offset);
-    
+
     if (response.terms.length === 0) {
       throw new Error(`Term with ID ${id} not found`);
     }
-    
+
     return response.terms[0];
   }
 
@@ -167,10 +167,10 @@ class ApiService {
   // Fetch history for a specific term (mocked or real endpoint)
   public async getTermHistory(termId: number | string): Promise<ApiUserActivity[]> {
     try {
-        return await this.get<ApiUserActivity[]>(`/term-history/${termId}`);
+      return await this.get<ApiUserActivity[]>(`/term-history/${termId}`);
     } catch (e) {
-        console.warn("Term history endpoint not found, returning empty array");
-        return [];
+      console.warn("Term history endpoint not found, returning empty array");
+      return [];
     }
   }
 
@@ -204,7 +204,7 @@ class ApiService {
   public async createAppealMessage(appealId: number, data: { author: string, message: string, token: string }): Promise<any> {
     return this.post<any>(`/appeals/${appealId}/messages`, data);
   }
-  
+
   public async getAppealMessages(appealId: number): Promise<any[]> {
     return this.get<any[]>(`/appeals/${appealId}/messages`);
   }
@@ -224,11 +224,11 @@ class ApiService {
   // --- Harvesting ---
 
   public async harvestCollection(collectionUri: string, token?: string): Promise<any> {
-    return this.request<any>('/harvest', { 
-      method: 'POST', 
-      body: JSON.stringify({ collectionUri }), 
+    return this.request<any>('/harvest', {
+      method: 'POST',
+      body: JSON.stringify({ collectionUri }),
       token,
-      credentials: 'include' 
+      credentials: 'include'
     });
   }
 
@@ -249,7 +249,9 @@ class ApiService {
     limit?: number;
     offset?: number;
     language?: string;
+    language_mode?: 'has' | 'missing';
     status?: string;
+    status_mode?: 'has' | 'missing';
     field_uri?: string;
     facets?: string[];
   }): Promise<{
@@ -260,17 +262,19 @@ class ApiService {
     facets: Record<string, Record<string, number>>;
   }> {
     const queryParams: Record<string, string> = {};
-    
+
     if (params.query) queryParams.query = params.query;
     if (params.limit !== undefined) queryParams.limit = params.limit.toString();
     if (params.offset !== undefined) queryParams.offset = params.offset.toString();
     if (params.language) queryParams.language = params.language;
+    if (params.language_mode) queryParams.language_mode = params.language_mode;
     if (params.status) queryParams.status = params.status;
+    if (params.status_mode) queryParams.status_mode = params.status_mode;
     if (params.field_uri) queryParams.field_uri = params.field_uri;
     if (params.facets && params.facets.length > 0) {
       queryParams.facets = params.facets.join(',');
     }
-    
+
     return this.get('/browse', queryParams);
   }
 
@@ -358,17 +362,17 @@ class ApiService {
   }
 
   public async applyUserPenalty(userId: number, action: string, penaltyAmount?: number, banReason?: string, reason?: string): Promise<any> {
-    return this.post(`/admin/moderation/users/${userId}/penalty`, { 
-      action, 
-      penalty_amount: penaltyAmount, 
+    return this.post(`/admin/moderation/users/${userId}/penalty`, {
+      action,
+      penalty_amount: penaltyAmount,
       ban_reason: banReason,
-      reason 
+      reason
     });
   }
 
-    /**
-   * Fetch user preferences (languages, etc.)
-   */
+  /**
+ * Fetch user preferences (languages, etc.)
+ */
   public async getUserPreferences(): Promise<{
     nativeLanguage?: string;
     translationLanguages?: string[];
@@ -380,6 +384,10 @@ class ApiService {
 
   public async reportAppealMessage(messageId: number, reason: string): Promise<any> {
     return this.post(`/appeals/messages/${messageId}/report`, { reason });
+  }
+
+  public async getLanguages(): Promise<ApiLanguage[]> {
+    return this.get<ApiLanguage[]>('/languages');
   }
 }
 

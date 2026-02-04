@@ -145,3 +145,9 @@ export interface ApiAppeal {
   resolution: string | null; // Initial reason
   messages?: ApiAppealMessage[]; // Optional: populated via join or separate call
 }
+
+export interface ApiLanguage {
+  code: string;
+  name: string;
+  native_name: string;
+}
