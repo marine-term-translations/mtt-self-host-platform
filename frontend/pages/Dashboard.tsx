@@ -22,7 +22,7 @@ const Dashboard: React.FC = () => {
   const [termsMap, setTermsMap] = useState<Record<number, { label: string; uri: string }>>({});
   const [userLanguages, setUserLanguages] = useState<string[]>([]);
   const [selectedFlowLanguage, setSelectedFlowLanguage] = useState<string>('');
-  const [languages, setLanguages] = useState<ApiLanguage[]>([]);
+  const [languagesMap, setLanguagesMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,8 +39,12 @@ const Dashboard: React.FC = () => {
           backendApi.get<ApiLanguage[]>('/languages').catch(() => [])
         ]);
 
-        // Set languages from API
-        setLanguages(languagesData);
+        // Set languages from API and create a map for O(1) lookups
+        const langMap = new Map<string, string>();
+        languagesData.forEach(lang => {
+          langMap.set(lang.code, lang.name);
+        });
+        setLanguagesMap(langMap);
 
         // Set user's translation languages
         const userLangs = preferences.translationLanguages || [];
@@ -115,12 +119,8 @@ const Dashboard: React.FC = () => {
   };
 
   const getLanguageName = (code: string) => {
-    const language = languages.find(l => l.code === code);
-    if (language) {
-      return language.name;
-    }
-    // Fallback to uppercase code if language not found in API
-    return code.toUpperCase();
+    // O(1) lookup using Map
+    return languagesMap.get(code) || code.toUpperCase();
   };
 
   const parseExtra = (extra: string | null) => {
