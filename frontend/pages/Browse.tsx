@@ -110,6 +110,7 @@ const Browse: React.FC = () => {
           language: string;
           value: string;
           status: string;
+          field_uri?: string;
         }>;
         labelField?: {
           field_uri?: string;
@@ -123,19 +124,6 @@ const Browse: React.FC = () => {
 
       // Map browse results to Term format
       const mappedTerms: Term[] = response.results.map((result: BrowseResult) => {
-        const translations: Record<string, string | null> = {
-          en_plain: null,
-          es: null,
-          fr: null,
-          nl: null,
-          de: null,
-          it: null,
-          pt: null,
-          ru: null,
-          zh: null,
-          ja: null
-        };
-
         const stats: TermStats = {
           draft: 0,
           review: 0,
@@ -144,19 +132,96 @@ const Browse: React.FC = () => {
           merged: 0
         };
 
-        if (result.translations) {
-          result.translations.forEach((t) => {
-            if (t.language && t.value) {
-              translations[t.language] = t.value;
+        // Identify the URIs for label and reference
+        const labelFieldUri = result.labelField?.field_uri;
+        const refFieldUri = result.referenceField?.field_uri;
+
+        // Helper to find best translation for a specific field
+        // Filters for original/merged status and matches field_uri if present
+        // Helper to find best translation for a specific field
+        // Filters for original/merged status and matches field_uri if present
+        const getTranslationForField = (
+          targetUri: string | undefined,
+          originalVal: string | undefined,
+          excludeOriginalVal: string | undefined
+        ): string | null => {
+          if (!targetUri && !originalVal) return null;
+
+          // Filter translations applicable to this field
+          const applicableTranslations = result.translations.filter(t => {
+            // Must be original or merged
+            if (t.status !== 'original' && t.status !== 'merged') return false;
+
+            // If translation has field_uri, it MUST match
+            if (t.field_uri) {
+              return t.field_uri === targetUri;
             }
-            if (t.status) {
-              const statusKey = t.status as keyof TermStats;
-              if (stats[statusKey] !== undefined) {
-                stats[statusKey]++;
+
+            const normVal = t.value?.trim();
+            const normOrig = originalVal?.trim();
+            const normExclude = excludeOriginalVal?.trim();
+
+            // If status is original, value must match original_value (heuristic for when field_uri is missing)
+            if (t.status === 'original' && normOrig) {
+              return normVal === normOrig;
+            }
+
+            // If status is merged and no field_uri... 
+            if (t.status === 'merged') {
+              // 1. If it matches the TARGET original value, it's definitely ours
+              if (normOrig && normVal === normOrig) {
+                return true;
+              }
+
+              // 2. If it matches the EXCLUDED field's original value, it likely belongs to that other field.
+              // Use simplified comparison to catch minor diffs
+              if (normExclude && normVal === normExclude && normOrig !== normExclude) {
+                return false;
+              }
+
+              // 3. Heuristic: If we are looking for a Label (usually short) and the value is very long, 
+              // and the original label was short, reject it.
+              // Assuming labels are < 100 chars usually.
+              if (normOrig && normOrig.length < 50 && normVal.length > 200) {
+                return false;
               }
             }
+
+            return true;
           });
-        }
+
+          return getPreferredLabel(
+            applicableTranslations,
+            languagePriority,
+            null as unknown as string // Return null if not found, don't use string fallback here
+          );
+        };
+
+        // Calculate Stats (Global) & Build Translations Map (Preferring Label)
+        const translations: Record<string, string | null> = {};
+        Object.keys(apiLanguages).forEach(code => {
+          translations[code] = null;
+        });
+
+        result.translations.forEach((t) => {
+          // Populate stats
+          if (t.status) {
+            const statusKey = t.status as keyof TermStats;
+            if (stats[statusKey] !== undefined) stats[statusKey]++;
+          }
+
+          // Populate map - Prioritize Label translations if possible
+          if (t.language && t.value) {
+            const isLabel = (labelFieldUri && t.field_uri === labelFieldUri) ||
+              (t.status === 'original' && result.labelField?.original_value === t.value) ||
+              (!t.field_uri && !refFieldUri); // If no field URI and no ref field exists, assume label
+
+            // Overwrite if it's explicitly a label match, or if slot is empty
+            if (isLabel || !translations[t.language]) {
+              translations[t.language] = t.value;
+            }
+          }
+        });
 
         const collectionMatch = result.uri?.match(/\/collection\/([^/]+)\//);
         const collectionCode = collectionMatch ? collectionMatch[1] : 'General';
@@ -164,20 +229,19 @@ const Browse: React.FC = () => {
           ? `${collectionCode}: ${COLLECTION_MAP[collectionCode]}`
           : collectionCode;
 
-        // Use language priority for label selection
-        const prefLabel = getPreferredLabel(
-          result.translations,
-          languagePriority,
-          result.uri?.split('/').pop() || 'Unknown Term'
-        );
+        // Get Preferred Label
+        // Logic: Try to find (Original|Merged) translation for Label Field -> Fallback to Label Original Value -> Fallback to URI Name
+        let prefLabel = getTranslationForField(labelFieldUri, result.labelField?.original_value, result.referenceField?.original_value);
+        if (!prefLabel) {
+          prefLabel = result.labelField?.original_value || result.uri?.split('/').pop() || 'Unknown Term';
+        }
 
-        // For definition, try to get from referenceField first, then translations
-        const definition = result.referenceField?.original_value ||
-          getPreferredLabel(
-            result.translations,
-            languagePriority,
-            result.uri?.split('/').pop() || 'Unknown Term'
-          );
+        // Get Definition
+        // Logic: Try to find (Original|Merged) translation for Ref Field -> Fallback to Ref Original Value -> Fallback to prefLabel (if desired, or empty)
+        let definition = getTranslationForField(refFieldUri, result.referenceField?.original_value, result.labelField?.original_value);
+        if (!definition) {
+          definition = result.referenceField?.original_value || prefLabel;
+        }
 
         return {
           id: result.uri || 'unknown',
@@ -220,18 +284,10 @@ const Browse: React.FC = () => {
             : apiTerm.fields?.find(f => f.field_role === 'reference')
             || apiTerm.fields?.find(f => f.field_uri?.includes('definition'));
 
-          const translations: Record<string, string | null> = {
-            en_plain: null,
-            es: null,
-            fr: null,
-            nl: null,
-            de: null,
-            it: null,
-            pt: null,
-            ru: null,
-            zh: null,
-            ja: null
-          };
+          const translations: Record<string, string | null> = {};
+          Object.keys(apiLanguages).forEach(code => {
+            translations[code] = null;
+          });
 
           const stats: TermStats = {
             draft: 0,
@@ -299,7 +355,7 @@ const Browse: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, searchQuery, languageFilter, languageMode, statusFilter, statusMode, fieldUriFilter, user?.languagePreferences]);
+  }, [currentPage, pageSize, searchQuery, languageFilter, languageMode, statusFilter, statusMode, fieldUriFilter, user?.languagePreferences, apiLanguages]);
 
   useEffect(() => {
     fetchTerms();
@@ -335,6 +391,21 @@ const Browse: React.FC = () => {
     setSearchQuery(searchTerm);
     setCurrentPage(1); // Reset to first page on new search
   };
+
+  // Auto-search effect with debounce
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      // Trigger search if 3 or more characters, or if cleared
+      if (searchTerm.length >= 3 || searchTerm.length === 0) {
+        if (searchTerm !== searchQuery) {
+          setSearchQuery(searchTerm);
+          setCurrentPage(1);
+        }
+      }
+    }, 600);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, searchQuery]);
 
   // Helper to extract display name from URI
   const getDisplayNameFromUri = (uri: string): string => {
