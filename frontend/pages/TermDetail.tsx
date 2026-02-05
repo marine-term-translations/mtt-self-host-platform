@@ -171,7 +171,7 @@ const TermDetail: React.FC = () => {
       ) || [];
       
       // Try to get preferred translation, fallback to original_value, then URI name
-      let label = getPreferredLabel(labelTranslations, languagePriority, null as unknown as string);
+      let label = getPreferredLabel(labelTranslations, languagePriority, '');
       if (!label) {
         label = labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term';
       }
