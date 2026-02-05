@@ -170,9 +170,11 @@ const TermDetail: React.FC = () => {
         t.status === 'original' || t.status === 'merged'
       ) || [];
       
-      // Try to get preferred translation, fallback to original_value, then URI name
+      // Try to get preferred translation based on language priority
+      // Empty string as fallback allows us to detect when no translation was found
       let label = getPreferredLabel(labelTranslations, languagePriority, '');
       if (!label) {
+        // Fallback chain: original_value -> URI name -> 'Unknown Term'
         label = labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term';
       }
       setDisplayLabel(label);
