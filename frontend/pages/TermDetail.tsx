@@ -14,6 +14,7 @@ import {
 import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
 import { parse, format } from '@/src/utils/datetime';
+import { getPreferredLabel, getLanguagePriority } from '../src/utils/languageSelector';
 
 const TermDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -159,7 +160,25 @@ const TermDetail: React.FC = () => {
         || foundApiTerm.fields.find(f => f.field_uri?.includes('definition'));
 
       setTerm(foundApiTerm);
-      setDisplayLabel(labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term');
+      
+      // Get user's language priority
+      const languagePriority = getLanguagePriority(user?.languagePreferences);
+      
+      // Get label display value using the same logic as Browse page
+      // Filter for original or merged translations only
+      const labelTranslations = labelField?.translations.filter(t => 
+        t.status === 'original' || t.status === 'merged'
+      ) || [];
+      
+      // Try to get preferred translation based on language priority
+      // Empty string as fallback allows us to detect when no translation was found
+      let label = getPreferredLabel(labelTranslations, languagePriority, '');
+      if (!label) {
+        // Fallback chain: original_value -> URI name -> 'Unknown Term'
+        label = labelField?.original_value || foundApiTerm.uri.split('/').pop() || 'Unknown Term';
+      }
+      setDisplayLabel(label);
+      
       setDisplayDef(definitionField?.original_value || 'No definition available.');
 
       const collectionMatch = foundApiTerm.uri.match(/\/collection\/([^/]+)\//);
