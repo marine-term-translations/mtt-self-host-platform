@@ -293,8 +293,7 @@ const Documentation: React.FC = () => {
           <p className="flex items-start gap-2">
             <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
             <span className="text-sm">
-              <strong>Important:</strong> Make sure you've configured your language preferences in <Link to="/settings" className="underline font-semibold">Settings</Link> 
-              {' '}first. Without language preferences, you won't see personalized translation suggestions!
+              <strong>Important:</strong> Make sure you've configured your language preferences in <Link to="/settings" className="underline font-semibold">Settings</Link> first. Without language preferences, you won't see personalized translation suggestions!
             </span>
           </p>
         </div>
