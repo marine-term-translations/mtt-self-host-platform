@@ -112,6 +112,7 @@ const Landing: React.FC = () => {
                 const nameToUse = displayName || u.username;
                 
                 return {
+                    id: u.id,
                     name: nameToUse, 
                     username: u.username,
                     avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=0ea5e9&color=fff`,
@@ -285,8 +286,12 @@ const Landing: React.FC = () => {
              </div>
           ) : contributors.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-                {contributors.map((contributor, index) => (
-                <div key={index} className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all">
+                {contributors.map((contributor) => (
+                <Link 
+                    key={contributor.id} 
+                    to={`/user/${contributor.id}`}
+                    className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all hover:border-marine-300 dark:hover:border-marine-600 cursor-pointer"
+                >
                     <img 
                     src={contributor.avatar} 
                     alt={contributor.name} 
@@ -296,10 +301,10 @@ const Landing: React.FC = () => {
                     <h3 className="font-bold text-slate-900 dark:text-white text-sm">{contributor.name}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{contributor.role}</p>
                     <div className="flex items-center text-xs font-medium text-marine-600 dark:text-marine-400">
-                        <Award size={12} className="mr-1" /> {contributor.contributions} edits
+                        <Award size={12} className="mr-1" /> {contributor.reputation} reputation
                     </div>
                     </div>
-                </div>
+                </Link>
                 ))}
             </div>
           ) : (
