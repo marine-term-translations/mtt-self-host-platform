@@ -286,9 +286,9 @@ const Landing: React.FC = () => {
              </div>
           ) : contributors.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-                {contributors.map((contributor, index) => (
+                {contributors.map((contributor) => (
                 <Link 
-                    key={index} 
+                    key={contributor.id} 
                     to={`/user/${contributor.id}`}
                     className="flex items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all hover:border-marine-300 dark:hover:border-marine-600 cursor-pointer"
                 >
