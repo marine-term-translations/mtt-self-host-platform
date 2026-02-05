@@ -217,8 +217,8 @@ const Landing: React.FC = () => {
                         <h3 className="font-bold text-lg mb-1">Interoperable</h3>
                         <p className="text-sm text-slate-300">FAIR data powered by LDES technology.</p>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20">
-                        <Database className="text-amber-300 mb-3" size={32} />
+                    <Link to="/ldes" className="block bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all cursor-pointer group">
+                        <Database className="text-amber-300 mb-3 group-hover:scale-110 transition-transform" size={32} />
                         <h3 className="font-bold text-lg mb-1">
                           {loading ? (
                             <span className="text-base">Loading...</span>
@@ -227,7 +227,7 @@ const Landing: React.FC = () => {
                           )}
                         </h3>
                         <p className="text-sm text-slate-300">Published and harvestable data streams.</p>
-                    </div>
+                    </Link>
                 </div>
             </div>
           </div>
