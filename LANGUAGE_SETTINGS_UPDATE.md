@@ -53,10 +53,12 @@ Updated the user settings page to provide a more intuitive and powerful language
 ```json
 {
   "nativeLanguage": "en",           // First language in ordered list
-  "translationLanguages": ["fr", "de", "es"],  // Rest of ordered list
+  "translationLanguages": ["en", "fr", "de", "es"],  // ALL languages (including native)
   "preferredLanguages": ["en", "fr", "de", "es"]  // Complete ordered list
 }
 ```
+
+**Note:** All selected languages are saved as translatable languages, including the native language. This allows users to translate into their native language as well.
 
 #### Backward Compatibility
 - Loads from `preferredLanguages` if available (new format)

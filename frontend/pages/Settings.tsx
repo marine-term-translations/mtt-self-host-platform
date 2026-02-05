@@ -126,9 +126,9 @@ const Settings: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // First language is native, rest are translation languages
+      // First language is native, all languages (including native) are translatable
       const nativeLanguage = orderedLanguages[0] || '';
-      const translationLanguages = orderedLanguages.slice(1);
+      const translationLanguages = orderedLanguages; // All selected languages are translatable
       
       const response = await fetch(`${CONFIG.API_URL}/user/preferences`, {
         method: 'POST',
