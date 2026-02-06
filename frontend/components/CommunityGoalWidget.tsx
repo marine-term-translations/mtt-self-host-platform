@@ -189,6 +189,23 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
                       style={{ width: `${Math.min(goalProgress.progress_percentage, 100)}%` }}
                     />
                   </div>
+                  {goalProgress.missing_translations && Object.keys(goalProgress.missing_translations).length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        Missing:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(goalProgress.missing_translations).map(([lang, count]) => (
+                          <span
+                            key={lang}
+                            className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded"
+                          >
+                            {lang.toUpperCase()}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

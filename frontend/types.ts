@@ -179,4 +179,5 @@ export interface ApiCommunityGoalProgress {
   target_count: number | null;
   progress_percentage: number;
   is_complete: boolean;
+  missing_translations?: Record<string, number> | null;
 }

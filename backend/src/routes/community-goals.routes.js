@@ -71,12 +71,19 @@ router.post("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
       return res.status(400).json({ error: 'Invalid goal_type. Must be translation_count or collection' });
     }
 
-    if (goal_type === 'translation_count' && !target_count) {
-      return res.status(400).json({ error: 'target_count is required for translation_count goals' });
+    // Allow both collection_id and target_count to be set for combined goals
+    // For collection goals without target_count, require a language
+    if (goal_type === 'collection') {
+      if (!collection_id) {
+        return res.status(400).json({ error: 'collection_id is required for collection goals' });
+      }
+      if (!target_count && !target_language) {
+        return res.status(400).json({ error: 'target_language is required for collection goals without target_count' });
+      }
     }
 
-    if (goal_type === 'collection' && !collection_id) {
-      return res.status(400).json({ error: 'collection_id is required for collection goals' });
+    if (goal_type === 'translation_count' && !target_count) {
+      return res.status(400).json({ error: 'target_count is required for translation_count goals' });
     }
 
     if (is_recurring && !recurrence_type) {
@@ -395,6 +402,7 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
 
     let currentCount = 0;
     let progress = 0;
+    let missingTranslations = null;
 
     if (goal.goal_type === 'translation_count') {
       // Count approved translations in target language within goal period
@@ -452,16 +460,46 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
       if (goal.target_count) {
         progress = Math.min(100, Math.round((currentCount / goal.target_count) * 100));
       } else {
-        // Calculate based on total terms in collection
-        const totalResult = db.prepare(`
+        // No target count - calculate missing translations per language
+        // Get total term fields in collection
+        const totalFieldsQuery = `
           SELECT COUNT(*) as total
           FROM term_fields tf
           INNER JOIN terms t ON tf.term_id = t.id
           WHERE t.source_id = ?
-        `).get(goal.collection_id);
-        
-        if (totalResult.total > 0) {
-          progress = Math.round((currentCount / totalResult.total) * 100);
+            AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
+        `;
+        const totalResult = db.prepare(totalFieldsQuery).get(goal.collection_id);
+        const totalFields = totalResult.total;
+
+        if (goal.target_language) {
+          // Single language - calculate missing
+          const translatedQuery = `
+            SELECT COUNT(DISTINCT tf.id) as count
+            FROM term_fields tf
+            INNER JOIN terms t ON tf.term_id = t.id
+            LEFT JOIN translations tr ON tf.id = tr.term_field_id AND tr.language = ? AND tr.status = 'approved'
+            WHERE t.source_id = ?
+              AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
+              AND tr.id IS NOT NULL
+          `;
+          const translatedResult = db.prepare(translatedQuery).get(goal.target_language, goal.collection_id);
+          const translatedCount = translatedResult.count;
+          const missing = totalFields - translatedCount;
+          
+          missingTranslations = {
+            [goal.target_language]: missing
+          };
+          
+          if (totalFields > 0) {
+            progress = Math.round((translatedCount / totalFields) * 100);
+            currentCount = translatedCount;
+          }
+        } else {
+          // No specific language - shouldn't happen due to validation, but handle it
+          if (totalFields > 0) {
+            progress = Math.round((currentCount / totalFields) * 100);
+          }
         }
       }
     }
@@ -471,7 +509,8 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
       current_count: currentCount,
       target_count: goal.target_count,
       progress_percentage: progress,
-      is_complete: goal.target_count ? currentCount >= goal.target_count : false
+      is_complete: goal.target_count ? currentCount >= goal.target_count : false,
+      missing_translations: missingTranslations
     });
   } catch (err) {
     console.error('[Community Goals] Error fetching progress:', err);

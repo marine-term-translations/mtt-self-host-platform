@@ -115,6 +115,18 @@ const AdminCommunityGoals: React.FC = () => {
       }
     }
     
+    // Validate collection goal without count requires language
+    if (formData.goal_type === 'collection' && !formData.target_count && !formData.target_language) {
+      toast.error('Collection goals without target count must have a target language');
+      return;
+    }
+    
+    // Validate collection goal requires collection_id
+    if (formData.goal_type === 'collection' && !formData.collection_id) {
+      toast.error('Collection goals require a source/collection to be selected');
+      return;
+    }
+    
     try {
       const payload = {
         ...formData,
@@ -270,11 +282,12 @@ const AdminCommunityGoals: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Target Language
+                  Target Language {formData.goal_type === 'collection' && !formData.target_count && '*'}
                 </label>
                 <select
                   value={formData.target_language}
                   onChange={(e) => setFormData({ ...formData, target_language: e.target.value })}
+                  required={formData.goal_type === 'collection' && !formData.target_count}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                 >
                   <option value="">All Languages</option>
@@ -284,24 +297,33 @@ const AdminCommunityGoals: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {formData.goal_type === 'collection' && !formData.target_count && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Required for collection goals without target count
+                  </p>
+                )}
               </div>
 
-              {formData.goal_type === 'translation_count' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Target Count *
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.target_count}
-                    onChange={(e) => setFormData({ ...formData, target_count: e.target.value })}
-                    required={formData.goal_type === 'translation_count'}
-                    min="1"
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                    placeholder="Number of translations"
-                  />
-                </div>
-              )}
+              {/* Target Count - available for both goal types */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Target Count {formData.goal_type === 'translation_count' && '*'}
+                </label>
+                <input
+                  type="number"
+                  value={formData.target_count}
+                  onChange={(e) => setFormData({ ...formData, target_count: e.target.value })}
+                  required={formData.goal_type === 'translation_count'}
+                  min="1"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                  placeholder="Number of translations"
+                />
+                {formData.goal_type === 'collection' && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Optional - leave empty to track all translations in collection
+                  </p>
+                )}
+              </div>
 
               {formData.goal_type === 'collection' && (
                 <div className="md:col-span-2">
@@ -542,6 +564,23 @@ const AdminCommunityGoals: React.FC = () => {
                         style={{ width: `${Math.min(goalProgress.progress_percentage, 100)}%` }}
                       />
                     </div>
+                    {goalProgress.missing_translations && Object.keys(goalProgress.missing_translations).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Missing Translations:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(goalProgress.missing_translations).map(([lang, count]) => (
+                            <span
+                              key={lang}
+                              className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-1 rounded"
+                            >
+                              {lang.toUpperCase()}: {count} remaining
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
