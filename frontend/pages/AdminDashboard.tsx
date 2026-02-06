@@ -25,10 +25,12 @@ const AdminDashboard: React.FC = () => {
 
   const fetchContributionsOverTime = React.useCallback(async (timeframe: string) => {
     try {
+      console.log('Fetching contributions for timeframe:', timeframe);
       const data = await backendApi.get<{ timeframe: string; data: ContributionData[] }>(
         '/stats/contributions-over-time',
         { timeframe }
       );
+      console.log('Received contributions data:', data);
       setHistoryGraphData(data.data);
     } catch (error) {
       console.error("Failed to fetch contributions over time", error);
@@ -126,109 +128,209 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Stacked Bar Chart for Contributions Over Time
-  const renderStackedBarChart = () => {
+  // Line Graph for Contributions Over Time
+  const renderLineGraph = () => {
       if (historyGraphData.length === 0) {
         return <div className="text-center text-slate-400 text-sm py-8">No data available for this timeframe</div>;
       }
 
-      // Maximum number of x-axis labels to display
-      const MAX_X_AXIS_LABELS = 7;
-      
-      const statusOrder = ['merged', 'approved', 'review', 'draft', 'rejected'];
+      const statusOrder = ['draft', 'review', 'approved', 'merged', 'rejected'];
       const colors: Record<string, string> = {
           merged: '#a855f7',      // purple-500
           approved: '#22c55e',    // green-500
           review: '#f59e0b',      // amber-500
           draft: '#94a3b8',       // slate-400
-          rejected: '#ef4444'     // red-500
+          rejected: '#ef4444',    // red-500
+          total: '#3b82f6'        // blue-500
       };
       
       // Find max total for scaling
       const maxTotal = Math.max(...historyGraphData.map(d => d.total), 1);
       
-      // Calculate bar width based on number of data points
-      const barGap = 4; // Gap between bars in pixels
-      const minBarWidth = 8; // Minimum bar width
-      const maxBarWidth = 60; // Maximum bar width
-      const availableWidth = 100; // Percentage-based width
-      const totalBars = historyGraphData.length;
+      // Calculate Y-axis labels (5 evenly spaced values from 0 to maxTotal)
+      const yAxisSteps = 5;
+      const yAxisLabels = Array.from({ length: yAxisSteps }, (_, i) => {
+        return Math.round((maxTotal / (yAxisSteps - 1)) * (yAxisSteps - 1 - i));
+      });
+      
+      // Chart dimensions
+      const chartHeight = 320; // h-80 in pixels
+      const chartWidth = 100; // percentage
+      
+      // Calculate points for each line
+      const getYPosition = (value: number) => {
+        return ((maxTotal - value) / maxTotal) * 100; // Inverted for SVG coordinates
+      };
+      
+      const getXPosition = (index: number) => {
+        return (index / (historyGraphData.length - 1)) * 100;
+      };
+      
+      // Generate SVG path for a line
+      const generatePath = (dataKey: 'total' | keyof ContributionData['byStatus']) => {
+        const points = historyGraphData.map((d, i) => {
+          const value = dataKey === 'total' ? d.total : (d.byStatus[dataKey] || 0);
+          const x = getXPosition(i);
+          const y = getYPosition(value);
+          return `${x},${y}`;
+        });
+        
+        // Create smooth curve using quadratic bezier
+        if (points.length === 0) return '';
+        if (points.length === 1) return `M ${points[0]}`;
+        
+        let path = `M ${points[0]}`;
+        for (let i = 1; i < points.length; i++) {
+          path += ` L ${points[i]}`;
+        }
+        return path;
+      };
       
       return (
         <div className="relative">
-          <div className="flex items-end justify-between gap-1 h-48">
-            {historyGraphData.map((dataPoint, idx) => {
-              const barHeightPct = (dataPoint.total / maxTotal) * 100;
-              
-              return (
-                <div key={idx} className="flex-1 flex flex-col justify-end group relative" style={{ minWidth: `${minBarWidth}px`, maxWidth: `${maxBarWidth}px` }}>
-                  {/* Stacked segments */}
-                  <div 
-                    className="w-full rounded-t transition-all duration-300 hover:opacity-90"
-                    style={{ height: `${barHeightPct}%` }}
-                  >
-                    {statusOrder.map(status => {
-                      const count = dataPoint.byStatus[status] || 0;
-                      if (count === 0) return null;
-                      
-                      const segmentHeightPct = (count / dataPoint.total) * 100;
-                      
-                      return (
-                        <div
-                          key={status}
-                          className="w-full transition-all hover:brightness-110"
-                          style={{ 
-                            height: `${segmentHeightPct}%`,
-                            backgroundColor: colors[status]
-                          }}
-                          title={`${status}: ${count}`}
-                        />
-                      );
-                    })}
-                  </div>
-                  
-                  {/* Tooltip on hover */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
-                    <div className="bg-slate-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
-                      <div className="font-semibold mb-1">{dataPoint.date}</div>
-                      <div className="font-bold text-marine-400 mb-1">Total: {dataPoint.total}</div>
-                      {statusOrder.map(status => {
-                        const count = dataPoint.byStatus[status] || 0;
-                        if (count === 0) return null;
-                        return (
-                          <div key={status} className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
-                            <span className="capitalize">{status}: {count}</span>
-                          </div>
-                        );
-                      })}
-                      {/* Arrow */}
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          {/* X-axis labels */}
-          <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-            {historyGraphData
-              .filter((_, i) => {
-                // Show fewer labels for better readability based on data points
-                const step = Math.ceil(historyGraphData.length / MAX_X_AXIS_LABELS);
-                return i % step === 0 || i === historyGraphData.length - 1;
-              })
-              .map((d, idx) => (
-                <span key={idx} className="truncate">{formatDateLabel(d.date)}</span>
+          <div className="flex gap-3">
+            {/* Y-axis */}
+            <div className="flex flex-col justify-between h-80 py-1 text-xs text-slate-400 w-8 text-right">
+              {yAxisLabels.map((label, idx) => (
+                <div key={idx} className="leading-none">{label}</div>
               ))}
+            </div>
+            
+            {/* Chart area */}
+            <div className="flex-1 relative">
+              {/* Horizontal gridlines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                {yAxisLabels.map((_, idx) => (
+                  <div key={idx} className="border-t border-slate-200 dark:border-slate-700/50"></div>
+                ))}
+              </div>
+              
+              {/* SVG Line Graph */}
+              <div className="relative h-80">
+                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  {/* Draw lines for each status */}
+                  {statusOrder.map(status => {
+                    const hasData = historyGraphData.some(d => (d.byStatus[status] || 0) > 0);
+                    if (!hasData) return null;
+                    
+                    return (
+                      <path
+                        key={status}
+                        d={generatePath(status)}
+                        fill="none"
+                        stroke={colors[status]}
+                        strokeWidth="0.5"
+                        className="transition-all"
+                        opacity="0.7"
+                      />
+                    );
+                  })}
+                  
+                  {/* Draw total line (thicker and more prominent) */}
+                  <path
+                    d={generatePath('total')}
+                    fill="none"
+                    stroke={colors.total}
+                    strokeWidth="1"
+                    className="transition-all"
+                  />
+                </svg>
+                
+                {/* Data point markers */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  {historyGraphData.map((dataPoint, idx) => {
+                    const x = getXPosition(idx);
+                    
+                    return (
+                      <g key={idx}>
+                        {/* Status points */}
+                        {statusOrder.map(status => {
+                          const value = dataPoint.byStatus[status] || 0;
+                          if (value === 0) return null;
+                          const y = getYPosition(value);
+                          
+                          return (
+                            <circle
+                              key={status}
+                              cx={x}
+                              cy={y}
+                              r="0.8"
+                              fill={colors[status]}
+                              className="transition-all hover:r-1.5"
+                            />
+                          );
+                        })}
+                        
+                        {/* Total point */}
+                        <circle
+                          cx={x}
+                          cy={getYPosition(dataPoint.total)}
+                          r="1.2"
+                          fill={colors.total}
+                          className="transition-all"
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+                
+                {/* Interactive overlay for tooltips */}
+                <div className="absolute inset-0 flex">
+                  {historyGraphData.map((dataPoint, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 group relative cursor-pointer"
+                    >
+                      {/* Tooltip */}
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                        <div className="bg-slate-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
+                          <div className="font-semibold mb-1">{formatDateLabel(dataPoint.date)}</div>
+                          <div className="flex items-center gap-2 font-bold text-blue-400 mb-1">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <span>Total: {dataPoint.total}</span>
+                          </div>
+                          {statusOrder.map(status => {
+                            const count = dataPoint.byStatus[status] || 0;
+                            if (count === 0) return null;
+                            return (
+                              <div key={status} className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[status] }}></div>
+                                <span className="capitalize">{status}: {count}</span>
+                              </div>
+                            );
+                          })}
+                          {/* Arrow */}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                        </div>
+                      </div>
+                      
+                      {/* Vertical line on hover */}
+                      <div className="absolute inset-y-0 left-1/2 w-px bg-slate-300 dark:bg-slate-600 opacity-0 group-hover:opacity-50 transition-opacity"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* X-axis labels */}
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                {historyGraphData.map((d, idx) => (
+                  <div key={idx} className="flex-1 text-center">
+                    <span className="truncate block">{formatDateLabel(d.date)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           
           {/* Legend */}
           <div className="flex flex-wrap gap-3 justify-center mt-4 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-0.5 rounded-sm bg-blue-500"></div>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Total</span>
+            </div>
             {statusOrder.map(status => (
               <div key={status} className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
+                <div className="w-3 h-0.5 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
                 <span className="capitalize text-slate-600 dark:text-slate-300">{status}</span>
               </div>
             ))}
@@ -420,6 +522,7 @@ const AdminDashboard: React.FC = () => {
                     onChange={(e) => setSelectedTimeframe(e.target.value)}
                   >
                       <option value="last_hour">Last Hour</option>
+                      <option value="last_24_hours">Last 24 Hours</option>
                       <option value="last_week">Last Week</option>
                       <option value="last_14_days">Last 14 Days</option>
                       <option value="last_month">Last Month</option>
@@ -428,7 +531,7 @@ const AdminDashboard: React.FC = () => {
               </div>
               
               <div className="w-full">
-                  {loading ? <div className="animate-pulse h-48 bg-slate-100 rounded"></div> : renderStackedBarChart()}
+                  {loading ? <div className="animate-pulse h-48 bg-slate-100 rounded"></div> : renderLineGraph()}
               </div>
           </div>
       </div>
