@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { X, Target, TrendingUp, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Target, TrendingUp, Calendar } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import toast from 'react-hot-toast';
@@ -13,7 +13,11 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [loading, setLoading] = useState(true);
-  const [dismissedGoals, setDismissedGoals] = useState<Set<number>>(new Set());
+  const [isMinimized, setIsMinimized] = useState(() => {
+    // Load minimized state from localStorage
+    const saved = localStorage.getItem('communityGoalsMinimized');
+    return saved === 'true';
+  });
 
   useEffect(() => {
     fetchGoals();
@@ -48,16 +52,10 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
     }
   };
 
-  const handleDismiss = async (goalId: number) => {
-    try {
-      await backendApi.post(`/community-goals/${goalId}/dismiss`, {});
-      setDismissedGoals(prev => new Set([...prev, goalId]));
-      setGoals(prev => prev.filter(g => g.id !== goalId));
-      toast.success('Goal dismissed');
-    } catch (error) {
-      console.error('Failed to dismiss goal:', error);
-      toast.error('Failed to dismiss goal');
-    }
+  const toggleMinimize = () => {
+    const newState = !isMinimized;
+    setIsMinimized(newState);
+    localStorage.setItem('communityGoalsMinimized', String(newState));
   };
 
   const formatDate = (dateString: string) => {
@@ -80,6 +78,24 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
     return null;
   }
 
+  // Minimized state - show only an icon
+  if (isMinimized) {
+    return (
+      <button
+        onClick={toggleMinimize}
+        className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-xl transition-all hover:scale-110 z-50 group"
+        aria-label="Show community goals"
+      >
+        <Target className="w-6 h-6" />
+        {goals.length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {goals.length}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className="fixed bottom-6 right-6 w-80 max-h-96 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-50">
       <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between rounded-t-lg">
@@ -87,6 +103,13 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
           <Target className="w-5 h-5" />
           <h3 className="font-semibold">Community Goals</h3>
         </div>
+        <button
+          onClick={toggleMinimize}
+          className="text-white hover:bg-white/20 rounded p-1 transition-colors"
+          aria-label="Minimize"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -116,13 +139,6 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDismiss(goal.id)}
-                  className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                  aria-label="Dismiss"
-                >
-                  <X className="w-4 h-4" />
-                </button>
               </div>
 
               {goalProgress && (
