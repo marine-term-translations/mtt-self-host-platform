@@ -17,6 +17,7 @@ import {
   Language,
 } from '../services/flow.api';
 import { backendApi } from '../services/api';
+import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
@@ -35,6 +36,7 @@ const TranslationFlow: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [relevantGoal, setRelevantGoal] = useState<{ goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null>(null);
 
   // Initialize flow session
   useEffect(() => {
@@ -56,6 +58,11 @@ const TranslationFlow: React.FC = () => {
         // Get first task
         const task = await getNextTask(selectedLanguage);
         setCurrentTask(task);
+        
+        // Fetch relevant community goal for the first task
+        if (task && task.task) {
+          await fetchRelevantGoal(task);
+        }
       } catch (error) {
         console.error('Failed to initialize flow:', error);
         toast.error('Failed to start translation flow');
@@ -74,9 +81,65 @@ const TranslationFlow: React.FC = () => {
     try {
       const task = await getNextTask(selectedLanguage);
       setCurrentTask(task);
+      
+      // Fetch relevant community goal for this task
+      if (task && task.task) {
+        await fetchRelevantGoal(task);
+      }
     } catch (error) {
       console.error('Failed to load next task:', error);
       toast.error('Failed to load next task');
+    }
+  };
+
+  // Fetch relevant community goal for the current task
+  const fetchRelevantGoal = async (task: FlowTask) => {
+    try {
+      // Get all active community goals
+      const goals = await backendApi.get<ApiCommunityGoal[]>('/community-goals');
+      
+      if (!goals || goals.length === 0) {
+        setRelevantGoal(null);
+        return;
+      }
+
+      // Determine the language being translated
+      const taskLanguage = selectedLanguage || task.task?.language;
+      const taskSourceId = task.task?.source_id;
+
+      // Find the most relevant goal
+      // Priority: 1) Collection goal for this source, 2) Translation count goal for this language
+      let matchedGoal: ApiCommunityGoal | null = null;
+
+      // First, try to match collection goal
+      if (taskSourceId) {
+        matchedGoal = goals.find(
+          g => g.goal_type === 'collection' && 
+               g.collection_id === taskSourceId &&
+               g.is_active === 1 &&
+               (!g.target_language || g.target_language === taskLanguage)
+        ) || null;
+      }
+
+      // If no collection goal, try translation_count goal
+      if (!matchedGoal && taskLanguage) {
+        matchedGoal = goals.find(
+          g => g.goal_type === 'translation_count' &&
+               g.is_active === 1 &&
+               (!g.target_language || g.target_language === taskLanguage)
+        ) || null;
+      }
+
+      if (matchedGoal) {
+        // Fetch progress for the matched goal
+        const progress = await backendApi.get<ApiCommunityGoalProgress>(`/community-goals/${matchedGoal.id}/progress`);
+        setRelevantGoal({ goal: matchedGoal, progress });
+      } else {
+        setRelevantGoal(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch relevant goal:', error);
+      setRelevantGoal(null);
     }
   };
 
@@ -344,6 +407,7 @@ const TranslationFlow: React.FC = () => {
               onSubmitReview={handleSubmitReview}
               onSubmitTranslation={handleSubmitTranslation}
               isSubmitting={isSubmitting}
+              relevantGoal={relevantGoal}
             />
           </div>
 

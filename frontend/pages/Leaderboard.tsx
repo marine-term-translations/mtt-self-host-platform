@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Trophy, Users, Globe, BarChart3, CheckCircle, Clock, FileText, XCircle, GitMerge, Loader2, Book } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, Globe, BarChart3, CheckCircle, Clock, FileText, XCircle, GitMerge, Loader2, Book, Target, TrendingUp, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
-import { ApiPublicUser, ApiTerm } from '../types';
+import { ApiPublicUser, ApiTerm, ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import toast from 'react-hot-toast';
 
 const Leaderboard: React.FC = () => {
@@ -15,6 +15,8 @@ const Leaderboard: React.FC = () => {
     byStatus: { approved: 0, merged: 0, review: 0, draft: 0, rejected: 0 }
   });
   const [langStats, setLangStats] = useState<any[]>([]);
+  const [communityGoals, setCommunityGoals] = useState<ApiCommunityGoal[]>([]);
+  const [goalsProgress, setGoalsProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
 
   // Language Config
   const LANG_CONFIG: Record<string, { name: string, color: string, baseClass: string }> = {
@@ -34,9 +36,10 @@ const Leaderboard: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [apiUsers, statsData] = await Promise.all([
+        const [apiUsers, statsData, goalsData] = await Promise.all([
           backendApi.getUsers(),
-          backendApi.getStats()
+          backendApi.getStats(),
+          backendApi.get<ApiCommunityGoal[]>('/community-goals').catch(() => [])
         ]);
 
         // Map users with contribution counts from stats endpoint
@@ -98,6 +101,23 @@ const Leaderboard: React.FC = () => {
         });
         setLangStats(mappedLangStats);
 
+        // Fetch community goals and their progress
+        setCommunityGoals(goalsData);
+        
+        // Fetch progress for each goal
+        const progressData: Record<number, ApiCommunityGoalProgress> = {};
+        await Promise.all(
+          goalsData.map(async (goal) => {
+            try {
+              const prog = await backendApi.get<ApiCommunityGoalProgress>(`/community-goals/${goal.id}/progress`);
+              progressData[goal.id] = prog;
+            } catch (error) {
+              console.error(`Failed to fetch progress for goal ${goal.id}:`, error);
+            }
+          })
+        );
+        setGoalsProgress(progressData);
+
       } catch (error) {
         console.error("Leaderboard fetch error", error);
         toast.error("Failed to load leaderboard data");
@@ -119,6 +139,22 @@ const Leaderboard: React.FC = () => {
         case 'draft': return { opacity: 0.3 };
         case 'rejected': return { opacity: 0.1 }; // Faint
         default: return { opacity: 0.3 };
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const getGoalTypeLabel = (type: string) => {
+    switch (type) {
+      case 'translation_count':
+        return 'Translation Goal';
+      case 'collection':
+        return 'Collection Goal';
+      default:
+        return 'Goal';
     }
   };
 
@@ -291,6 +327,95 @@ const Leaderboard: React.FC = () => {
 
         </div>
       </div>
+
+      {/* Community Goals Section */}
+      {communityGoals.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+            <Target className="text-blue-600" size={28} /> Community Goals
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {communityGoals.map((goal) => {
+              const progress = goalsProgress[goal.id];
+              
+              return (
+                <div
+                  key={goal.id}
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded">
+                        {getGoalTypeLabel(goal.goal_type)}
+                      </span>
+                      {goal.target_language && (
+                        <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-2 py-1 rounded uppercase">
+                          {goal.target_language}
+                        </span>
+                      )}
+                    </div>
+                    {goal.is_active === 1 ? (
+                      <span className="text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-1 rounded">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
+                  
+                  <h3 className="font-bold text-slate-900 dark:text-white mb-2">
+                    {goal.title}
+                  </h3>
+                  
+                  {goal.description && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                      {goal.description}
+                    </p>
+                  )}
+                  
+                  {progress && (
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600 dark:text-slate-400">
+                          {progress.current_count} / {progress.target_count || '∞'}
+                        </span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
+                          {progress.progress_percentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            progress.is_complete
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                              : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                          }`}
+                          style={{ width: `${Math.min(progress.progress_percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>Until {formatDate(goal.end_date || goal.start_date)}</span>
+                    </div>
+                    {goal.is_recurring === 1 && goal.recurrence_type && (
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        <span className="capitalize">{goal.recurrence_type}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
