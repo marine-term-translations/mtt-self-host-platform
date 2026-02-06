@@ -5,12 +5,28 @@ import { backendApi } from '../../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../../types';
 import toast from 'react-hot-toast';
 
+interface Language {
+  code: string;
+  name: string;
+  native_name: string;
+}
+
+interface Source {
+  source_id: number;
+  source_path: string;
+  graph_name: string;
+  description?: string;
+  created_at: string;
+}
+
 const AdminCommunityGoals: React.FC = () => {
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ApiCommunityGoal | null>(null);
+  const [languages, setLanguages] = useState<Language[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -27,6 +43,8 @@ const AdminCommunityGoals: React.FC = () => {
 
   useEffect(() => {
     fetchGoals();
+    fetchLanguages();
+    fetchSources();
   }, []);
 
   const fetchGoals = async () => {
@@ -56,8 +74,39 @@ const AdminCommunityGoals: React.FC = () => {
     }
   };
 
+  const fetchLanguages = async () => {
+    try {
+      const langs = await backendApi.get<Language[]>('/languages');
+      setLanguages(langs);
+    } catch (error) {
+      console.error('Failed to fetch languages:', error);
+      toast.error('Failed to load languages');
+    }
+  };
+
+  const fetchSources = async () => {
+    try {
+      const response = await backendApi.get<{ sources: Source[] }>('/sources?limit=100');
+      setSources(response.sources || []);
+    } catch (error) {
+      console.error('Failed to fetch sources:', error);
+      toast.error('Failed to load sources');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate end date is after start date
+    if (formData.end_date && formData.start_date) {
+      const startDate = new Date(formData.start_date);
+      const endDate = new Date(formData.end_date);
+      
+      if (endDate <= startDate) {
+        toast.error('End date must be after start date');
+        return;
+      }
+    }
     
     try {
       const payload = {
@@ -144,22 +193,23 @@ const AdminCommunityGoals: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Community Goals</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Manage community-wide translation goals and challenges
-          </p>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Community Goals</h1>
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
+              Manage community-wide translation goals and challenges
+            </p>
+          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {showForm ? 'Cancel' : 'New Goal'}
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showForm ? 'Cancel' : 'New Goal'}
-        </button>
-      </div>
 
       {/* Goal Form */}
       {showForm && (
@@ -215,13 +265,18 @@ const AdminCommunityGoals: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Target Language
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.target_language}
                   onChange={(e) => setFormData({ ...formData, target_language: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                  placeholder="e.g., fr, nl, de"
-                />
+                >
+                  <option value="">All Languages</option>
+                  {languages.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name} ({lang.code.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {formData.goal_type === 'translation_count' && (
@@ -242,19 +297,28 @@ const AdminCommunityGoals: React.FC = () => {
               )}
 
               {formData.goal_type === 'collection' && (
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Collection ID *
+                    Collection / Source *
                   </label>
-                  <input
-                    type="number"
+                  <select
                     value={formData.collection_id}
                     onChange={(e) => setFormData({ ...formData, collection_id: e.target.value })}
                     required={formData.goal_type === 'collection'}
-                    min="1"
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                    placeholder="Source ID"
-                  />
+                  >
+                    <option value="">Select a collection...</option>
+                    {sources.map((source) => (
+                      <option key={source.source_id} value={source.source_id}>
+                        {source.source_path} (ID: {source.source_id})
+                      </option>
+                    ))}
+                  </select>
+                  {formData.collection_id && sources.find(s => s.source_id === parseInt(formData.collection_id)) && (
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                      Graph: {sources.find(s => s.source_id === parseInt(formData.collection_id))?.graph_name || 'N/A'}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -471,6 +535,7 @@ const AdminCommunityGoals: React.FC = () => {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 };
