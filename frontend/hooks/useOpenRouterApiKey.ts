@@ -1,5 +1,5 @@
 // Custom hook to manage OpenRouter API key
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { backendApi } from '../services/api';
 import { CONFIG } from '../config';
 
@@ -21,7 +21,7 @@ export function useOpenRouterApiKey(): UseOpenRouterApiKeyResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const loadApiKey = async () => {
+  const loadApiKey = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
@@ -59,11 +59,11 @@ export function useOpenRouterApiKey(): UseOpenRouterApiKeyResult {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []); // Empty dependency array is fine as this callback doesn't depend on any external values
 
   useEffect(() => {
     loadApiKey();
-  }, []);
+  }, [loadApiKey]);
 
   return {
     apiKey,

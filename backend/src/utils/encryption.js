@@ -37,7 +37,7 @@ function getEncryptionKey() {
 /**
  * Encrypt a string value
  * @param {string} text - The text to encrypt
- * @returns {string} - Base64 encoded encrypted data with format: salt:iv:encrypted:tag
+ * @returns {string} - Base64 encoded encrypted data with format: iv:encrypted:tag
  */
 function encrypt(text) {
   if (!text) {
@@ -47,7 +47,6 @@ function encrypt(text) {
   try {
     const key = getEncryptionKey();
     const iv = crypto.randomBytes(IV_LENGTH);
-    const salt = crypto.randomBytes(SALT_LENGTH);
     
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     
@@ -56,9 +55,8 @@ function encrypt(text) {
     
     const tag = cipher.getAuthTag();
     
-    // Combine salt, iv, encrypted data, and tag
+    // Combine iv, encrypted data, and tag (no need for random salt since key is already derived)
     return [
-      salt.toString('base64'),
       iv.toString('base64'),
       encrypted,
       tag.toString('base64')
@@ -71,7 +69,7 @@ function encrypt(text) {
 
 /**
  * Decrypt an encrypted string
- * @param {string} encryptedData - The encrypted data in format: salt:iv:encrypted:tag
+ * @param {string} encryptedData - The encrypted data in format: iv:encrypted:tag
  * @returns {string} - The decrypted text
  */
 function decrypt(encryptedData) {
@@ -81,11 +79,11 @@ function decrypt(encryptedData) {
   
   try {
     const parts = encryptedData.split(':');
-    if (parts.length !== 4) {
+    if (parts.length !== 3) {
       throw new Error('Invalid encrypted data format');
     }
     
-    const [saltBase64, ivBase64, encrypted, tagBase64] = parts;
+    const [ivBase64, encrypted, tagBase64] = parts;
     
     const key = getEncryptionKey();
     const iv = Buffer.from(ivBase64, 'base64');
