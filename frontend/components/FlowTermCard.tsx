@@ -4,6 +4,7 @@ import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quo
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
+import { useOpenRouterApiKey } from '../hooks/useOpenRouterApiKey';
 
 interface FlowTermCardProps {
   task: any;
@@ -27,6 +28,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]?.code || 'nl');
   const [translationValue, setTranslationValue] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const { apiKey, hasApiKey, isLoading: isLoadingApiKey } = useOpenRouterApiKey();
 
   // Update selected language if languages prop changes (e.g. from loading state)
   useEffect(() => {
@@ -53,13 +55,18 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
       return;
     }
 
+    if (!apiKey) {
+      toast.error("Please configure your OpenRouter API key in Settings");
+      return;
+    }
+
     setAiLoading(true);
 
     try {
       const modelsResponse = await fetch("https://openrouter.ai/api/v1/models", {
         method: "GET",
         headers: {
-          "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+          "Authorization": "Bearer " + apiKey,
           "Content-Type": "application/json"
         }
       });
@@ -84,7 +91,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
-              "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+              "Authorization": "Bearer " + apiKey,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -298,15 +305,17 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             Your Translation {languages.length === 1 && <span className="text-slate-500 font-normal">({languages[0].name})</span>}
                         </label>
-                        <button
-                            type="button"
-                            onClick={handleAiSuggest}
-                            disabled={aiLoading || isSubmitting}
-                            className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5"
-                         >
-                            {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                            AI Suggest
-                         </button>
+                        {hasApiKey && !isLoadingApiKey && (
+                          <button
+                              type="button"
+                              onClick={handleAiSuggest}
+                              disabled={aiLoading || isSubmitting}
+                              className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5"
+                          >
+                              {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                              AI Suggest
+                          </button>
+                        )}
                     </div>
                     <div className="relative">
                         <textarea

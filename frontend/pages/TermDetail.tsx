@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser } from '../types';
@@ -15,6 +14,7 @@ import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
 import { parse, format } from '@/src/utils/datetime';
 import { getPreferredLabel, getLanguagePriority } from '../src/utils/languageSelector';
+import { useOpenRouterApiKey } from '../hooks/useOpenRouterApiKey';
 
 const TermDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +36,7 @@ const TermDetail: React.FC = () => {
 
   // AI State
   const [aiLoading, setAiLoading] = useState<Record<number, boolean>>({});
+  const { apiKey, hasApiKey, isLoading: isLoadingApiKey } = useOpenRouterApiKey();
 
   const [openHistoryFieldId, setOpenHistoryFieldId] = useState<number | null>(null);
   const [openAppealFieldId, setOpenAppealFieldId] = useState<number | null>(null);
@@ -272,6 +273,11 @@ const TermDetail: React.FC = () => {
       return;
     }
 
+    if (!apiKey) {
+      toast.error("Please configure your OpenRouter API key in Settings");
+      return;
+    }
+
     setAiLoading(prev => ({ ...prev, [field.id]: true }));
 
     try {
@@ -280,7 +286,7 @@ const TermDetail: React.FC = () => {
       const modelsResponse = await fetch("https://openrouter.ai/api/v1/models", {
         method: "GET",
         headers: {
-          "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+          "Authorization": "Bearer " + apiKey,
           "Content-Type": "application/json"
         }
       });
@@ -323,7 +329,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
           const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
-              "Authorization": "Bearer " + CONFIG.OPENROUTER_API_KEY,
+              "Authorization": "Bearer " + apiKey,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -998,7 +1004,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between items-center">
                       <span>{selectedLang} Translation</span>
                       <div className="flex items-center gap-2">
-                        {canTranslate && (
+                        {canTranslate && hasApiKey && !isLoadingApiKey && (
                           <button
                             type="button"
                             onClick={() => handleAiSuggest(field)}

@@ -98,7 +98,7 @@ Edit the `.env` file with your configuration. Below is a complete reference of a
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | No | - | OpenRouter API key for AI translation suggestions |
+| `VITE_OPENROUTER_API_KEY` | No | - | Fallback OpenRouter API key for AI translations. Users can provide their own key in Settings. Get yours from https://openrouter.ai/settings/keys |
 
 ### Example Production Configuration
 
@@ -119,8 +119,9 @@ ORCID_CLIENT_SECRET=11111111-2222-3333-4444-555555555555
 # Session security
 SESSION_SECRET=your-very-long-random-string-here-change-this
 
-# Optional: AI translation assistance
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+# Optional: System-wide AI translation assistance (fallback)
+# Users can configure their own OpenRouter API key in Settings
+VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
 ---

@@ -24,7 +24,7 @@ This platform enables organizations to self-host their own marine terminology tr
 - **Full data sovereignty** - All data stored in your infrastructure
 - **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
 - **SQLite database** - Lightweight, embedded database with automatic initialization
-- **AI-powered suggestions** - Optional OpenRouter API integration for translation assistance
+- **AI-powered suggestions** - Users can configure their own OpenRouter API key for AI translation assistance
 - **Community goals** - Motivate translators with community-wide translation challenges and goals
 
 ---
@@ -126,6 +126,19 @@ Before using the platform, you must register an OAuth application with ORCID:
 3. Copy the Client ID and Client Secret to your `.env` file
 4. Restart services: `docker compose restart`
 
+### Enable AI Translation Features (Optional)
+
+To use AI-powered translation suggestions:
+
+1. Log in to the platform with your ORCID account
+2. Navigate to **Settings** → **AI Translation Settings**
+3. Follow the [AI Translation Guide](docs/AI_TRANSLATION_GUIDE.md) to:
+   - Get your free OpenRouter API key
+   - Configure it in your settings
+   - Start using AI translation suggestions
+
+> 📚 See [docs/AI_TRANSLATION_GUIDE.md](docs/AI_TRANSLATION_GUIDE.md) for detailed instructions on obtaining and configuring your OpenRouter API key.
+
 ---
 
 ## Access Points
@@ -193,6 +206,14 @@ mtt-self-host-platform/
 ---
 
 ## Documentation
+
+### For Users
+
+| Document | Description |
+|----------|-------------|
+| [docs/AI_TRANSLATION_GUIDE.md](docs/AI_TRANSLATION_GUIDE.md) | **How to get and use OpenRouter API key for AI translations** |
+
+### For Administrators
 
 | Document | Description |
 |----------|-------------|

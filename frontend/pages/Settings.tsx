@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Globe, Save, Shield, Settings as SettingsIcon, Plus, X, ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { Globe, Save, Shield, Settings as SettingsIcon, Plus, X, ChevronUp, ChevronDown, Search, Key, Eye, EyeOff, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
+import { backendApi } from '../services/api';
 
 interface UserPreferences {
   nativeLanguage?: string;
@@ -26,6 +27,14 @@ const Settings: React.FC = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAddLanguageModal, setShowAddLanguageModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // OpenRouter API Key states
+  const [openRouterApiKey, setOpenRouterApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [isLoadingApiKey, setIsLoadingApiKey] = useState(true);
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false);
+  const [apiKeyChanged, setApiKeyChanged] = useState(false);
 
   // Load available languages from API
   useEffect(() => {
@@ -90,6 +99,64 @@ const Settings: React.FC = () => {
 
     loadPreferences();
   }, []);
+
+  // Load OpenRouter API key status
+  useEffect(() => {
+    const loadApiKeyStatus = async () => {
+      try {
+        const response = await backendApi.hasOpenRouterApiKey();
+        setHasApiKey(response.hasApiKey);
+      } catch (error) {
+        console.error('Failed to load API key status:', error);
+      } finally {
+        setIsLoadingApiKey(false);
+      }
+    };
+
+    loadApiKeyStatus();
+  }, []);
+
+  const handleSaveApiKey = async () => {
+    if (!openRouterApiKey.trim()) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    setIsSavingApiKey(true);
+    try {
+      await backendApi.saveOpenRouterApiKey(openRouterApiKey.trim());
+      toast.success('OpenRouter API key saved successfully!');
+      setHasApiKey(true);
+      setApiKeyChanged(false);
+      setOpenRouterApiKey(''); // Clear the input for security
+      setShowApiKey(false);
+    } catch (error) {
+      console.error('Error saving API key:', error);
+      toast.error('Failed to save API key. Please try again.');
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
+
+  const handleDeleteApiKey = async () => {
+    if (!confirm('Are you sure you want to delete your OpenRouter API key? AI translation features will no longer be available.')) {
+      return;
+    }
+
+    setIsSavingApiKey(true);
+    try {
+      await backendApi.deleteOpenRouterApiKey();
+      toast.success('OpenRouter API key deleted successfully');
+      setHasApiKey(false);
+      setOpenRouterApiKey('');
+      setApiKeyChanged(false);
+    } catch (error) {
+      console.error('Error deleting API key:', error);
+      toast.error('Failed to delete API key. Please try again.');
+    } finally {
+      setIsSavingApiKey(false);
+    }
+  };
 
   const handleAddLanguage = (langCode: string) => {
     if (!orderedLanguages.includes(langCode)) {
@@ -327,6 +394,132 @@ const Settings: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* OpenRouter API Key Section */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mt-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+            <Sparkles className="text-indigo-600 dark:text-indigo-400" size={24} />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Translation Settings</h2>
+            <p className="text-slate-600 dark:text-slate-400">
+              Configure your OpenRouter API key to enable AI-powered translation suggestions
+            </p>
+          </div>
+        </div>
+
+        {isLoadingApiKey ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <span className="ml-3 text-slate-600 dark:text-slate-400">Loading API key status...</span>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {hasApiKey ? (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                <div className="flex items-start gap-3">
+                  <Key className="text-emerald-600 dark:text-emerald-400 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <p className="font-medium text-emerald-900 dark:text-emerald-100">
+                      API Key Configured
+                    </p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                      You can now use AI translation features in term details and translation flow.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleDeleteApiKey}
+                    disabled={isSavingApiKey}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {isSavingApiKey ? 'Deleting...' : 'Delete Key'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-start gap-3">
+                  <Key className="text-amber-600 dark:text-amber-400 mt-0.5" size={20} />
+                  <div>
+                    <p className="font-medium text-amber-900 dark:text-amber-100">
+                      No API Key Configured
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      Add your OpenRouter API key to enable AI translation features.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                OpenRouter API Key
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={openRouterApiKey}
+                    onChange={(e) => {
+                      setOpenRouterApiKey(e.target.value);
+                      setApiKeyChanged(true);
+                    }}
+                    placeholder={hasApiKey ? '••••••••••••••••' : 'sk-or-v1-...'}
+                    className="w-full px-4 py-3 pr-12 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white font-mono text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
+                    title={showApiKey ? 'Hide API key' : 'Show API key'}
+                  >
+                    {showApiKey ? (
+                      <EyeOff size={18} className="text-slate-500" />
+                    ) : (
+                      <Eye size={18} className="text-slate-500" />
+                    )}
+                  </button>
+                </div>
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={isSavingApiKey || !apiKeyChanged || !openRouterApiKey.trim()}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                    isSavingApiKey || !apiKeyChanged || !openRouterApiKey.trim()
+                      ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow active:scale-95'
+                  }`}
+                >
+                  {isSavingApiKey ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={20} />
+                      Save Key
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Get your API key from{' '}
+                <a
+                  href="https://openrouter.ai/settings/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  OpenRouter Settings
+                </a>
+                . Your key is encrypted and stored securely.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Language Modal */}
