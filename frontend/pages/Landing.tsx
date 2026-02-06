@@ -11,6 +11,7 @@ const Landing: React.FC = () => {
   const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
   const [contributors, setContributors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ldesFeedCount, setLdesFeedCount] = useState<number>(0);
 
   // Helper to map P-codes to names (simplified version for Landing)
   const getCollectionName = (code: string) => {
@@ -29,10 +30,14 @@ const Landing: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [termsResponse, apiUsers] = await Promise.all([
+        const [termsResponse, apiUsers, ldesResponse] = await Promise.all([
           backendApi.getTerms(10, 0), // Limit to first 10 for landing page
-          backendApi.getUsers()
+          backendApi.getUsers(),
+          backendApi.getLdesFeeds().catch(() => ({ feeds: [] })) // Gracefully handle LDES fetch failure
         ]);
+
+        // Set LDES feed count
+        setLdesFeedCount(ldesResponse.feeds?.length || 0);
 
         // --- 1. Process Recent Terms ---
         // Sort by updated_at (descending)
@@ -212,6 +217,17 @@ const Landing: React.FC = () => {
                         <h3 className="font-bold text-lg mb-1">Interoperable</h3>
                         <p className="text-sm text-slate-300">FAIR data powered by LDES technology.</p>
                     </div>
+                    <Link to="/ldes" className="block bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all cursor-pointer group">
+                        <Database className="text-amber-300 mb-3 group-hover:scale-110 transition-transform" size={32} />
+                        <h3 className="font-bold text-lg mb-1">
+                          {loading ? (
+                            <span className="text-base">Loading...</span>
+                          ) : (
+                            <span>{ldesFeedCount} LDES Feed{ldesFeedCount !== 1 ? 's' : ''}</span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-slate-300">Published and harvestable data streams.</p>
+                    </Link>
                 </div>
             </div>
           </div>

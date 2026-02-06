@@ -7,6 +7,7 @@ import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiLanguage } from '../types';
 import toast from 'react-hot-toast';
 import { parse, fromNow } from '@/src/utils/datetime';
+import LanguagePreferencePrompt from '../components/LanguagePreferencePrompt';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -143,6 +144,9 @@ const Dashboard: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Welcome back, {user?.name.split(' ')[0]}!</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">Here's what's happening with your contributions.</p>
       </div>
+
+      {/* Language Preference Prompt */}
+      <LanguagePreferencePrompt hasConfiguredLanguages={userLanguages.length > 0} />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
