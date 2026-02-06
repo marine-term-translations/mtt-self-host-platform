@@ -5,6 +5,12 @@ import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
+interface ContributionData {
+  date: string;
+  byStatus: Record<string, number>;
+  total: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -14,7 +20,21 @@ const AdminDashboard: React.FC = () => {
     openAppeals: 0,
   });
   const [statusDist, setStatusDist] = useState<Record<string, number>>({});
-  const [historyGraphData, setHistoryGraphData] = useState<{date: string, count: number}[]>([]);
+  const [historyGraphData, setHistoryGraphData] = useState<ContributionData[]>([]);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('last_14_days');
+
+  const fetchContributionsOverTime = async (timeframe: string) => {
+    try {
+      const data = await backendApi.get<{ timeframe: string; data: ContributionData[] }>(
+        '/stats/contributions-over-time',
+        { timeframe }
+      );
+      setHistoryGraphData(data.data);
+    } catch (error) {
+      console.error("Failed to fetch contributions over time", error);
+      toast.error("Failed to load contribution history");
+    }
+  };
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -29,12 +49,8 @@ const AdminDashboard: React.FC = () => {
         // 1. Counts
         const openAppeals = appeals.filter(a => a.status === 'open').length;
         
-        // 2. Status Distribution from stats endpoint
+        // 2. Status Distribution from stats endpoint (already excludes 'original')
         const dist = statsData.byStatus || { merged: 0, approved: 0, review: 0, draft: 0, rejected: 0 };
-
-        // 3. For time series, we'd need additional data - for now, use empty array
-        // In the future, we could add a time-series endpoint or fetch recent activity
-        const graphData: {date: string, count: number}[] = [];
 
         setStats({
             userCount: users.length,
@@ -43,7 +59,9 @@ const AdminDashboard: React.FC = () => {
             openAppeals
         });
         setStatusDist(dist);
-        setHistoryGraphData(graphData);
+        
+        // 3. Fetch contributions over time
+        await fetchContributionsOverTime(selectedTimeframe);
 
       } catch (error) {
         console.error("Admin fetch error", error);
@@ -54,6 +72,12 @@ const AdminDashboard: React.FC = () => {
     };
     fetchAdminData();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchContributionsOverTime(selectedTimeframe);
+    }
+  }, [selectedTimeframe]);
 
   // --- Helpers for SVG Charts ---
 
@@ -83,43 +107,111 @@ const AdminDashboard: React.FC = () => {
      });
   };
 
-  // SVG Line Chart Logic
-  const renderLineChart = () => {
-      if (historyGraphData.length < 2) return <div className="text-center text-slate-400 text-sm py-8">Not enough data for trend graph</div>;
+  // Stacked Bar Chart for Contributions Over Time
+  const renderStackedBarChart = () => {
+      if (historyGraphData.length === 0) {
+        return <div className="text-center text-slate-400 text-sm py-8">No data available for this timeframe</div>;
+      }
 
-      const height = 60;
-      const width = 100;
-      const maxVal = Math.max(...historyGraphData.map(d => d.count), 1);
+      const statusOrder = ['merged', 'approved', 'review', 'draft', 'rejected'];
+      const colors: Record<string, string> = {
+          merged: '#a855f7',      // purple-500
+          approved: '#22c55e',    // green-500
+          review: '#f59e0b',      // amber-500
+          draft: '#94a3b8',       // slate-400
+          rejected: '#ef4444'     // red-500
+      };
       
-      const points = historyGraphData.map((d, i) => {
-          const x = (i / (historyGraphData.length - 1)) * width;
-          const y = height - (d.count / maxVal) * height;
-          return `${x},${y}`;
-      }).join(' ');
-
+      // Find max total for scaling
+      const maxTotal = Math.max(...historyGraphData.map(d => d.total), 1);
+      
+      // Calculate bar width based on number of data points
+      const barGap = 4; // Gap between bars in pixels
+      const minBarWidth = 8; // Minimum bar width
+      const maxBarWidth = 60; // Maximum bar width
+      const availableWidth = 100; // Percentage-based width
+      const totalBars = historyGraphData.length;
+      
       return (
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
-              {/* Fill Gradient */}
-              <defs>
-                  <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2" />
-                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-                  </linearGradient>
-              </defs>
-              <path d={`M0,${height} ${points} ${width},${height}`} fill="url(#chartGradient)" />
+        <div className="relative">
+          <div className="flex items-end justify-between gap-1 h-48">
+            {historyGraphData.map((dataPoint, idx) => {
+              const barHeightPct = (dataPoint.total / maxTotal) * 100;
               
-              {/* Line */}
-              <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
-              
-              {/* Dots */}
-              {historyGraphData.map((d, i) => {
-                  const x = (i / (historyGraphData.length - 1)) * width;
-                  const y = height - (d.count / maxVal) * height;
-                  return (
-                      <circle key={i} cx={x} cy={y} r="1.5" className="fill-white stroke-marine-600 dark:stroke-marine-400 hover:scale-150 transition-transform" strokeWidth="0.5" />
-                  );
-              })}
-          </svg>
+              return (
+                <div key={idx} className="flex-1 flex flex-col justify-end group relative" style={{ minWidth: `${minBarWidth}px`, maxWidth: `${maxBarWidth}px` }}>
+                  {/* Stacked segments */}
+                  <div 
+                    className="w-full rounded-t transition-all duration-300 hover:opacity-90"
+                    style={{ height: `${barHeightPct}%` }}
+                  >
+                    {statusOrder.map(status => {
+                      const count = dataPoint.byStatus[status] || 0;
+                      if (count === 0) return null;
+                      
+                      const segmentHeightPct = (count / dataPoint.total) * 100;
+                      
+                      return (
+                        <div
+                          key={status}
+                          className="w-full transition-all hover:brightness-110"
+                          style={{ 
+                            height: `${segmentHeightPct}%`,
+                            backgroundColor: colors[status]
+                          }}
+                          title={`${status}: ${count}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Tooltip on hover */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-slate-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
+                      <div className="font-semibold mb-1">{dataPoint.date}</div>
+                      <div className="font-bold text-marine-400 mb-1">Total: {dataPoint.total}</div>
+                      {statusOrder.map(status => {
+                        const count = dataPoint.byStatus[status] || 0;
+                        if (count === 0) return null;
+                        return (
+                          <div key={status} className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
+                            <span className="capitalize">{status}: {count}</span>
+                          </div>
+                        );
+                      })}
+                      {/* Arrow */}
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* X-axis labels */}
+          <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+            {historyGraphData
+              .filter((_, i) => {
+                // Show fewer labels for better readability based on data points
+                const step = Math.ceil(historyGraphData.length / 7);
+                return i % step === 0 || i === historyGraphData.length - 1;
+              })
+              .map((d, idx) => (
+                <span key={idx} className="truncate">{d.date.split('T')[0]}</span>
+              ))}
+          </div>
+          
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 justify-center mt-4 text-xs">
+            {statusOrder.map(status => (
+              <div key={status} className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
+                <span className="capitalize text-slate-600 dark:text-slate-300">{status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       );
   };
 
@@ -300,18 +392,21 @@ const AdminDashboard: React.FC = () => {
                   <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <TrendingUp size={18} className="text-marine-500"/> Contributions Over Time
                   </h3>
-                  <select className="text-xs bg-slate-100 dark:bg-slate-700 border-none rounded px-2 py-1">
-                      <option>Last 14 Days</option>
+                  <select 
+                    className="text-xs bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded px-3 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-marine-500"
+                    value={selectedTimeframe}
+                    onChange={(e) => setSelectedTimeframe(e.target.value)}
+                  >
+                      <option value="last_hour">Last Hour</option>
+                      <option value="last_week">Last Week</option>
+                      <option value="last_14_days">Last 14 Days</option>
+                      <option value="last_month">Last Month</option>
+                      <option value="all_time">All Time</option>
                   </select>
               </div>
               
-              <div className="h-48 w-full">
-                  {loading ? <div className="animate-pulse h-full bg-slate-100 rounded"></div> : renderLineChart()}
-              </div>
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-                  {historyGraphData.filter((_, i) => i % 3 === 0).map(d => (
-                      <span key={d.date}>{d.date}</span>
-                  ))}
+              <div className="w-full">
+                  {loading ? <div className="animate-pulse h-48 bg-slate-100 rounded"></div> : renderStackedBarChart()}
               </div>
           </div>
       </div>
