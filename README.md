@@ -24,7 +24,7 @@ This platform enables organizations to self-host their own marine terminology tr
 - **Full data sovereignty** - All data stored in your infrastructure
 - **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
 - **SQLite database** - Lightweight, embedded database with automatic initialization
-- **AI-powered suggestions** - Optional OpenRouter API integration for translation assistance
+- **AI-powered suggestions** - Users can configure their own OpenRouter API key for AI translation assistance
 - **Community goals** - Motivate translators with community-wide translation challenges and goals
 
 ---
