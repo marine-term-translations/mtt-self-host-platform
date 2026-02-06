@@ -110,23 +110,31 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
     const pendingCount = pendingGoals.length;
     
     return (
-      <button
-        onClick={toggleMinimize}
-        className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-xl transition-all hover:scale-110 z-50 group animate-pulse-slow"
-        aria-label="Show community goals"
-      >
-        <Target className="w-6 h-6" />
-        {pendingCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-            {pendingCount}
-          </span>
-        )}
-        {completedCount > 0 && pendingCount === 0 && (
-          <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-            {completedCount}
-          </span>
-        )}
-      </button>
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="relative">
+          {/* Spinning blue ring */}
+          <div className="ring-border animate-spin-ring"></div>
+          
+          {/* Button */}
+          <button
+            onClick={toggleMinimize}
+            className="relative p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-xl transition-all hover:scale-110 group animate-pulse-slow"
+            aria-label="Show community goals"
+          >
+            <Target className="w-6 h-6" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+            {completedCount > 0 && pendingCount === 0 && (
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {completedCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
     );
   }
 
