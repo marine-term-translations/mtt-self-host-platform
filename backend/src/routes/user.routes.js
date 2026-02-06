@@ -5,6 +5,7 @@ const router = express.Router();
 const { getDatabase } = require("../db/database");
 const rateLimit = require("express-rate-limit");
 const { apiLimiter } = require("../middleware/rateLimit");
+const { encrypt, decrypt } = require("../utils/encryption");
 
 // Set up rate limiter for user preferences endpoints (max 100 per 15 minutes per IP)
 const userPreferencesLimiter = rateLimit({
@@ -228,6 +229,180 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
   } catch (error) {
     console.error('[User Preferences] Error:', error);
     res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user/preferences/openrouter-key:
+ *   get:
+ *     summary: Check if user has configured an OpenRouter API key
+ *     responses:
+ *       200:
+ *         description: Returns whether user has an API key configured
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hasApiKey:
+ *                   type: boolean
+ *       401:
+ *         description: Not authenticated
+ */
+router.get("/user/preferences/openrouter-key", userPreferencesLimiter, requireAuth, (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = req.session.user.id || req.session.user.user_id;
+    
+    // Check if user has an API key configured
+    const preferences = db.prepare(`
+      SELECT openrouter_api_key FROM user_preferences WHERE user_id = ?
+    `).get(userId);
+    
+    const hasApiKey = !!(preferences && preferences.openrouter_api_key);
+    
+    res.json({ hasApiKey });
+  } catch (error) {
+    console.error('Error checking OpenRouter API key:', error);
+    res.status(500).json({ error: 'Failed to check API key status' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user/preferences/openrouter-key/value:
+ *   get:
+ *     summary: Get user's OpenRouter API key (decrypted)
+ *     description: Returns the user's API key for use in frontend requests. Only the owner can retrieve their key.
+ *     responses:
+ *       200:
+ *         description: Returns the decrypted API key
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 apiKey:
+ *                   type: string
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: No API key configured
+ */
+router.get("/user/preferences/openrouter-key/value", userPreferencesLimiter, requireAuth, (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = req.session.user.id || req.session.user.user_id;
+    
+    // Get user's encrypted API key
+    const preferences = db.prepare(`
+      SELECT openrouter_api_key FROM user_preferences WHERE user_id = ?
+    `).get(userId);
+    
+    if (!preferences || !preferences.openrouter_api_key) {
+      return res.status(404).json({ error: 'No API key configured' });
+    }
+    
+    // Decrypt the API key
+    const apiKey = decrypt(preferences.openrouter_api_key);
+    
+    res.json({ apiKey });
+  } catch (error) {
+    console.error('Error retrieving OpenRouter API key:', error);
+    res.status(500).json({ error: 'Failed to retrieve API key' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user/preferences/openrouter-key:
+ *   post:
+ *     summary: Save user's OpenRouter API key
+ *     description: Encrypts and stores the user's OpenRouter API key
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               apiKey:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: API key saved successfully
+ *       401:
+ *         description: Not authenticated
+ */
+router.post("/user/preferences/openrouter-key", userPreferencesLimiter, requireAuth, (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = req.session.user.id || req.session.user.user_id;
+    const { apiKey } = req.body;
+    
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid API key' });
+    }
+    
+    // Encrypt the API key before storing
+    const encryptedApiKey = encrypt(apiKey.trim());
+    
+    // Check if user preferences exist
+    const existingPrefs = db.prepare(`
+      SELECT user_id FROM user_preferences WHERE user_id = ?
+    `).get(userId);
+    
+    if (existingPrefs) {
+      // Update existing preferences
+      db.prepare(`
+        UPDATE user_preferences 
+        SET openrouter_api_key = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+      `).run(encryptedApiKey, userId);
+    } else {
+      // Create new preferences record
+      db.prepare(`
+        INSERT INTO user_preferences (user_id, openrouter_api_key, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+      `).run(userId, encryptedApiKey);
+    }
+    
+    res.json({ success: true, message: 'API key saved successfully' });
+  } catch (error) {
+    console.error('Error saving OpenRouter API key:', error);
+    res.status(500).json({ error: 'Failed to save API key' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user/preferences/openrouter-key:
+ *   delete:
+ *     summary: Delete user's OpenRouter API key
+ *     description: Removes the user's stored OpenRouter API key
+ *     responses:
+ *       200:
+ *         description: API key deleted successfully
+ *       401:
+ *         description: Not authenticated
+ */
+router.delete("/user/preferences/openrouter-key", userPreferencesLimiter, requireAuth, (req, res) => {
+  try {
+    const db = getDatabase();
+    const userId = req.session.user.id || req.session.user.user_id;
+    
+    // Remove the API key
+    db.prepare(`
+      UPDATE user_preferences 
+      SET openrouter_api_key = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ?
+    `).run(userId);
+    
+    res.json({ success: true, message: 'API key deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting OpenRouter API key:', error);
+    res.status(500).json({ error: 'Failed to delete API key' });
   }
 });
 
