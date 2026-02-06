@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
 import { parse, format, now } from '@/src/utils/datetime';
+import CommunityGoalWidget from './CommunityGoalWidget';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -176,6 +177,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </p>
         </div>
       </footer>
+
+      {/* Community Goals Widget */}
+      {isAuthenticated && <CommunityGoalWidget />}
     </div>
   );
 };

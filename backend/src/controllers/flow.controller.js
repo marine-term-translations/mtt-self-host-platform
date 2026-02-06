@@ -13,7 +13,7 @@ async function startFlow(req, res) {
     }
     
     const userId = req.session.user.id || req.session.user.user_id;
-    const { language } = req.body;
+    const { language, source } = req.body;
     
     // Create a new session
     const session = gamificationService.startFlowSession(userId);
@@ -28,6 +28,7 @@ async function startFlow(req, res) {
       stats,
       challenges,
       language: language || null,
+      source: source || null,
     });
   } catch (error) {
     console.error("[Flow] Start flow error:", error);
@@ -46,7 +47,8 @@ async function getNextTask(req, res) {
     
     const userId = req.session.user.id || req.session.user.user_id;
     const language = req.query.language || null;
-    const task = flowService.getNextTask(userId, language);
+    const source = req.query.source || null;
+    const task = flowService.getNextTask(userId, language, source);
     
     res.json(task);
   } catch (error) {

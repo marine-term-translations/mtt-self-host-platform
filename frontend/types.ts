@@ -151,3 +151,33 @@ export interface ApiLanguage {
   name: string;
   native_name: string;
 }
+
+export interface ApiCommunityGoal {
+  id: number;
+  title: string;
+  description: string | null;
+  goal_type: 'translation_count' | 'collection';
+  target_count: number | null;
+  target_language: string | null;
+  collection_id: number | null;
+  collection_path?: string | null;
+  is_recurring: number;
+  recurrence_type: 'daily' | 'weekly' | 'monthly' | null;
+  start_date: string;
+  end_date: string | null;
+  is_active: number;
+  created_by_id: number;
+  created_by_username?: string;
+  created_at: string;
+  updated_at: string;
+  is_dismissed?: boolean;
+}
+
+export interface ApiCommunityGoalProgress {
+  goal_id: number;
+  current_count: number;
+  target_count: number | null;
+  progress_percentage: number;
+  is_complete: boolean;
+  missing_translations?: Record<string, number> | null;
+}

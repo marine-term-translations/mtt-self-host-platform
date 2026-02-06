@@ -25,6 +25,7 @@ This platform enables organizations to self-host their own marine terminology tr
 - **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
 - **SQLite database** - Lightweight, embedded database with automatic initialization
 - **AI-powered suggestions** - Optional OpenRouter API integration for translation assistance
+- **Community goals** - Motivate translators with community-wide translation challenges and goals
 
 ---
 
@@ -199,6 +200,7 @@ mtt-self-host-platform/
 | [docs/ORCID_MIGRATION.md](docs/ORCID_MIGRATION.md) | ORCID OAuth configuration guide |
 | [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | Production deployment guide |
 | [docs/DATABASE_INITIALIZATION.md](docs/DATABASE_INITIALIZATION.md) | Database initialization and management |
+| [docs/COMMUNITY_GOALS.md](docs/COMMUNITY_GOALS.md) | Community goals feature guide |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
 | [docs/GITEA_REMOVAL.md](docs/GITEA_REMOVAL.md) | Historical notes on Gitea removal (for reference) |
 

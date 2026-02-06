@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
+import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 
 interface FlowTermCardProps {
   task: any;
@@ -11,6 +12,7 @@ interface FlowTermCardProps {
   onSubmitReview: (action: 'approve' | 'reject') => void;
   onSubmitTranslation: (language: string, value: string) => void;
   isSubmitting: boolean;
+  relevantGoal?: { goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null;
 }
 
 const FlowTermCard: React.FC<FlowTermCardProps> = ({
@@ -20,6 +22,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   onSubmitReview,
   onSubmitTranslation,
   isSubmitting,
+  relevantGoal,
 }) => {
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]?.code || 'nl');
   const [translationValue, setTranslationValue] = useState('');
@@ -131,6 +134,22 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
       );
     }
     return null;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const getGoalTypeLabel = (type: string) => {
+    switch (type) {
+      case 'translation_count':
+        return 'Translation Goal';
+      case 'collection':
+        return 'Collection Goal';
+      default:
+        return 'Goal';
+    }
   };
 
   const labelField = getTermField('label', 'prefLabel');
