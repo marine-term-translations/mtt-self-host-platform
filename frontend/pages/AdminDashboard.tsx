@@ -23,7 +23,7 @@ const AdminDashboard: React.FC = () => {
   const [historyGraphData, setHistoryGraphData] = useState<ContributionData[]>([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('last_14_days');
 
-  const fetchContributionsOverTime = async (timeframe: string) => {
+  const fetchContributionsOverTime = React.useCallback(async (timeframe: string) => {
     try {
       const data = await backendApi.get<{ timeframe: string; data: ContributionData[] }>(
         '/stats/contributions-over-time',
@@ -34,7 +34,7 @@ const AdminDashboard: React.FC = () => {
       console.error("Failed to fetch contributions over time", error);
       toast.error("Failed to load contribution history");
     }
-  };
+  }, []);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -71,7 +71,7 @@ const AdminDashboard: React.FC = () => {
       }
     };
     fetchAdminData();
-  }, [selectedTimeframe]);
+  }, [selectedTimeframe, fetchContributionsOverTime]);
 
   // --- Helpers for SVG Charts ---
 
@@ -99,6 +99,31 @@ const AdminDashboard: React.FC = () => {
              </div>
          );
      });
+  };
+
+  // Helper function to format date labels
+  const formatDateLabel = (dateStr: string): string => {
+    // Handle both date-only (YYYY-MM-DD) and datetime (YYYY-MM-DD HH:MM:SS) formats
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      // If parsing fails, return the first part before 'T' or space
+      return dateStr.split(/[T ]/)[0];
+    }
+    
+    // Check if it includes time (hourly grouping)
+    if (dateStr.includes(':')) {
+      // Format as "MM-DD HH:mm"
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${month}-${day} ${hours}:${minutes}`;
+    } else {
+      // Format as "MM-DD" for daily grouping
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${month}-${day}`;
+    }
   };
 
   // Stacked Bar Chart for Contributions Over Time
@@ -195,7 +220,7 @@ const AdminDashboard: React.FC = () => {
                 return i % step === 0 || i === historyGraphData.length - 1;
               })
               .map((d, idx) => (
-                <span key={idx} className="truncate">{d.date.split('T')[0]}</span>
+                <span key={idx} className="truncate">{formatDateLabel(d.date)}</span>
               ))}
           </div>
           
