@@ -651,8 +651,8 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
     const timeframe = req.query.timeframe || 'last_14_days';
     
     // Calculate date range based on timeframe
-    let dateCondition = '';
     let groupByFormat = "date(created_at)"; // Default: group by day
+    const whereConditions = ["status != 'original'"]; // Always exclude 'original' status
     
     const now = new Date();
     let startDate;
@@ -661,27 +661,30 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
       case 'last_hour':
         startDate = new Date(now.getTime() - 60 * 60 * 1000);
         groupByFormat = "datetime(created_at, 'start of hour')"; // Group by hour
-        dateCondition = `WHERE created_at >= datetime('${startDate.toISOString()}')`;
+        whereConditions.push(`created_at >= datetime('${startDate.toISOString()}')`);
         break;
       case 'last_week':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        dateCondition = `WHERE created_at >= datetime('${startDate.toISOString()}')`;
+        whereConditions.push(`created_at >= datetime('${startDate.toISOString()}')`);
         break;
       case 'last_14_days':
         startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-        dateCondition = `WHERE created_at >= datetime('${startDate.toISOString()}')`;
+        whereConditions.push(`created_at >= datetime('${startDate.toISOString()}')`);
         break;
       case 'last_month':
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        dateCondition = `WHERE created_at >= datetime('${startDate.toISOString()}')`;
+        whereConditions.push(`created_at >= datetime('${startDate.toISOString()}')`);
         break;
       case 'all_time':
-        dateCondition = '';
+        // No date filter for all time, only exclude 'original' status
         break;
       default:
         startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-        dateCondition = `WHERE created_at >= datetime('${startDate.toISOString()}')`;
+        whereConditions.push(`created_at >= datetime('${startDate.toISOString()}')`);
     }
+    
+    // Build WHERE clause
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     
     // Get translation counts by date and status (excluding 'original' status)
     const query = `
@@ -690,8 +693,7 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
         status,
         COUNT(*) as count
       FROM translations
-      ${dateCondition}
-      ${dateCondition ? 'AND' : 'WHERE'} status != 'original'
+      ${whereClause}
       GROUP BY date, status
       ORDER BY date ASC, status
     `;

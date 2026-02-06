@@ -71,12 +71,6 @@ const AdminDashboard: React.FC = () => {
       }
     };
     fetchAdminData();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      fetchContributionsOverTime(selectedTimeframe);
-    }
   }, [selectedTimeframe]);
 
   // --- Helpers for SVG Charts ---
@@ -113,6 +107,9 @@ const AdminDashboard: React.FC = () => {
         return <div className="text-center text-slate-400 text-sm py-8">No data available for this timeframe</div>;
       }
 
+      // Maximum number of x-axis labels to display
+      const MAX_X_AXIS_LABELS = 7;
+      
       const statusOrder = ['merged', 'approved', 'review', 'draft', 'rejected'];
       const colors: Record<string, string> = {
           merged: '#a855f7',      // purple-500
@@ -194,7 +191,7 @@ const AdminDashboard: React.FC = () => {
             {historyGraphData
               .filter((_, i) => {
                 // Show fewer labels for better readability based on data points
-                const step = Math.ceil(historyGraphData.length / 7);
+                const step = Math.ceil(historyGraphData.length / MAX_X_AXIS_LABELS);
                 return i % step === 0 || i === historyGraphData.length - 1;
               })
               .map((d, idx) => (
