@@ -382,6 +382,34 @@ class ApiService {
     return this.get('/user/preferences');
   }
 
+  /**
+   * Check if user has configured an OpenRouter API key
+   */
+  public async hasOpenRouterApiKey(): Promise<{ hasApiKey: boolean }> {
+    return this.get('/user/preferences/openrouter-key');
+  }
+
+  /**
+   * Get user's OpenRouter API key (decrypted)
+   */
+  public async getOpenRouterApiKey(): Promise<{ apiKey: string }> {
+    return this.get('/user/preferences/openrouter-key/value');
+  }
+
+  /**
+   * Save user's OpenRouter API key
+   */
+  public async saveOpenRouterApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
+    return this.post('/user/preferences/openrouter-key', { apiKey });
+  }
+
+  /**
+   * Delete user's OpenRouter API key
+   */
+  public async deleteOpenRouterApiKey(): Promise<{ success: boolean; message: string }> {
+    return this.delete('/user/preferences/openrouter-key');
+  }
+
   public async reportAppealMessage(messageId: number, reason: string): Promise<any> {
     return this.post(`/appeals/messages/${messageId}/report`, { reason });
   }
