@@ -104,16 +104,26 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
 
   // Minimized state - show only an icon
   if (isMinimized) {
+    const completedGoals = goals.filter(g => progress[g.id]?.is_complete);
+    const pendingGoals = goals.filter(g => !progress[g.id]?.is_complete);
+    const completedCount = completedGoals.length;
+    const pendingCount = pendingGoals.length;
+    
     return (
       <button
         onClick={toggleMinimize}
-        className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-xl transition-all hover:scale-110 z-50 group"
+        className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:shadow-xl transition-all hover:scale-110 z-50 group animate-pulse-slow"
         aria-label="Show community goals"
       >
         <Target className="w-6 h-6" />
-        {goals.length > 0 && (
+        {pendingCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-            {goals.length}
+            {pendingCount}
+          </span>
+        )}
+        {completedCount > 0 && pendingCount === 0 && (
+          <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {completedCount}
           </span>
         )}
       </button>

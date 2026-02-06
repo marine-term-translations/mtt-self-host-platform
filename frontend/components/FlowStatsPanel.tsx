@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Flame, Target, Award } from 'lucide-react';
+import { Trophy, Flame, Target, Award, AlertTriangle } from 'lucide-react';
 import { UserStats, DailyChallenge } from '../services/flow.api';
 
 interface FlowStatsPanelProps {
@@ -57,6 +57,21 @@ const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Warning Box */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+              Work In Progress
+            </h4>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Session statistics and daily challenges are not fully implemented yet. Numbers may not update as expected.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Session Stats */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-white">

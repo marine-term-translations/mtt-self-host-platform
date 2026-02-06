@@ -162,69 +162,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
   const termUri = task.term_uri || task.uri || null;
 
   return (
-    <>
-      {/* Community Goal Banner */}
-      {relevantGoal && (
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-blue-600 text-white rounded-lg">
-              <Target className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                  Community Goal
-                </h4>
-                <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded">
-                  {getGoalTypeLabel(relevantGoal.goal.goal_type)}
-                </span>
-                {relevantGoal.goal.target_language && (
-                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded uppercase">
-                    {relevantGoal.goal.target_language}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
-                {relevantGoal.goal.title}
-              </p>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {relevantGoal.progress.current_count} / {relevantGoal.progress.target_count || '∞'}
-                  </span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400">
-                    {relevantGoal.progress.progress_percentage}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      relevantGoal.progress.is_complete
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                        : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                    }`}
-                    style={{ width: `${Math.min(relevantGoal.progress.progress_percentage, 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  <span>Until {formatDate(relevantGoal.goal.end_date || relevantGoal.goal.start_date)}</span>
-                </div>
-                {relevantGoal.goal.is_recurring === 1 && relevantGoal.goal.recurrence_type && (
-                  <div className="flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    <span className="capitalize">{relevantGoal.goal.recurrence_type}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-w-3xl mx-auto">
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-w-3xl mx-auto">
       {/* Header */}
       <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
         <div>
@@ -404,7 +342,6 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
         )}
       </div>
     </div>
-    </>
   );
 };
 
