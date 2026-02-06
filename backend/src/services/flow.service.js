@@ -20,9 +20,10 @@ const {
  * Only returns fields with field_role = 'translatable'
  * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter
+ * @param {number} sourceId - Optional source filter
  * @returns {array} Array of translations needing review
  */
-function getPendingReviews(userIdentifier, language = null) {
+function getPendingReviews(userIdentifier, language = null, sourceId = null) {
   const db = getDatabase();
   const { resolveUsernameToId } = require("../db/database");
   
@@ -35,7 +36,7 @@ function getPendingReviews(userIdentifier, language = null) {
     }
   }
   
-  // Build query with optional language filter and translatable fields filter
+  // Build query with optional language and source filter and translatable fields filter
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
             t.created_by_id, t.created_at,
             tf.field_uri, tf.original_value,
@@ -53,6 +54,11 @@ function getPendingReviews(userIdentifier, language = null) {
   if (language) {
     query += ` AND t.language = ?`;
     params.push(language);
+  }
+  
+  if (sourceId) {
+    query += ` AND term.source_id = ?`;
+    params.push(parseInt(sourceId, 10));
   }
   
   query += ` ORDER BY datetime(t.created_at) ASC LIMIT 1`;
@@ -83,12 +89,13 @@ function getPendingReviews(userIdentifier, language = null) {
  * Only returns fields with 'translatable' in field_roles
  * @param {number|string} userIdentifier - User ID or username (optional, for filtering)
  * @param {string} language - Optional language filter
+ * @param {number} sourceId - Optional source filter
  * @returns {object|null} Term field needing translation
  */
-function getRandomUntranslated(userIdentifier, language = null) {
+function getRandomUntranslated(userIdentifier, language = null, sourceId = null) {
   const db = getDatabase();
   
-  // Build query with optional language filter and translatable fields filter
+  // Build query with optional language and source filter and translatable fields filter
   let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
@@ -96,6 +103,11 @@ function getRandomUntranslated(userIdentifier, language = null) {
      WHERE (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
   
   const params = [];
+  
+  if (sourceId) {
+    query += ` AND term.source_id = ?`;
+    params.push(parseInt(sourceId, 10));
+  }
   
   if (language) {
     query += ` AND tf.id NOT IN (
@@ -182,9 +194,10 @@ function getRandomUntranslated(userIdentifier, language = null) {
  * Get the next task for the user (review or translate)
  * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter (if not provided, cycles through user's translation languages)
+ * @param {number} sourceId - Optional source filter
  * @returns {object} Next task object
  */
-function getNextTask(userIdentifier, language = null) {
+function getNextTask(userIdentifier, language = null, sourceId = null) {
   const db = getDatabase();
   const { getUserTranslationLanguages } = require('../utils/languagePreferences');
   
@@ -210,11 +223,14 @@ function getNextTask(userIdentifier, language = null) {
   }
   
   console.log('[Flow] Checking languages for tasks:', languagesToCheck);
+  if (sourceId) {
+    console.log('[Flow] Filtering by source:', sourceId);
+  }
   
   // Try each language in priority order
   for (const lang of languagesToCheck) {
-    // Priority 1: Pending reviews for this language
-    const review = getPendingReviews(userIdentifier, lang);
+    // Priority 1: Pending reviews for this language (and source if specified)
+    const review = getPendingReviews(userIdentifier, lang, sourceId);
     if (review) {
       return {
         type: 'review',
@@ -223,8 +239,8 @@ function getNextTask(userIdentifier, language = null) {
       };
     }
     
-    // Priority 2: Untranslated terms for this language
-    const untranslated = getRandomUntranslated(userIdentifier, lang);
+    // Priority 2: Untranslated terms for this language (and source if specified)
+    const untranslated = getRandomUntranslated(userIdentifier, lang, sourceId);
     if (untranslated) {
       return {
         type: 'translate',

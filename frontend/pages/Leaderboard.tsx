@@ -160,12 +160,19 @@ const Leaderboard: React.FC = () => {
   };
 
   const handleGoalClick = (goal: ApiCommunityGoal) => {
-    // Navigate to Translation Flow with language filter if specified
+    // Navigate to Translation Flow with appropriate filters
+    const params = new URLSearchParams();
+    
     if (goal.target_language) {
-      navigate(`/flow?language=${goal.target_language}`);
-    } else {
-      navigate('/flow');
+      params.append('language', goal.target_language);
     }
+    
+    if (goal.goal_type === 'collection' && goal.collection_id) {
+      params.append('source', goal.collection_id.toString());
+    }
+    
+    const queryString = params.toString();
+    navigate(queryString ? `/flow?${queryString}` : '/flow');
   };
 
   if (loading) {

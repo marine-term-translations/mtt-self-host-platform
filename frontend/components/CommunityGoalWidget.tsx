@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Target, TrendingUp, Calendar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ interface CommunityGoalWidgetProps {
 
 const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,11 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
   useEffect(() => {
     fetchGoals();
   }, []);
+
+  // Refetch goals when URL hash changes
+  useEffect(() => {
+    fetchGoals();
+  }, [location.hash]);
 
   const fetchGoals = async () => {
     try {
@@ -61,12 +67,19 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
   };
 
   const handleGoalClick = (goal: ApiCommunityGoal) => {
-    // Navigate to Translation Flow with language filter if specified
+    // Navigate to Translation Flow with appropriate filters
+    const params = new URLSearchParams();
+    
     if (goal.target_language) {
-      navigate(`/flow?language=${goal.target_language}`);
-    } else {
-      navigate('/flow');
+      params.append('language', goal.target_language);
     }
+    
+    if (goal.goal_type === 'collection' && goal.collection_id) {
+      params.append('source', goal.collection_id.toString());
+    }
+    
+    const queryString = params.toString();
+    navigate(queryString ? `/flow?${queryString}` : '/flow');
   };
 
   const formatDate = (dateString: string) => {

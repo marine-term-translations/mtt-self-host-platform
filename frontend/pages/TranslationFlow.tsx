@@ -24,6 +24,7 @@ const TranslationFlow: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const selectedLanguage = searchParams.get('language') || undefined;
+  const selectedSource = searchParams.get('source') || undefined;
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
@@ -46,7 +47,7 @@ const TranslationFlow: React.FC = () => {
 
         // Start session and get languages in parallel
         const [sessionData, languagesData] = await Promise.all([
-          startFlowSession(selectedLanguage),
+          startFlowSession(selectedLanguage, selectedSource),
           getAvailableLanguages(),
         ]);
 
@@ -56,7 +57,7 @@ const TranslationFlow: React.FC = () => {
         setLanguages(languagesData.languages);
 
         // Get first task
-        const task = await getNextTask(selectedLanguage);
+        const task = await getNextTask(selectedLanguage, selectedSource);
         setCurrentTask(task);
         
         // Fetch relevant community goal for the first task
@@ -74,12 +75,12 @@ const TranslationFlow: React.FC = () => {
     if (user) {
       initFlow();
     }
-  }, [user, selectedLanguage]);
+  }, [user, selectedLanguage, selectedSource]);
 
   // Load next task
   const loadNextTask = async () => {
     try {
-      const task = await getNextTask(selectedLanguage);
+      const task = await getNextTask(selectedLanguage, selectedSource);
       setCurrentTask(task);
       
       // Fetch relevant community goal for this task
