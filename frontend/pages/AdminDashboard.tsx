@@ -1,7 +1,6 @@
 
-
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search, Box, Languages } from 'lucide-react';
+import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search, Box, Languages, Target } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -250,7 +249,24 @@ const AdminDashboard: React.FC = () => {
             </Link>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm md:col-span-2">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+             <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Target size={20} className="text-blue-600" />
+                        Community Goals
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Create and manage community-wide translation goals and challenges
+                    </p>
+                </div>
+            </div>
+            <Link to="/admin/community-goals" className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                Manage Goals &rarr;
+            </Link>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
