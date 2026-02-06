@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Target, TrendingUp, Calendar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import toast from 'react-hot-toast';
@@ -10,6 +11,7 @@ interface CommunityGoalWidgetProps {
 }
 
 const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) => {
+  const navigate = useNavigate();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,15 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
     const newState = !isMinimized;
     setIsMinimized(newState);
     localStorage.setItem('communityGoalsMinimized', String(newState));
+  };
+
+  const handleGoalClick = (goal: ApiCommunityGoal) => {
+    // Navigate to Translation Flow with language filter if specified
+    if (goal.target_language) {
+      navigate(`/flow?language=${goal.target_language}`);
+    } else {
+      navigate('/flow');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -117,7 +128,11 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
           const goalProgress = progress[goal.id];
           
           return (
-            <div key={goal.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+            <div 
+              key={goal.id} 
+              onClick={() => handleGoalClick(goal)}
+              className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+            >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">

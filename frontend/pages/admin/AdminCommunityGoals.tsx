@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Check, X, Target, Calendar, TrendingUp, Globe } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { backendApi } from '../../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../../types';
 import toast from 'react-hot-toast';
@@ -20,6 +21,7 @@ interface Source {
 }
 
 const AdminCommunityGoals: React.FC = () => {
+  const location = useLocation();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [loading, setLoading] = useState(true);
@@ -46,6 +48,11 @@ const AdminCommunityGoals: React.FC = () => {
     fetchLanguages();
     fetchSources();
   }, []);
+
+  // Refetch goals when URL hash changes
+  useEffect(() => {
+    fetchGoals();
+  }, [location.hash]);
 
   const fetchGoals = async () => {
     try {
@@ -315,9 +322,16 @@ const AdminCommunityGoals: React.FC = () => {
                     ))}
                   </select>
                   {formData.collection_id && sources.find(s => s.source_id === parseInt(formData.collection_id)) && (
-                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                      Graph: {sources.find(s => s.source_id === parseInt(formData.collection_id))?.graph_name || 'N/A'}
-                    </p>
+                    <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                      <p>
+                        <span className="font-semibold">Graph:</span> {sources.find(s => s.source_id === parseInt(formData.collection_id))?.graph_name || 'N/A'}
+                      </p>
+                      {sources.find(s => s.source_id === parseInt(formData.collection_id))?.description && (
+                        <p>
+                          <span className="font-semibold">Description:</span> {sources.find(s => s.source_id === parseInt(formData.collection_id))?.description}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

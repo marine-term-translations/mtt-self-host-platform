@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Trophy, Users, Globe, BarChart3, CheckCircle, Clock, FileText, XCircle, GitMerge, Loader2, Book, Target, TrendingUp, Calendar } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiPublicUser, ApiTerm, ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import toast from 'react-hot-toast';
 
 const Leaderboard: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalStats, setGlobalStats] = useState({
@@ -155,6 +156,15 @@ const Leaderboard: React.FC = () => {
         return 'Collection Goal';
       default:
         return 'Goal';
+    }
+  };
+
+  const handleGoalClick = (goal: ApiCommunityGoal) => {
+    // Navigate to Translation Flow with language filter if specified
+    if (goal.target_language) {
+      navigate(`/flow?language=${goal.target_language}`);
+    } else {
+      navigate('/flow');
     }
   };
 
@@ -341,7 +351,8 @@ const Leaderboard: React.FC = () => {
               return (
                 <div
                   key={goal.id}
-                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6"
+                  onClick={() => handleGoalClick(goal)}
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 cursor-pointer hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
