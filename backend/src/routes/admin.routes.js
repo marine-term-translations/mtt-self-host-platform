@@ -194,9 +194,14 @@ router.put("/admin/users/:id/ban", requireAdmin, apiLimiter, (req, res) => {
       return res.status(403).json({ error: 'Cannot ban superadmin' });
     }
     
-    // Update both the is_banned column and ban_reason column
-    db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(reason || 'No reason provided', userId);
+    // Update both the database column AND the extra field for backward compatibility
+    const banReason = reason || 'No reason provided';
+    extra.is_banned = true;
+    extra.ban_reason = banReason;
+    extra.banned_at = datetime.toISO(datetime.now());
+    
+    db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(banReason, JSON.stringify(extra), userId);
     
     // Log admin activity
     const adminUserId = req.session.user.id || req.session.user.user_id;
@@ -205,7 +210,7 @@ router.put("/admin/users/:id/ban", requireAdmin, apiLimiter, (req, res) => {
     ).run(
       adminUserId,
       'admin_user_banned',
-      JSON.stringify({ target_user_id: userId, target_username: user.username, reason: reason || 'No reason provided' })
+      JSON.stringify({ target_user_id: userId, target_username: user.username, reason: banReason })
     );
     
     res.json({ success: true, message: 'User banned successfully' });
@@ -241,9 +246,14 @@ router.put("/admin/users/:id/unban", requireAdmin, apiLimiter, (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Update both the is_banned column and ban_reason column
-    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(userId);
+    // Update both the database column AND the extra field for backward compatibility
+    const extra = user.extra ? JSON.parse(user.extra) : {};
+    extra.is_banned = false;
+    extra.ban_reason = '';
+    extra.banned_at = '';
+    
+    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(JSON.stringify(extra), userId);
     
     // Log admin activity
     const adminUserId = req.session.user.id || req.session.user.user_id;
