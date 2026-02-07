@@ -923,7 +923,8 @@ router.get("/admin/activity", requireAdmin, apiLimiter, (req, res) => {
     
     // Get total count
     const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM');
-    const { total } = db.prepare(countQuery).get(...params);
+    const countResult = db.prepare(countQuery).get(...params);
+    const total = countResult ? countResult.total : 0;
     
     // Add pagination and ordering
     const offset = (parseInt(page) - 1) * parseInt(limit);

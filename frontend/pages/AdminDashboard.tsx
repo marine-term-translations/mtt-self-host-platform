@@ -445,24 +445,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Management Panels */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-             <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <DownloadCloud size={20} className="text-indigo-600" />
-                        Harvest & Import
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Import terms from SPARQL endpoints, LDES feeds, or upload static files
-                    </p>
-                </div>
-            </div>
-            <Link to="/admin/harvest" className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
-                Manage Imports &rarr;
-            </Link>
-        </div>
-
+      <div className="grid md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
