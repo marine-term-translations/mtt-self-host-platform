@@ -63,13 +63,60 @@ const AdminActivity: React.FC = () => {
     
     switch (action) {
       case 'admin_user_promoted':
-        return `Promoted user ${extra?.target_username || 'unknown'} to admin`;
+        return (
+          <>
+            Promoted user{' '}
+            {extra?.target_user_id ? (
+              <Link to={`/user/${extra.target_user_id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-semibold">
+                {extra?.target_username || 'unknown'}
+              </Link>
+            ) : (
+              <span className="font-semibold">{extra?.target_username || 'unknown'}</span>
+            )}{' '}
+            to admin
+          </>
+        );
       case 'admin_user_demoted':
-        return `Demoted user ${extra?.target_username || 'unknown'} from admin`;
+        return (
+          <>
+            Demoted user{' '}
+            {extra?.target_user_id ? (
+              <Link to={`/user/${extra.target_user_id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-semibold">
+                {extra?.target_username || 'unknown'}
+              </Link>
+            ) : (
+              <span className="font-semibold">{extra?.target_username || 'unknown'}</span>
+            )}{' '}
+            from admin
+          </>
+        );
       case 'admin_user_banned':
-        return `Banned user ${extra?.target_username || 'unknown'}${extra?.reason ? `: ${extra.reason}` : ''}`;
+        return (
+          <>
+            Banned user{' '}
+            {extra?.target_user_id ? (
+              <Link to={`/user/${extra.target_user_id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-semibold">
+                {extra?.target_username || 'unknown'}
+              </Link>
+            ) : (
+              <span className="font-semibold">{extra?.target_username || 'unknown'}</span>
+            )}
+            {extra?.reason ? `: ${extra.reason}` : ''}
+          </>
+        );
       case 'admin_user_unbanned':
-        return `Unbanned user ${extra?.target_username || 'unknown'}`;
+        return (
+          <>
+            Unbanned user{' '}
+            {extra?.target_user_id ? (
+              <Link to={`/user/${extra.target_user_id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline font-semibold">
+                {extra?.target_username || 'unknown'}
+              </Link>
+            ) : (
+              <span className="font-semibold">{extra?.target_username || 'unknown'}</span>
+            )}
+          </>
+        );
       case 'admin_translation_status_changed':
         return `Changed translation #${activity.translation_id} status from "${extra?.previous_status}" to "${extra?.new_status}"`;
       case 'admin_translation_language_changed':
@@ -165,7 +212,12 @@ const AdminActivity: React.FC = () => {
                       <div className="mt-1 flex items-center text-xs text-slate-500 dark:text-slate-400 space-x-4">
                         <span className="flex items-center">
                           <User className="w-3 h-3 mr-1" />
-                          {activity.admin_username}
+                          <Link 
+                            to={`/user/${activity.user_id}`}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+                          >
+                            {activity.admin_username}
+                          </Link>
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />
