@@ -171,10 +171,10 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
   return (
     <div className="bg-white dark:bg-slate-800 md:rounded-xl md:shadow-lg md:border md:border-slate-200 md:dark:border-slate-700 overflow-hidden md:max-w-3xl md:mx-auto">
       {/* Header */}
-      <div className="bg-slate-50 dark:bg-slate-900/50 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
+      <div className="bg-slate-50 dark:bg-slate-900/50 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start gap-2 overflow-hidden">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                {taskType === 'review' ? 'Review Task' : 'Translation Task'}
              </span>
              {taskType === 'review' ? (
@@ -187,8 +187,8 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                 </span>
              )}
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {prefLabel}
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2 min-w-0">
+            <span className="truncate flex-1">{prefLabel}</span>
             {termUri && (
                 <a 
                   href={termUri} 
@@ -213,22 +213,22 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                 <Quote size={12} /> Context (Definition)
             </h3>
-            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed italic border-l-4 border-slate-200 dark:border-slate-700 pl-4 py-1">
+            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed italic border-l-4 border-slate-200 dark:border-slate-700 pl-4 py-1 break-words">
                 {definition}
             </p>
         </div>
 
         {/* Source Field */}
         <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-                <span className="px-2.5 py-1 rounded-md bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-300 text-xs font-mono font-bold border border-marine-200 dark:border-marine-800">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="px-2.5 py-1 rounded-md bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-300 text-xs font-mono font-bold border border-marine-200 dark:border-marine-800 truncate max-w-full">
                     {task.field_uri?.split('/').pop()?.split('#').pop() || 'Unknown Field'}
                 </span>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                     Source Text to {taskType === 'review' ? 'Verify' : 'Translate'}
                 </span>
             </div>
-            <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner">
+            <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner break-words overflow-wrap-anywhere">
                 {task.original_value || 'No content'}
             </div>
         </div>
@@ -243,13 +243,13 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                              Proposed Translation ({task.language?.toUpperCase()})
                         </label>
-                        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-900/5">
+                        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-900/5 break-words overflow-wrap-anywhere">
                              {task.value}
                         </div>
                         {task.created_by && (
                            <div className="mt-2 text-xs text-slate-400 flex items-center gap-1">
                               <span>Submitted by</span>
-                              <span className="font-medium text-slate-600 dark:text-slate-300">{task.created_by}</span>
+                              <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{task.created_by}</span>
                            </div>
                         )}
                      </div>
