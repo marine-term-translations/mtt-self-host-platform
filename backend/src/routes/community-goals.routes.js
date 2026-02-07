@@ -521,7 +521,7 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
           const queryParams = [goal.target_language, goal.start_date];
           
           if (goal.end_date) {
-            translatedQuery += '              AND tr.created_at <= ?\n';
+            translatedQuery += ' AND tr.created_at <= ?';
             queryParams.push(goal.end_date);
           }
           
