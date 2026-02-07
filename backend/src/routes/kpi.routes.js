@@ -326,8 +326,9 @@ router.post("/kpi/download", requireAdmin, writeLimiter, async (req, res) => {
     const csv = convertToCSV(results);
     const filename = `${queryId}_${new Date().toISOString().split('T')[0]}.csv`;
     
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', Buffer.byteLength(csv, 'utf8'));
     res.send(csv);
   } catch (err) {
     console.error('KPI CSV download error:', err);
@@ -348,21 +349,10 @@ router.post("/kpi/download", requireAdmin, writeLimiter, async (req, res) => {
  */
 router.post("/kpi/download-report", requireAdmin, writeLimiter, async (req, res) => {
   try {
-    const archive = archiver('zip', {
-      zlib: { level: 9 } // Maximum compression
-    });
-    
-    // Set response headers
-    const filename = `kpi_report_${new Date().toISOString().split('T')[0]}.zip`;
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    // Pipe archive to response
-    archive.pipe(res);
-    
-    // Execute all queries and add to archive
+    // Execute all queries FIRST before creating the archive
     const db = getDatabase();
     const queryIds = Object.keys(KPI_QUERIES);
+    const queryResults = [];
     
     for (const queryId of queryIds) {
       try {
@@ -377,22 +367,52 @@ router.post("/kpi/download-report", requireAdmin, writeLimiter, async (req, res)
         }
         
         const csv = convertToCSV(results);
-        const csvFilename = `${queryId}.csv`;
-        
-        // Add CSV to archive
-        archive.append(csv, { name: csvFilename });
+        queryResults.push({
+          filename: `${queryId}.csv`,
+          content: csv
+        });
       } catch (queryError) {
         console.error(`Error executing query ${queryId}:`, queryError);
-        // Add error file to archive
-        archive.append(`Error: ${queryError.message}`, { name: `${queryId}_ERROR.txt` });
+        // Add error file
+        queryResults.push({
+          filename: `${queryId}_ERROR.txt`,
+          content: `Error: ${queryError.message}`
+        });
       }
+    }
+    
+    // Now create and send the archive
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+    
+    // Set response headers
+    const filename = `kpi_report_${new Date().toISOString().split('T')[0]}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Handle archive errors
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      throw err;
+    });
+    
+    // Pipe archive to response
+    archive.pipe(res);
+    
+    // Add all files to archive
+    for (const result of queryResults) {
+      archive.append(result.content, { name: result.filename });
     }
     
     // Finalize archive
     await archive.finalize();
   } catch (err) {
     console.error('KPI report generation error:', err);
-    res.status(500).json({ error: err.message });
+    // Only send JSON error if response hasn't started
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
