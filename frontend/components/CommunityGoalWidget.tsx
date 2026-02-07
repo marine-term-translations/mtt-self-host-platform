@@ -191,7 +191,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-600 dark:text-slate-400">
-                      {goalProgress.current_count} / {goalProgress.target_count || '∞'}
+                      {goalProgress.current_count} / {goalProgress.target_count || 'No limit'}
                     </span>
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {goalProgress.progress_percentage}%

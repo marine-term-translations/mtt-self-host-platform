@@ -161,7 +161,7 @@ const CommunityGoals: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-600 dark:text-slate-400 font-medium">
-                          Progress: {goalProgress.current_count} / {goalProgress.target_count || '∞'}
+                          Progress: {goalProgress.current_count} / {goalProgress.target_count || 'No limit'}
                         </span>
                         <span className="font-bold text-blue-600 dark:text-blue-400">
                           {goalProgress.progress_percentage}%
