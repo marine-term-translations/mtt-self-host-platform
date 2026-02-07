@@ -187,8 +187,8 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                 </span>
              )}
           </div>
-          <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2 min-w-0">
-            <span className="truncate flex-1">{prefLabel}</span>
+          <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2 min-w-0 truncate">
+            {prefLabel}
             {termUri && (
                 <a 
                   href={termUri} 
@@ -228,7 +228,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     Source Text to {taskType === 'review' ? 'Verify' : 'Translate'}
                 </span>
             </div>
-            <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner break-words overflow-wrap-anywhere">
+            <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner overflow-wrap-anywhere">
                 {task.original_value || 'No content'}
             </div>
         </div>
@@ -243,7 +243,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                              Proposed Translation ({task.language?.toUpperCase()})
                         </label>
-                        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-900/5 break-words overflow-wrap-anywhere">
+                        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-900/5 overflow-wrap-anywhere">
                              {task.value}
                         </div>
                         {task.created_by && (
