@@ -79,7 +79,7 @@ router.put("/admin/users/:id/promote", requireAdmin, apiLimiter, (req, res) => {
     const extra = user.extra ? JSON.parse(user.extra) : {};
     extra.is_admin = true;
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
     
     // Log admin activity
@@ -134,7 +134,7 @@ router.put("/admin/users/:id/demote", requireAdmin, apiLimiter, (req, res) => {
     
     extra.is_admin = false;
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
     
     // Log admin activity
@@ -203,7 +203,7 @@ router.put("/admin/users/:id/ban", requireAdmin, apiLimiter, (req, res) => {
     extra.ban_reason = banReason;
     extra.banned_at = datetime.toISO(datetime.now());
     
-    db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, extra = ? WHERE id = ?')
       .run(banReason, JSON.stringify(extra), userId);
     
     // Log admin activity
@@ -255,7 +255,7 @@ router.put("/admin/users/:id/unban", requireAdmin, apiLimiter, (req, res) => {
     extra.ban_reason = '';
     extra.banned_at = '';
     
-    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
     
     // Log admin activity
