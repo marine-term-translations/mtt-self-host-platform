@@ -26,8 +26,7 @@ import AdminModeration from './pages/admin/AdminModeration';
 import AdminHarvest from './pages/admin/AdminHarvest';
 import AdminSources from './pages/admin/AdminSources';
 import AdminSourceDetail from './pages/admin/AdminSourceDetail';
-import AdminQuery from './pages/admin/AdminQuery';
-import AdminTriplestore from './pages/admin/AdminTriplestore';
+import AdminKPI from './pages/admin/AdminKPI';
 import AdminTasks from './pages/admin/AdminTasks';
 import AdminTaskDetail from './pages/admin/AdminTaskDetail';
 import AdminTranslations from './pages/admin/AdminTranslations';
@@ -164,14 +163,9 @@ const App: React.FC = () => {
             <AdminSourceDetail />
           </AdminRoute>
         } />
-        <Route path="/admin/query" element={
+        <Route path="/admin/kpi" element={
           <AdminRoute>
-            <AdminQuery />
-          </AdminRoute>
-        } />
-        <Route path="/admin/triplestore" element={
-          <AdminRoute>
-            <AdminTriplestore />
+            <AdminKPI />
           </AdminRoute>
         } />
         <Route path="/admin/tasks" element={

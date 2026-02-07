@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Search, Box, Languages, Target } from 'lucide-react';
+import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Target } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -352,7 +352,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid md:grid-cols-6 gap-6 mb-8">
+      <div className="grid md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
@@ -416,31 +416,16 @@ const AdminDashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Database</p>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">KPI's</p>
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                        Query Tool
+                        Analytics
                     </h3>
                 </div>
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg">
-                    <Search size={20} />
+                <div className="p-2 bg-marine-100 dark:bg-marine-900/30 text-marine-600 rounded-lg">
+                    <TrendingUp size={20} />
                 </div>
             </div>
-            <Link to="/admin/query" className="text-xs font-medium text-purple-600 hover:text-purple-700">Run Queries &rarr;</Link>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-             <div className="flex justify-between items-start mb-4">
-                <div>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Triplestore</p>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
-                        SPARQL
-                    </h3>
-                </div>
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-lg">
-                    <Box size={20} />
-                </div>
-            </div>
-            <Link to="/admin/triplestore" className="text-xs font-medium text-indigo-600 hover:text-indigo-700">Query RDF &rarr;</Link>
+            <Link to="/admin/kpi" className="text-xs font-medium text-marine-600 hover:text-marine-700">View KPI's &rarr;</Link>
         </div>
       </div>
 
