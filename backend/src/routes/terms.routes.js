@@ -526,47 +526,50 @@ router.get("/stats", apiLimiter, (req, res) => {
     // Get total terms count
     const totalTerms = db.prepare("SELECT COUNT(*) as count FROM terms").get().count;
     
-    // Get total translations count
-    const totalTranslations = db.prepare("SELECT COUNT(*) as count FROM translations").get().count;
+    // Get total translations count (excluding 'original' status)
+    const totalTranslations = db.prepare("SELECT COUNT(*) as count FROM translations WHERE status != 'original'").get().count;
     
-    // Get translation counts by language and status
+    // Get translation counts by language and status (excluding 'original' status)
     const byLanguageAndStatus = db.prepare(`
       SELECT 
         language,
         status,
         COUNT(*) as count
       FROM translations
+      WHERE status != 'original'
       GROUP BY language, status
       ORDER BY language, status
     `).all();
     
-    // Get translation counts by language (all statuses)
+    // Get translation counts by language (all statuses except 'original')
     const byLanguage = db.prepare(`
       SELECT 
         language,
         COUNT(*) as count
       FROM translations
+      WHERE status != 'original'
       GROUP BY language
       ORDER BY language
     `).all();
     
-    // Get translation counts by status (all languages)
+    // Get translation counts by status (all languages, excluding 'original')
     const byStatus = db.prepare(`
       SELECT 
         status,
         COUNT(*) as count
       FROM translations
+      WHERE status != 'original'
       GROUP BY status
       ORDER BY status
     `).all();
     
-    // Get user contribution counts
+    // Get user contribution counts (excluding 'original' status)
     const byUser = db.prepare(`
       SELECT 
         u.username,
         COUNT(t.id) as count
       FROM users u
-      LEFT JOIN translations t ON u.id = t.created_by_id
+      LEFT JOIN translations t ON u.id = t.created_by_id AND t.status != 'original'
       GROUP BY u.id, u.username
       ORDER BY count DESC
     `).all();
@@ -603,6 +606,124 @@ router.get("/stats", apiLimiter, (req, res) => {
       byLanguage: languageStats,
       byStatus: statusStats,
       byUser: userStats
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/stats/contributions-over-time:
+ *   get:
+ *     summary: Get contributions over time with status breakdown
+ *     parameters:
+ *       - in: query
+ *         name: timeframe
+ *         schema:
+ *           type: string
+ *           enum: [last_hour, last_week, last_14_days, last_month, all_time]
+ *           default: last_14_days
+ *         description: Timeframe for the statistics
+ *     responses:
+ *       200:
+ *         description: Returns time-series data of contributions by status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 timeframe:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       date:
+ *                         type: string
+ *                       byStatus:
+ *                         type: object
+ */
+router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    const timeframe = req.query.timeframe || 'last_14_days';
+    
+    // Calculate date range based on timeframe
+    let groupByFormat = "date(created_at)"; // Default: group by day
+    const whereConditions = ["status != 'original'"]; // Always exclude 'original' status
+    const queryParams = []; // Parameters for prepared statement
+    
+    const now = new Date();
+    let startDate;
+    
+    // Helper to add date condition
+    const addDateCondition = (hoursBack) => {
+      startDate = new Date(now.getTime() - hoursBack * 60 * 60 * 1000);
+      whereConditions.push('created_at >= ?');
+      queryParams.push(startDate.toISOString());
+    };
+    
+    switch (timeframe) {
+      case 'last_hour':
+        groupByFormat = "datetime(created_at, 'start of hour')"; // Group by hour
+        addDateCondition(1);
+        break;
+      case 'last_week':
+        addDateCondition(7 * 24);
+        break;
+      case 'last_14_days':
+        addDateCondition(14 * 24);
+        break;
+      case 'last_month':
+        addDateCondition(30 * 24);
+        break;
+      case 'all_time':
+        // No date filter for all time, only exclude 'original' status
+        break;
+      default:
+        addDateCondition(14 * 24);
+    }
+    
+    // Build WHERE clause
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    
+    // Get translation counts by date and status (using parameterized query)
+    const query = `
+      SELECT 
+        ${groupByFormat} as date,
+        status,
+        COUNT(*) as count
+      FROM translations
+      ${whereClause}
+      GROUP BY date, status
+      ORDER BY date ASC, status
+    `;
+    
+    const results = db.prepare(query).all(...queryParams);
+    
+    // Group by date
+    const dataByDate = {};
+    for (const row of results) {
+      if (!dataByDate[row.date]) {
+        dataByDate[row.date] = {
+          date: row.date,
+          byStatus: {}
+        };
+      }
+      dataByDate[row.date].byStatus[row.status] = row.count;
+    }
+    
+    // Convert to array and calculate totals
+    const data = Object.values(dataByDate).map(item => ({
+      ...item,
+      total: Object.values(item.byStatus).reduce((sum, count) => sum + count, 0)
+    }));
+    
+    res.json({
+      timeframe,
+      data
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

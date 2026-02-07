@@ -5,6 +5,12 @@ import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
+interface ContributionData {
+  date: string;
+  byStatus: Record<string, number>;
+  total: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -14,7 +20,23 @@ const AdminDashboard: React.FC = () => {
     openAppeals: 0,
   });
   const [statusDist, setStatusDist] = useState<Record<string, number>>({});
-  const [historyGraphData, setHistoryGraphData] = useState<{date: string, count: number}[]>([]);
+  const [historyGraphData, setHistoryGraphData] = useState<ContributionData[]>([]);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('last_14_days');
+
+  const fetchContributionsOverTime = React.useCallback(async (timeframe: string) => {
+    try {
+      console.log('Fetching contributions for timeframe:', timeframe);
+      const data = await backendApi.get<{ timeframe: string; data: ContributionData[] }>(
+        '/stats/contributions-over-time',
+        { timeframe }
+      );
+      console.log('Received contributions data:', data);
+      setHistoryGraphData(data.data);
+    } catch (error) {
+      console.error("Failed to fetch contributions over time", error);
+      toast.error("Failed to load contribution history");
+    }
+  }, []);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -29,12 +51,8 @@ const AdminDashboard: React.FC = () => {
         // 1. Counts
         const openAppeals = appeals.filter(a => a.status === 'open').length;
         
-        // 2. Status Distribution from stats endpoint
+        // 2. Status Distribution from stats endpoint (already excludes 'original')
         const dist = statsData.byStatus || { merged: 0, approved: 0, review: 0, draft: 0, rejected: 0 };
-
-        // 3. For time series, we'd need additional data - for now, use empty array
-        // In the future, we could add a time-series endpoint or fetch recent activity
-        const graphData: {date: string, count: number}[] = [];
 
         setStats({
             userCount: users.length,
@@ -43,7 +61,9 @@ const AdminDashboard: React.FC = () => {
             openAppeals
         });
         setStatusDist(dist);
-        setHistoryGraphData(graphData);
+        
+        // 3. Fetch contributions over time
+        await fetchContributionsOverTime(selectedTimeframe);
 
       } catch (error) {
         console.error("Admin fetch error", error);
@@ -53,7 +73,7 @@ const AdminDashboard: React.FC = () => {
       }
     };
     fetchAdminData();
-  }, []);
+  }, [selectedTimeframe, fetchContributionsOverTime]);
 
   // --- Helpers for SVG Charts ---
 
@@ -83,43 +103,239 @@ const AdminDashboard: React.FC = () => {
      });
   };
 
-  // SVG Line Chart Logic
-  const renderLineChart = () => {
-      if (historyGraphData.length < 2) return <div className="text-center text-slate-400 text-sm py-8">Not enough data for trend graph</div>;
+  // Helper function to format date labels
+  const formatDateLabel = (dateStr: string): string => {
+    // Handle both date-only (YYYY-MM-DD) and datetime (YYYY-MM-DD HH:MM:SS) formats
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      // If parsing fails, return the first part before 'T' or space
+      return dateStr.split(/[T ]/)[0];
+    }
+    
+    // Check if it includes time (hourly grouping)
+    if (dateStr.includes(':')) {
+      // Format as "MM-DD HH:mm"
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${month}-${day} ${hours}:${minutes}`;
+    } else {
+      // Format as "MM-DD" for daily grouping
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${month}-${day}`;
+    }
+  };
 
-      const height = 60;
-      const width = 100;
-      const maxVal = Math.max(...historyGraphData.map(d => d.count), 1);
+  // Line Graph for Contributions Over Time
+  const renderLineGraph = () => {
+      if (historyGraphData.length === 0) {
+        return <div className="text-center text-slate-400 text-sm py-8">No data available for this timeframe</div>;
+      }
+
+      const statusOrder = ['draft', 'review', 'approved', 'merged', 'rejected'];
+      const colors: Record<string, string> = {
+          merged: '#a855f7',      // purple-500
+          approved: '#22c55e',    // green-500
+          review: '#f59e0b',      // amber-500
+          draft: '#94a3b8',       // slate-400
+          rejected: '#ef4444',    // red-500
+          total: '#3b82f6'        // blue-500
+      };
       
-      const points = historyGraphData.map((d, i) => {
-          const x = (i / (historyGraphData.length - 1)) * width;
-          const y = height - (d.count / maxVal) * height;
+      // Find max total for scaling
+      const maxTotal = Math.max(...historyGraphData.map(d => d.total), 1);
+      
+      // Calculate Y-axis labels (5 evenly spaced values from 0 to maxTotal)
+      const yAxisSteps = 5;
+      const yAxisLabels = Array.from({ length: yAxisSteps }, (_, i) => {
+        return Math.round((maxTotal / (yAxisSteps - 1)) * (yAxisSteps - 1 - i));
+      });
+      
+      // Chart dimensions
+      const chartHeight = 320; // h-80 in pixels
+      const chartWidth = 100; // percentage
+      
+      // Calculate points for each line
+      const getYPosition = (value: number) => {
+        return ((maxTotal - value) / maxTotal) * 100; // Inverted for SVG coordinates
+      };
+      
+      const getXPosition = (index: number) => {
+        return (index / (historyGraphData.length - 1)) * 100;
+      };
+      
+      // Generate SVG path for a line
+      const generatePath = (dataKey: 'total' | keyof ContributionData['byStatus']) => {
+        const points = historyGraphData.map((d, i) => {
+          const value = dataKey === 'total' ? d.total : (d.byStatus[dataKey] || 0);
+          const x = getXPosition(i);
+          const y = getYPosition(value);
           return `${x},${y}`;
-      }).join(' ');
-
+        });
+        
+        // Create smooth curve using quadratic bezier
+        if (points.length === 0) return '';
+        if (points.length === 1) return `M ${points[0]}`;
+        
+        let path = `M ${points[0]}`;
+        for (let i = 1; i < points.length; i++) {
+          path += ` L ${points[i]}`;
+        }
+        return path;
+      };
+      
       return (
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
-              {/* Fill Gradient */}
-              <defs>
-                  <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2" />
-                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-                  </linearGradient>
-              </defs>
-              <path d={`M0,${height} ${points} ${width},${height}`} fill="url(#chartGradient)" />
+        <div className="relative">
+          <div className="flex gap-3">
+            {/* Y-axis */}
+            <div className="flex flex-col justify-between h-80 py-1 text-xs text-slate-400 w-8 text-right">
+              {yAxisLabels.map((label, idx) => (
+                <div key={idx} className="leading-none">{label}</div>
+              ))}
+            </div>
+            
+            {/* Chart area */}
+            <div className="flex-1 relative">
+              {/* Horizontal gridlines */}
+              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                {yAxisLabels.map((_, idx) => (
+                  <div key={idx} className="border-t border-slate-200 dark:border-slate-700/50"></div>
+                ))}
+              </div>
               
-              {/* Line */}
-              <polyline points={points} fill="none" stroke="#0ea5e9" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+              {/* SVG Line Graph */}
+              <div className="relative h-80">
+                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  {/* Draw lines for each status */}
+                  {statusOrder.map(status => {
+                    const hasData = historyGraphData.some(d => (d.byStatus[status] || 0) > 0);
+                    if (!hasData) return null;
+                    
+                    return (
+                      <path
+                        key={status}
+                        d={generatePath(status)}
+                        fill="none"
+                        stroke={colors[status]}
+                        strokeWidth="0.5"
+                        className="transition-all"
+                        opacity="0.7"
+                      />
+                    );
+                  })}
+                  
+                  {/* Draw total line (thicker and more prominent) */}
+                  <path
+                    d={generatePath('total')}
+                    fill="none"
+                    stroke={colors.total}
+                    strokeWidth="1"
+                    className="transition-all"
+                  />
+                </svg>
+                
+                {/* Data point markers */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                  {historyGraphData.map((dataPoint, idx) => {
+                    const x = getXPosition(idx);
+                    
+                    return (
+                      <g key={idx}>
+                        {/* Status points */}
+                        {statusOrder.map(status => {
+                          const value = dataPoint.byStatus[status] || 0;
+                          if (value === 0) return null;
+                          const y = getYPosition(value);
+                          
+                          return (
+                            <circle
+                              key={status}
+                              cx={x}
+                              cy={y}
+                              r="0.8"
+                              fill={colors[status]}
+                              className="transition-all hover:r-1.5"
+                            />
+                          );
+                        })}
+                        
+                        {/* Total point */}
+                        <circle
+                          cx={x}
+                          cy={getYPosition(dataPoint.total)}
+                          r="1.2"
+                          fill={colors.total}
+                          className="transition-all"
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+                
+                {/* Interactive overlay for tooltips */}
+                <div className="absolute inset-0 flex">
+                  {historyGraphData.map((dataPoint, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 group relative cursor-pointer"
+                    >
+                      {/* Tooltip */}
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                        <div className="bg-slate-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
+                          <div className="font-semibold mb-1">{formatDateLabel(dataPoint.date)}</div>
+                          <div className="flex items-center gap-2 font-bold text-blue-400 mb-1">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <span>Total: {dataPoint.total}</span>
+                          </div>
+                          {statusOrder.map(status => {
+                            const count = dataPoint.byStatus[status] || 0;
+                            if (count === 0) return null;
+                            return (
+                              <div key={status} className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[status] }}></div>
+                                <span className="capitalize">{status}: {count}</span>
+                              </div>
+                            );
+                          })}
+                          {/* Arrow */}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                        </div>
+                      </div>
+                      
+                      {/* Vertical line on hover */}
+                      <div className="absolute inset-y-0 left-1/2 w-px bg-slate-300 dark:bg-slate-600 opacity-0 group-hover:opacity-50 transition-opacity"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
               
-              {/* Dots */}
-              {historyGraphData.map((d, i) => {
-                  const x = (i / (historyGraphData.length - 1)) * width;
-                  const y = height - (d.count / maxVal) * height;
-                  return (
-                      <circle key={i} cx={x} cy={y} r="1.5" className="fill-white stroke-marine-600 dark:stroke-marine-400 hover:scale-150 transition-transform" strokeWidth="0.5" />
-                  );
-              })}
-          </svg>
+              {/* X-axis labels */}
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+                {historyGraphData.map((d, idx) => (
+                  <div key={idx} className="flex-1 text-center">
+                    <span className="truncate block">{formatDateLabel(d.date)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 justify-center mt-4 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-0.5 rounded-sm bg-blue-500"></div>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Total</span>
+            </div>
+            {statusOrder.map(status => (
+              <div key={status} className="flex items-center gap-1">
+                <div className="w-3 h-0.5 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
+                <span className="capitalize text-slate-600 dark:text-slate-300">{status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       );
   };
 
@@ -300,18 +516,22 @@ const AdminDashboard: React.FC = () => {
                   <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <TrendingUp size={18} className="text-marine-500"/> Contributions Over Time
                   </h3>
-                  <select className="text-xs bg-slate-100 dark:bg-slate-700 border-none rounded px-2 py-1">
-                      <option>Last 14 Days</option>
+                  <select 
+                    className="text-xs bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded px-3 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-marine-500"
+                    value={selectedTimeframe}
+                    onChange={(e) => setSelectedTimeframe(e.target.value)}
+                  >
+                      <option value="last_hour">Last Hour</option>
+                      <option value="last_24_hours">Last 24 Hours</option>
+                      <option value="last_week">Last Week</option>
+                      <option value="last_14_days">Last 14 Days</option>
+                      <option value="last_month">Last Month</option>
+                      <option value="all_time">All Time</option>
                   </select>
               </div>
               
-              <div className="h-48 w-full">
-                  {loading ? <div className="animate-pulse h-full bg-slate-100 rounded"></div> : renderLineChart()}
-              </div>
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-                  {historyGraphData.filter((_, i) => i % 3 === 0).map(d => (
-                      <span key={d.date}>{d.date}</span>
-                  ))}
+              <div className="w-full">
+                  {loading ? <div className="animate-pulse h-48 bg-slate-100 rounded"></div> : renderLineGraph()}
               </div>
           </div>
       </div>

@@ -81,7 +81,7 @@ app.use(express.json());
 // Swagger documentation
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Mount routes
+// Mount routes with /api prefix
 app.use("/", authRoutes);
 app.use("/", userRoutes);
 app.use("/", termsRoutes);
