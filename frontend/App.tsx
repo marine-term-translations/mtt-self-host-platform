@@ -18,6 +18,7 @@ import Leaderboard from './pages/Leaderboard';
 import Documentation from './pages/Documentation';
 import TranslationFlow from './pages/TranslationFlow';
 import LdesFeeds from './pages/LdesFeeds';
+import CommunityGoals from './pages/CommunityGoals';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminModeration from './pages/admin/AdminModeration';
@@ -72,6 +73,11 @@ const App: React.FC = () => {
         <Route path="/banned" element={<Banned />} />
         
         {/* Protected Routes */}
+        <Route path="/community-goals" element={
+          <ProtectedRoute>
+            <CommunityGoals />
+          </ProtectedRoute>
+        } />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />

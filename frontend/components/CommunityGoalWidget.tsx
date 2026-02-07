@@ -8,9 +8,10 @@ import toast from 'react-hot-toast';
 
 interface CommunityGoalWidgetProps {
   onDismiss?: () => void;
+  className?: string;
 }
 
-const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) => {
+const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, className = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
@@ -110,7 +111,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
     const pendingCount = pendingGoals.length;
     
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
         <div className="relative">
           {/* Spinning blue ring */}
           <div className="ring-border animate-spin-ring"></div>
@@ -139,7 +140,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-80 max-h-96 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-50">
+    <div className={`fixed bottom-6 right-6 w-80 max-h-96 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-50 ${className}`}>
       <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between rounded-t-lg">
         <div className="flex items-center gap-2">
           <Target className="w-5 h-5" />
@@ -191,7 +192,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss }) 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-600 dark:text-slate-400">
-                      {goalProgress.current_count} / {goalProgress.target_count || '∞'}
+                      {goalProgress.current_count} / {goalProgress.target_count || 'No limit'}
                     </span>
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {goalProgress.progress_percentage}%
