@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiLanguage } from '../types';
@@ -140,9 +140,19 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
+      {/* Header with Settings Button */}
+      <div className="mb-8 relative">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Welcome back, {user?.name.split(' ')[0]}!</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">Here's what's happening with your contributions.</p>
+        
+        {/* Settings Button - Mobile Only */}
+        <Link 
+          to="/settings"
+          className="md:hidden absolute top-0 right-0 p-2 text-slate-600 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          aria-label="Settings"
+        >
+          <Settings size={24} />
+        </Link>
       </div>
 
       {/* Language Preference Prompt */}
