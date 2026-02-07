@@ -112,10 +112,21 @@ router.post("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
       currentUserId
     );
 
+    const goalId = result.lastInsertRowid;
+
+    // Log admin activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_goal_created',
+      JSON.stringify({ goal_id: goalId, title, goal_type })
+    );
+
     res.status(201).json({
       success: true,
       message: 'Community goal created successfully',
-      goalId: result.lastInsertRowid
+      goalId
     });
   } catch (err) {
     console.error('[Community Goals] Error creating goal:', err);
@@ -259,6 +270,16 @@ router.put("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res) =>
     const query = `UPDATE community_goals SET ${updates.join(', ')} WHERE id = ?`;
     db.prepare(query).run(...params);
 
+    // Log admin activity
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_goal_updated',
+      JSON.stringify({ goal_id: goalId, updates: Object.keys(req.body) })
+    );
+
     res.json({ success: true, message: 'Community goal updated successfully' });
   } catch (err) {
     console.error('[Community Goals] Error updating goal:', err);
@@ -286,11 +307,24 @@ router.delete("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res)
     const goalId = parseInt(req.params.id);
     const db = getDatabase();
 
+    // Get goal info before deleting
+    const goal = db.prepare('SELECT title FROM community_goals WHERE id = ?').get(goalId);
+    
     const result = db.prepare('DELETE FROM community_goals WHERE id = ?').run(goalId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Community goal not found' });
     }
+
+    // Log admin activity
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_goal_deleted',
+      JSON.stringify({ goal_id: goalId, title: goal?.title })
+    );
 
     res.json({ success: true, message: 'Community goal deleted successfully' });
   } catch (err) {

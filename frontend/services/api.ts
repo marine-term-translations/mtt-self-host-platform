@@ -370,6 +370,26 @@ class ApiService {
     });
   }
 
+  public async getAdminActivity(params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+  }): Promise<{
+    activities: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    const queryParams: Record<string, string> = {};
+    if (params?.page) queryParams.page = params.page.toString();
+    if (params?.limit) queryParams.limit = params.limit.toString();
+    if (params?.action) queryParams.action = params.action;
+    return this.get('/admin/activity', queryParams);
+  }
+
   /**
  * Fetch user preferences (languages, etc.)
  */

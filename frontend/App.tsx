@@ -21,6 +21,7 @@ import LdesFeeds from './pages/LdesFeeds';
 import CommunityGoals from './pages/CommunityGoals';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
+import AdminActivity from './pages/admin/AdminActivity';
 import AdminModeration from './pages/admin/AdminModeration';
 import AdminHarvest from './pages/admin/AdminHarvest';
 import AdminSources from './pages/admin/AdminSources';
@@ -136,6 +137,11 @@ const App: React.FC = () => {
         <Route path="/admin/users" element={
           <AdminRoute>
             <AdminUsers />
+          </AdminRoute>
+        } />
+        <Route path="/admin/activity" element={
+          <AdminRoute>
+            <AdminActivity />
           </AdminRoute>
         } />
         <Route path="/admin/moderation" element={
