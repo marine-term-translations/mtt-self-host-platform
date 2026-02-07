@@ -369,7 +369,7 @@ const TranslationFlow: React.FC = () => {
         </div>
       )}
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-0 md:px-4 py-0 md:py-8">
         {/* Header - hidden on phone */}
         <div className="hidden md:flex justify-between items-center mb-8">
           <div>
@@ -394,7 +394,7 @@ const TranslationFlow: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 md:gap-8">
           {/* Main Task Area */}
           <div className="lg:col-span-2">
             <FlowTermCard

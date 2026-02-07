@@ -169,9 +169,9 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
   const termUri = task.term_uri || task.uri || null;
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-w-3xl mx-auto">
+    <div className="bg-white dark:bg-slate-800 md:rounded-xl md:shadow-lg md:border md:border-slate-200 md:dark:border-slate-700 overflow-hidden md:max-w-3xl md:mx-auto">
       {/* Header */}
-      <div className="bg-slate-50 dark:bg-slate-900/50 px-8 py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
+      <div className="bg-slate-50 dark:bg-slate-900/50 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
         <div>
           <div className="flex items-center gap-2 mb-1">
              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -207,7 +207,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Context: Definition */}
         <div className="mb-8">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
