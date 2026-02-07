@@ -179,8 +179,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </footer>
 
-      {/* Community Goals Widget */}
-      {isAuthenticated && <CommunityGoalWidget />}
+      {/* Community Goals Widget - hidden on mobile */}
+      {isAuthenticated && <CommunityGoalWidget className="hidden md:block" />}
       
       {/* Bottom Navigation - only on phone when authenticated */}
       {isAuthenticated && <BottomNav />}

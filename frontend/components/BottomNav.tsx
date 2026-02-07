@@ -1,9 +1,42 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, TrendingUp, Target } from 'lucide-react';
+import { backendApi } from '../services/api';
+import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 
 const BottomNav: React.FC = () => {
   const location = useLocation();
+  const [pendingGoalsCount, setPendingGoalsCount] = useState<number>(0);
+
+  useEffect(() => {
+    fetchPendingGoalsCount();
+  }, []);
+
+  const fetchPendingGoalsCount = async () => {
+    try {
+      const goals = await backendApi.get<ApiCommunityGoal[]>('/community-goals');
+      const activeGoals = goals.filter(g => g.is_active === 1);
+
+      // Fetch progress for each goal to count incomplete ones
+      let pendingCount = 0;
+      await Promise.all(
+        activeGoals.map(async (goal) => {
+          try {
+            const progress = await backendApi.get<ApiCommunityGoalProgress>(`/community-goals/${goal.id}/progress`);
+            if (!progress.is_complete) {
+              pendingCount++;
+            }
+          } catch (error) {
+            // If we can't fetch progress, assume it's incomplete
+            pendingCount++;
+          }
+        })
+      );
+      setPendingGoalsCount(pendingCount);
+    } catch (error) {
+      console.error('Failed to fetch pending goals count:', error);
+    }
+  };
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -33,18 +66,26 @@ const BottomNav: React.FC = () => {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
+          const isGoals = item.path === '/community-goals';
           
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
+              className={`relative flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
                 active
                   ? 'text-marine-600 dark:text-marine-400'
                   : 'text-slate-500 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-400'
               }`}
             >
-              <Icon size={24} strokeWidth={active ? 2.5 : 2} />
+              <div className="relative">
+                <Icon size={24} strokeWidth={active ? 2.5 : 2} />
+                {isGoals && pendingGoalsCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {pendingGoalsCount}
+                  </span>
+                )}
+              </div>
               <span className="text-xs font-medium">{item.label}</span>
             </Link>
           );
