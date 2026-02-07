@@ -509,8 +509,11 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
         if (goal.target_language) {
           // Single language - calculate missing
           // Build the ON clause conditions for date filtering
-          let joinConditions = 'tf.id = tr.term_field_id AND tr.language = ? AND tr.status IN (\'approved\', \'merged\')';
-          const queryParams = [goal.target_language];
+          // Note: joinConditions contains only hardcoded strings and SQL placeholders - no user input
+          const statuses = ['approved', 'merged'];
+          const statusPlaceholders = statuses.map(() => '?').join(', ');
+          let joinConditions = `tf.id = tr.term_field_id AND tr.language = ? AND tr.status IN (${statusPlaceholders})`;
+          const queryParams = [goal.target_language, ...statuses];
           
           joinConditions += ' AND tr.created_at >= ?';
           queryParams.push(goal.start_date);
