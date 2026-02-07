@@ -33,6 +33,7 @@ const AdminActivity: React.FC = () => {
 
   useEffect(() => {
     fetchActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, searchAction]);
 
   const getActionIcon = (action: string) => {

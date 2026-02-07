@@ -8,6 +8,9 @@ const { apiLimiter } = require("../middleware/rateLimit");
 const datetime = require("../utils/datetime");
 const { applyReputationForTranslationStatusChange } = require("../services/reputation.service");
 
+// Constants
+const DEFAULT_BAN_REASON = 'No reason provided';
+
 /**
  * @openapi
  * /api/admin/users:
@@ -195,7 +198,7 @@ router.put("/admin/users/:id/ban", requireAdmin, apiLimiter, (req, res) => {
     }
     
     // Update both the database column AND the extra field for backward compatibility
-    const banReason = reason || 'No reason provided';
+    const banReason = reason || DEFAULT_BAN_REASON;
     extra.is_banned = true;
     extra.ban_reason = banReason;
     extra.banned_at = datetime.toISO(datetime.now());

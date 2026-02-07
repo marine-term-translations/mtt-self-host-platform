@@ -310,11 +310,11 @@ router.delete("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res)
     // Get goal info before deleting
     const goal = db.prepare('SELECT title FROM community_goals WHERE id = ?').get(goalId);
     
-    const result = db.prepare('DELETE FROM community_goals WHERE id = ?').run(goalId);
-
-    if (result.changes === 0) {
+    if (!goal) {
       return res.status(404).json({ error: 'Community goal not found' });
     }
+    
+    const result = db.prepare('DELETE FROM community_goals WHERE id = ?').run(goalId);
 
     // Log admin activity
     const currentUserId = req.session.user.id || req.session.user.user_id;
@@ -323,7 +323,7 @@ router.delete("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res)
     ).run(
       currentUserId,
       'admin_community_goal_deleted',
-      JSON.stringify({ goal_id: goalId, title: goal?.title })
+      JSON.stringify({ goal_id: goalId, title: goal.title })
     );
 
     res.json({ success: true, message: 'Community goal deleted successfully' });
