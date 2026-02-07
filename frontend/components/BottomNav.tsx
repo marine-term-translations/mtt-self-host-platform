@@ -9,34 +9,34 @@ const BottomNav: React.FC = () => {
   const [pendingGoalsCount, setPendingGoalsCount] = useState<number>(0);
 
   useEffect(() => {
-    fetchPendingGoalsCount();
-  }, []);
+    const fetchPendingGoalsCount = async () => {
+      try {
+        const goals = await backendApi.get<ApiCommunityGoal[]>('/community-goals');
+        const activeGoals = goals.filter(g => g.is_active === 1);
 
-  const fetchPendingGoalsCount = async () => {
-    try {
-      const goals = await backendApi.get<ApiCommunityGoal[]>('/community-goals');
-      const activeGoals = goals.filter(g => g.is_active === 1);
-
-      // Fetch progress for each goal to count incomplete ones
-      let pendingCount = 0;
-      await Promise.all(
-        activeGoals.map(async (goal) => {
-          try {
-            const progress = await backendApi.get<ApiCommunityGoalProgress>(`/community-goals/${goal.id}/progress`);
-            if (!progress.is_complete) {
+        // Fetch progress for each goal to count incomplete ones
+        let pendingCount = 0;
+        await Promise.all(
+          activeGoals.map(async (goal) => {
+            try {
+              const progress = await backendApi.get<ApiCommunityGoalProgress>(`/community-goals/${goal.id}/progress`);
+              if (!progress.is_complete) {
+                pendingCount++;
+              }
+            } catch (error) {
+              // If we can't fetch progress, assume it's incomplete
               pendingCount++;
             }
-          } catch (error) {
-            // If we can't fetch progress, assume it's incomplete
-            pendingCount++;
-          }
-        })
-      );
-      setPendingGoalsCount(pendingCount);
-    } catch (error) {
-      console.error('Failed to fetch pending goals count:', error);
-    }
-  };
+          })
+        );
+        setPendingGoalsCount(pendingCount);
+      } catch (error) {
+        console.error('Failed to fetch pending goals count:', error);
+      }
+    };
+
+    fetchPendingGoalsCount();
+  }, []);
 
   const isActive = (path: string) => {
     return location.pathname === path;
