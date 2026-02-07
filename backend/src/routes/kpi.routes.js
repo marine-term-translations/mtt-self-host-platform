@@ -129,15 +129,22 @@ const KPI_QUERIES = {
         SELECT 
           AVG(translation_count) as mean,
           (SELECT translation_count FROM user_counts ORDER BY translation_count LIMIT 1 OFFSET (SELECT COUNT(*) FROM user_counts) / 2) as median,
-          COUNT(*) as total_users
+          COUNT(*) as total_users,
+          SQRT(AVG((translation_count - (SELECT AVG(translation_count) FROM user_counts)) * 
+                   (translation_count - (SELECT AVG(translation_count) FROM user_counts)))) as std_dev
         FROM user_counts
       )
       SELECT 
         uc.username,
         uc.translation_count,
-        ROUND((uc.translation_count - s.mean) / NULLIF((SELECT AVG((translation_count - s.mean) * (translation_count - s.mean)) FROM user_counts), 0), 2) as z_score,
-        s.mean as average_translations,
+        CASE 
+          WHEN s.std_dev > 0 
+          THEN ROUND((uc.translation_count - s.mean) / s.std_dev, 2)
+          ELSE 0
+        END as z_score,
+        ROUND(s.mean, 2) as average_translations,
         s.median as median_translations,
+        ROUND(s.std_dev, 2) as standard_deviation,
         s.total_users
       FROM user_counts uc
       CROSS JOIN stats s
