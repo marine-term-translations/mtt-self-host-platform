@@ -509,28 +509,28 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
         if (goal.target_language) {
           // Single language - calculate missing
           // Note: Date filters must be in ON clause for LEFT JOIN to work correctly
-          let translatedQuery = `
-            SELECT COUNT(DISTINCT tf.id) as count
-            FROM term_fields tf
-            INNER JOIN terms t ON tf.term_id = t.id
-            LEFT JOIN translations tr ON tf.id = tr.term_field_id 
+          const queryParams = [goal.target_language, goal.start_date];
+          let onClause = `tf.id = tr.term_field_id 
               AND tr.language = ? 
               AND tr.status IN ('approved', 'merged')
-              AND tr.created_at >= ?
-          `;
-          const queryParams = [goal.target_language, goal.start_date];
+              AND tr.created_at >= ?`;
           
           if (goal.end_date) {
-            translatedQuery += ' AND tr.created_at <= ?';
+            onClause += '\n              AND tr.created_at <= ?';
             queryParams.push(goal.end_date);
           }
           
-          translatedQuery += `
+          queryParams.push(goal.collection_id);
+          
+          const translatedQuery = `
+            SELECT COUNT(DISTINCT tf.id) as count
+            FROM term_fields tf
+            INNER JOIN terms t ON tf.term_id = t.id
+            LEFT JOIN translations tr ON ${onClause}
             WHERE t.source_id = ?
               AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
               AND tr.id IS NOT NULL
           `;
-          queryParams.push(goal.collection_id);
           
           const translatedResult = db.prepare(translatedQuery).get(...queryParams);
           const translatedCount = translatedResult.count;
