@@ -2,7 +2,7 @@
 
 
 import { CONFIG } from '../config';
-import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage, ApiAdminActivity } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -368,6 +368,26 @@ class ApiService {
       ban_reason: banReason,
       reason
     });
+  }
+
+  public async getAdminActivity(params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+  }): Promise<{
+    activities: ApiAdminActivity[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    const queryParams: Record<string, string> = {};
+    if (params?.page) queryParams.page = params.page.toString();
+    if (params?.limit) queryParams.limit = params.limit.toString();
+    if (params?.action) queryParams.action = params.action;
+    return this.get('/admin/activity', queryParams);
   }
 
   /**

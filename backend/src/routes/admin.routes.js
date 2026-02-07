@@ -8,6 +8,9 @@ const { apiLimiter } = require("../middleware/rateLimit");
 const datetime = require("../utils/datetime");
 const { applyReputationForTranslationStatusChange } = require("../services/reputation.service");
 
+// Constants
+const DEFAULT_BAN_REASON = 'No reason provided';
+
 /**
  * @openapi
  * /api/admin/users:
@@ -76,8 +79,18 @@ router.put("/admin/users/:id/promote", requireAdmin, apiLimiter, (req, res) => {
     const extra = user.extra ? JSON.parse(user.extra) : {};
     extra.is_admin = true;
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_user_promoted',
+      JSON.stringify({ target_user_id: userId, target_username: user.username })
+    );
     
     res.json({ success: true, message: 'User promoted to admin' });
   } catch (err) {
@@ -121,8 +134,18 @@ router.put("/admin/users/:id/demote", requireAdmin, apiLimiter, (req, res) => {
     
     extra.is_admin = false;
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_user_demoted',
+      JSON.stringify({ target_user_id: userId, target_username: user.username })
+    );
     
     res.json({ success: true, message: 'User demoted from admin' });
   } catch (err) {
@@ -174,12 +197,24 @@ router.put("/admin/users/:id/ban", requireAdmin, apiLimiter, (req, res) => {
       return res.status(403).json({ error: 'Cannot ban superadmin' });
     }
     
+    // Update both the database column AND the extra field for backward compatibility
+    const banReason = reason || DEFAULT_BAN_REASON;
     extra.is_banned = true;
-    extra.ban_reason = reason || 'No reason provided';
+    extra.ban_reason = banReason;
     extra.banned_at = datetime.toISO(datetime.now());
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(JSON.stringify(extra), userId);
+    db.prepare('UPDATE users SET is_banned = 1, ban_reason = ?, extra = ? WHERE id = ?')
+      .run(banReason, JSON.stringify(extra), userId);
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_user_banned',
+      JSON.stringify({ target_user_id: userId, target_username: user.username, reason: banReason })
+    );
     
     res.json({ success: true, message: 'User banned successfully' });
   } catch (err) {
@@ -214,13 +249,24 @@ router.put("/admin/users/:id/unban", requireAdmin, apiLimiter, (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    // Update both the database column AND the extra field for backward compatibility
     const extra = user.extra ? JSON.parse(user.extra) : {};
     extra.is_banned = false;
     extra.ban_reason = '';
     extra.banned_at = '';
     
-    db.prepare('UPDATE users SET extra = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    db.prepare('UPDATE users SET is_banned = 0, ban_reason = NULL, extra = ? WHERE id = ?')
       .run(JSON.stringify(extra), userId);
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_user_unbanned',
+      JSON.stringify({ target_user_id: userId, target_username: user.username })
+    );
     
     res.json({ success: true, message: 'User unbanned successfully' });
   } catch (err) {
@@ -395,6 +441,17 @@ router.put("/admin/translations/:id/status", requireAdmin, apiLimiter, (req, res
       }
     }
     
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, translation_id, extra) VALUES (?, ?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_translation_status_changed',
+      translationId,
+      JSON.stringify({ previous_status: previousStatus, new_status: status })
+    );
+    
     res.json({ success: true, message: 'Translation status updated' });
   } catch (err) {
     console.error('[Admin Translations] Error updating status:', err);
@@ -445,6 +502,8 @@ router.put("/admin/translations/:id/language", requireAdmin, apiLimiter, (req, r
       return res.status(404).json({ error: 'Translation not found' });
     }
     
+    const previousLanguage = translation.language;
+    
     // Check if translation with same term_field_id and new language already exists
     const existing = db.prepare(
       'SELECT id FROM translations WHERE term_field_id = ? AND language = ? AND id != ?'
@@ -462,6 +521,17 @@ router.put("/admin/translations/:id/language", requireAdmin, apiLimiter, (req, r
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Translation not found' });
     }
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, translation_id, extra) VALUES (?, ?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_translation_language_changed',
+      translationId,
+      JSON.stringify({ previous_language: previousLanguage, new_language: language })
+    );
     
     res.json({ success: true, message: 'Translation language updated' });
   } catch (err) {
@@ -794,6 +864,93 @@ router.post("/admin/moderation/users/:id/penalty", requireAdmin, apiLimiter, (re
   } catch (err) {
     console.error('[Admin Moderation] Error applying penalty:', err);
     res.status(500).json({ error: 'Failed to apply penalty' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/activity:
+ *   get:
+ *     summary: Get admin activity log (admin only)
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of admin activities
+ */
+router.get("/admin/activity", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { page = 1, limit = 50, action } = req.query;
+    const db = getDatabase();
+    
+    // Build query to fetch admin activities
+    let query = `
+      SELECT 
+        ua.id,
+        ua.user_id,
+        ua.action,
+        ua.term_id,
+        ua.term_field_id,
+        ua.translation_id,
+        ua.appeal_id,
+        ua.appeal_message_id,
+        ua.extra,
+        ua.created_at,
+        u.username as admin_username
+      FROM user_activity ua
+      LEFT JOIN users u ON ua.user_id = u.id
+      WHERE ua.action LIKE 'admin_%'
+    `;
+    
+    const params = [];
+    
+    // Filter by specific action if provided
+    if (action) {
+      query += ' AND ua.action = ?';
+      params.push(action);
+    }
+    
+    // Get total count
+    const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM');
+    const countResult = db.prepare(countQuery).get(...params);
+    const total = countResult ? countResult.total : 0;
+    
+    // Add pagination and ordering
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    query += ' ORDER BY ua.created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), offset);
+    
+    const activities = db.prepare(query).all(...params);
+    
+    // Parse extra field for each activity
+    const parsedActivities = activities.map(activity => ({
+      ...activity,
+      extra: activity.extra ? JSON.parse(activity.extra) : null
+    }));
+    
+    res.json({
+      activities: parsedActivities,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (err) {
+    console.error('[Admin Activity] Error fetching activity log:', err);
+    res.status(500).json({ error: 'Failed to fetch activity log' });
   }
 });
 

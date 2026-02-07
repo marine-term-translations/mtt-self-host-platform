@@ -352,7 +352,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid md:grid-cols-5 gap-6 mb-8">
+      <div className="grid md:grid-cols-6 gap-6 mb-8">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="flex justify-between items-start mb-4">
                 <div>
@@ -399,6 +399,21 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Admin Activity</p>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                        Activity Log
+                    </h3>
+                </div>
+                <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 rounded-lg">
+                    <Activity size={20} />
+                </div>
+            </div>
+            <Link to="/admin/activity" className="text-xs font-medium text-cyan-600 hover:text-cyan-700">View Activity &rarr;</Link>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
                     <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Database</p>
@@ -430,24 +445,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Management Panels */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-             <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <DownloadCloud size={20} className="text-indigo-600" />
-                        Harvest & Import
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Import terms from SPARQL endpoints, LDES feeds, or upload static files
-                    </p>
-                </div>
-            </div>
-            <Link to="/admin/harvest" className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
-                Manage Imports &rarr;
-            </Link>
-        </div>
-
+      <div className="grid md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-start mb-4">
                 <div>
