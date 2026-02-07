@@ -181,3 +181,29 @@ export interface ApiCommunityGoalProgress {
   is_complete: boolean;
   missing_translations?: Record<string, number> | null;
 }
+
+export interface ApiAdminActivity {
+  id: number;
+  user_id: number;
+  action: string;
+  term_id?: number;
+  term_field_id?: number;
+  translation_id?: number;
+  appeal_id?: number;
+  appeal_message_id?: number;
+  extra?: {
+    target_user_id?: number;
+    target_username?: string;
+    reason?: string;
+    previous_status?: string;
+    new_status?: string;
+    previous_language?: string;
+    new_language?: string;
+    goal_id?: number;
+    title?: string;
+    goal_type?: string;
+    updates?: string[];
+  };
+  created_at: string;
+  admin_username: string;
+}

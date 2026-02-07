@@ -1,38 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { backendApi } from '../../services/api';
-import { Search, ArrowLeft, Loader2, Activity, User, FileText, Ban, CheckCircle, XCircle, Flag, Target, Calendar } from 'lucide-react';
+import { ArrowLeft, Loader2, Activity, User, FileText, Ban, CheckCircle, Target, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { parse, format } from '@/src/utils/datetime';
-
-interface AdminActivityItem {
-  id: number;
-  user_id: number;
-  action: string;
-  term_id?: number;
-  term_field_id?: number;
-  translation_id?: number;
-  appeal_id?: number;
-  appeal_message_id?: number;
-  extra?: {
-    target_user_id?: number;
-    target_username?: string;
-    reason?: string;
-    previous_status?: string;
-    new_status?: string;
-    previous_language?: string;
-    new_language?: string;
-    goal_id?: number;
-    title?: string;
-    goal_type?: string;
-    updates?: string[];
-  };
-  created_at: string;
-  admin_username: string;
-}
+import { ApiAdminActivity } from '../../types';
 
 const AdminActivity: React.FC = () => {
-  const [activities, setActivities] = useState<AdminActivityItem[]>([]);
+  const [activities, setActivities] = useState<ApiAdminActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -82,7 +57,7 @@ const AdminActivity: React.FC = () => {
     return 'text-gray-600 bg-gray-50';
   };
 
-  const formatActionDescription = (activity: AdminActivityItem) => {
+  const formatActionDescription = (activity: ApiAdminActivity) => {
     const { action, extra } = activity;
     
     switch (action) {

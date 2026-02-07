@@ -2,7 +2,7 @@
 
 
 import { CONFIG } from '../config';
-import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage, ApiAdminActivity } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -375,7 +375,7 @@ class ApiService {
     limit?: number;
     action?: string;
   }): Promise<{
-    activities: any[];
+    activities: ApiAdminActivity[];
     pagination: {
       page: number;
       limit: number;
