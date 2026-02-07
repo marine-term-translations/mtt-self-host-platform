@@ -509,6 +509,7 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
         if (goal.target_language) {
           // Single language - calculate missing
           // Note: Date filters must be in ON clause for LEFT JOIN to work correctly
+          // Build ON clause with only hardcoded SQL and placeholders - no user input
           const queryParams = [goal.target_language, goal.start_date];
           let onClause = `tf.id = tr.term_field_id 
               AND tr.language = ? 
@@ -516,7 +517,7 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
               AND tr.created_at >= ?`;
           
           if (goal.end_date) {
-            onClause += '\n              AND tr.created_at <= ?';
+            onClause += ' AND tr.created_at <= ?';
             queryParams.push(goal.end_date);
           }
           
