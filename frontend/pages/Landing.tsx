@@ -189,8 +189,8 @@ const Landing: React.FC = () => {
                 Making marine data FAIR by crowdsourcing technical translations for global interoperability.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                  <Link to="/register" className="px-8 py-4 bg-white text-marine-900 rounded-xl font-bold hover:bg-slate-100 transition-colors shadow-lg flex items-center justify-center gap-2">
-                    Sign up to Contribute <ArrowRight size={20} />
+                  <Link to="/login" className="px-8 py-4 bg-white text-marine-900 rounded-xl font-bold hover:bg-slate-100 transition-colors shadow-lg flex items-center justify-center gap-2">
+                    Sign in <ArrowRight size={20} />
                   </Link>
                 <Link to="/about" className="px-8 py-4 bg-marine-800/50 border border-marine-600/50 text-white rounded-xl font-semibold hover:bg-marine-800 transition-colors backdrop-blur-sm">
                   What and Why

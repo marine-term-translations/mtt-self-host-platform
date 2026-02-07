@@ -370,8 +370,8 @@ const TranslationFlow: React.FC = () => {
       )}
 
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        {/* Header - hidden on phone */}
+        <div className="hidden md:flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
               <TrendingUp className="w-8 h-8 text-blue-600" />
@@ -412,8 +412,8 @@ const TranslationFlow: React.FC = () => {
             />
           </div>
 
-          {/* Stats Sidebar */}
-          <div className="lg:col-span-1">
+          {/* Stats Sidebar - hidden on phone */}
+          <div className="hidden lg:block lg:col-span-1">
             <FlowStatsPanel
               stats={stats}
               challenges={challenges}

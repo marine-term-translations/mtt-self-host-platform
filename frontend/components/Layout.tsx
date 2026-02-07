@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
 import { parse, format, now } from '@/src/utils/datetime';
 import CommunityGoalWidget from './CommunityGoalWidget';
+import BottomNav from './BottomNav';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -50,8 +51,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      {/* Navbar - hidden on phone when authenticated */}
+      <header className={`sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 ${isAuthenticated ? 'hidden md:block' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -161,12 +162,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow">
+      <main className={`flex-grow ${isAuthenticated ? 'mb-16 md:mb-0' : ''}`}>
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
+      {/* Footer - hidden on phone when authenticated */}
+      <footer className={`bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 ${isAuthenticated ? 'hidden md:block' : ''}`}>
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <Waves size={20} className="text-marine-600 dark:text-marine-400" />
@@ -180,6 +181,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Community Goals Widget */}
       {isAuthenticated && <CommunityGoalWidget />}
+      
+      {/* Bottom Navigation - only on phone when authenticated */}
+      {isAuthenticated && <BottomNav />}
     </div>
   );
 };
