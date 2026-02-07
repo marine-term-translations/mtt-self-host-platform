@@ -508,16 +508,30 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
 
         if (goal.target_language) {
           // Single language - calculate missing
+          // Build the ON clause conditions for date filtering
+          let joinConditions = 'tf.id = tr.term_field_id AND tr.language = ? AND tr.status IN (\'approved\', \'merged\')';
+          const queryParams = [goal.target_language];
+          
+          joinConditions += ' AND tr.created_at >= ?';
+          queryParams.push(goal.start_date);
+          
+          if (goal.end_date) {
+            joinConditions += ' AND tr.created_at <= ?';
+            queryParams.push(goal.end_date);
+          }
+          
+          queryParams.push(goal.collection_id);
+          
           const translatedQuery = `
             SELECT COUNT(DISTINCT tf.id) as count
             FROM term_fields tf
             INNER JOIN terms t ON tf.term_id = t.id
-            LEFT JOIN translations tr ON tf.id = tr.term_field_id AND tr.language = ? AND tr.status IN ('approved', 'merged')
+            LEFT JOIN translations tr ON ${joinConditions}
             WHERE t.source_id = ?
               AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
               AND tr.id IS NOT NULL
           `;
-          const translatedResult = db.prepare(translatedQuery).get(goal.target_language, goal.collection_id);
+          const translatedResult = db.prepare(translatedQuery).get(...queryParams);
           const translatedCount = translatedResult.count;
           const missing = totalFields - translatedCount;
           
