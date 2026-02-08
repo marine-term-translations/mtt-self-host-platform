@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { writeLimiter, apiLimiter } = require("../middleware/rateLimit");
+const { requireAuth } = require("../middleware/admin");
 /**
  * @openapi
  * /api/appeals:
@@ -30,41 +31,51 @@ const { writeLimiter, apiLimiter } = require("../middleware/rateLimit");
  *             schema:
  *               type: object
  */
-router.post("/appeals", writeLimiter, (req, res) => {
-  const { translation_id, opened_by, resolution } = req.body;
-  if (!translation_id || !opened_by) {
-    return res
-      .status(400)
-      .json({ error: "Missing translation_id or opened_by" });
+router.post("/appeals", requireAuth, writeLimiter, (req, res) => {
+  const { translation_id, resolution } = req.body;
+  
+  // SECURITY FIX: Removed opened_by from request body - use session instead
+  if (!translation_id) {
+    return res.status(400).json({ error: "Missing translation_id" });
   }
   
-  // Admin check removed - now using ORCID session auth
-  // Verify user is authenticated via session
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  
-  // Get the current user's ID
+  // Get current user from session (NEVER from request body)
   const currentUserId = req.session.user.id || req.session.user.user_id;
   
-  // Resolve opened_by to user_id (supports both username and user_id)
-  const db = getDatabase();
-  const openedByUser = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(opened_by, parseInt(opened_by) || 0);
-  
-  if (!openedByUser || openedByUser.id !== currentUserId) {
-    return res.status(403).json({ error: "User mismatch" });
-  }
-  
   try {
+    const db = getDatabase();
+    
+    // Verify translation exists
+    const translation = db.prepare("SELECT * FROM translations WHERE id = ?").get(translation_id);
+    if (!translation) {
+      return res.status(404).json({ error: "Translation not found" });
+    }
+    
+    // Check if user already has an open appeal for this translation
+    const existingAppeal = db.prepare(
+      "SELECT id FROM appeals WHERE translation_id = ? AND opened_by_id = ? AND status = 'open'"
+    ).get(translation_id, currentUserId);
+    
+    if (existingAppeal) {
+      return res.status(409).json({ 
+        error: "You already have an open appeal for this translation" 
+      });
+    }
+    
     const stmt = db.prepare(
       "INSERT INTO appeals (translation_id, opened_by_id, resolution) VALUES (?, ?, ?)"
     );
     const info = stmt.run(translation_id, currentUserId, resolution || null);
-    // Git commit and push removed - Gitea integration removed
-    res.status(201).json({ id: info.lastInsertRowid, translation_id, opened_by_id: currentUserId, resolution });
+    
+    res.status(201).json({ 
+      id: info.lastInsertRowid, 
+      translation_id, 
+      opened_by_id: currentUserId,
+      resolution 
+    });
   } catch (err) {
     console.error("Error creating appeal:", err.message);
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to create appeal" });
   }
 });
 
@@ -174,42 +185,57 @@ router.get("/appeals/by-term/:termId", apiLimiter, (req, res) => {
  *             schema:
  *               type: object
  */
-router.patch("/appeals/:id", writeLimiter, (req, res) => {
+router.patch("/appeals/:id", requireAuth, writeLimiter, (req, res) => {
   const { id } = req.params;
-  const { status, resolution, username } = req.body;
-  if ((!status && !resolution) || !username) {
-    return res
-      .status(400)
-      .json({ error: "Missing status, resolution, or username" });
+  const { status, resolution } = req.body;
+  
+  // SECURITY FIX: Removed username from request, verify ownership
+  if (!status && !resolution) {
+    return res.status(400).json({ error: "Missing status or resolution" });
   }
   
-  // Admin check removed - now using ORCID session auth
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-  
-  // Get the current user's ID
-  const db = getDatabase();
-  const currentUserId = req.session.user.id || req.session.user.user_id;
-  
-  // Resolve username to user_id
-  const user = db.prepare("SELECT id FROM users WHERE username = ? OR id = ?").get(username, parseInt(username) || 0);
-  
-  if (!user || user.id !== currentUserId) {
-    return res.status(403).json({ error: "User mismatch" });
+  const appealId = parseInt(id, 10);
+  if (isNaN(appealId) || appealId < 1) {
+    return res.status(400).json({ error: "Invalid appeal ID" });
   }
   
   try {
+    const db = getDatabase();
+    const appeal = db.prepare("SELECT * FROM appeals WHERE id = ?").get(appealId);
+    
+    if (!appeal) {
+      return res.status(404).json({ error: "Appeal not found" });
+    }
+    
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    const isAdmin = req.session.user.is_admin;
+    const isOwner = appeal.opened_by_id === currentUserId;
+    
+    // Only owner or admin can update appeal
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ 
+        error: "You don't have permission to update this appeal" 
+      });
+    }
+    
+    // Validate status
+    const validStatuses = ['open', 'closed', 'resolved'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+      });
+    }
+    
     const stmt = db.prepare(
       "UPDATE appeals SET status = COALESCE(?, status), resolution = COALESCE(?, resolution), closed_at = CASE WHEN ? = 'closed' OR ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE closed_at END WHERE id = ?"
     );
-    stmt.run(status, resolution, status, status, id);
-    const updated = db
-      .prepare("SELECT * FROM appeals WHERE id = ?")
-      .get(id);
+    stmt.run(status, resolution, status, status, appealId);
+    
+    const updated = db.prepare("SELECT * FROM appeals WHERE id = ?").get(appealId);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error updating appeal:", err.message);
+    res.status(500).json({ error: "Failed to update appeal" });
   }
 });
 
@@ -328,7 +354,7 @@ router.get("/appeals/:id/messages", apiLimiter, (req, res) => {
  *                 created_at:
  *                   type: string
  */
-router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
+router.post("/appeals/:id/messages", requireAuth, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { message } = req.body;
   
@@ -343,9 +369,12 @@ router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
     return res.status(400).json({ error: "Message is required" });
   }
   
-  // Verify user is authenticated via session
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
+  // SECURITY FIX: Added message length validation
+  const MAX_MESSAGE_LENGTH = 5000;
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return res.status(400).json({ 
+      error: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters` 
+    });
   }
   
   const currentUserId = req.session.user.id || req.session.user.user_id;
@@ -353,10 +382,44 @@ router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
   try {
     const db = getDatabase();
     
-    // Check if appeal exists
-    const appeal = db.prepare("SELECT id, status FROM appeals WHERE id = ?").get(appealId);
+    // Get appeal with translation info for authorization
+    const appeal = db.prepare(`
+      SELECT a.*, a.opened_by_id, t.username as translation_author 
+      FROM appeals a
+      JOIN translations tr ON a.translation_id = tr.id
+      LEFT JOIN users t ON tr.username = t.username
+      WHERE a.id = ?
+    `).get(appealId);
+    
     if (!appeal) {
       return res.status(404).json({ error: "Appeal not found" });
+    }
+    
+    // SECURITY FIX: Verify user is allowed to post 
+    // (appeal owner, translation author, or admin)
+    const isAdmin = req.session.user.is_admin;
+    const isAppealOwner = appeal.opened_by_id === currentUserId;
+    const isTranslationAuthor = appeal.translation_author === req.session.user.username;
+    
+    if (!isAdmin && !isAppealOwner && !isTranslationAuthor) {
+      return res.status(403).json({ 
+        error: "You don't have permission to post messages to this appeal" 
+      });
+    }
+    
+    // SECURITY FIX: Rate limit - max 10 messages per user per appeal per hour
+    const recentMessages = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM appeal_messages 
+      WHERE appeal_id = ? 
+        AND author_id = ? 
+        AND created_at > datetime('now', '-1 hour')
+    `).get(appealId, currentUserId).count;
+    
+    if (recentMessages >= 10) {
+      return res.status(429).json({ 
+        error: "Too many messages. Please wait before posting again." 
+      });
     }
     
     // Insert the message
@@ -382,7 +445,7 @@ router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
     res.status(201).json(createdMessage);
   } catch (err) {
     console.error("Error creating appeal message:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to create message" });
   }
 });
 

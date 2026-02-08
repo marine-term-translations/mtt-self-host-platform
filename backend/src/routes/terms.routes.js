@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const {
   applyRejectionPenalty,
   applyFalseRejectionPenalty,
@@ -812,12 +813,23 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *             schema:
  *               type: object
  */
-router.post("/user-reputation/:username", writeLimiter, (req, res) => {
+router.post("/user-reputation/:username", requireAdmin, writeLimiter, (req, res) => {
   const { username } = req.params;
   const { delta, reason, translation_id } = req.body;
-  if (typeof delta !== "number" || !reason) {
-    return res.status(400).json({ error: "Missing delta or reason" });
+  
+  // SECURITY FIX: Added requireAdmin middleware and validation
+  if (typeof delta !== "number" || !reason || typeof reason !== "string") {
+    return res.status(400).json({ error: "Invalid delta or reason" });
   }
+  
+  // Limit reputation changes to reasonable values
+  const MAX_REPUTATION_CHANGE = 1000;
+  if (Math.abs(delta) > MAX_REPUTATION_CHANGE) {
+    return res.status(400).json({ 
+      error: `Reputation change cannot exceed ${MAX_REPUTATION_CHANGE}` 
+    });
+  }
+  
   try {
     const result = applyReputationChange(
       username,
@@ -828,13 +840,31 @@ router.post("/user-reputation/:username", writeLimiter, (req, res) => {
     if (!result) {
       return res.status(404).json({ error: "User not found" });
     }
+    
+    // Audit log
+    const db = getDatabase();
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_reputation_change',
+      JSON.stringify({ 
+        target_username: username, 
+        delta, 
+        reason,
+        translation_id 
+      })
+    );
+    
     res.json({
       username,
       reputation: result.newReputation,
       eventId: result.eventId,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Reputation] Error:', err);
+    res.status(500).json({ error: 'Failed to update reputation' });
   }
 });
 

@@ -9,6 +9,7 @@ const axios = require("axios");
 const yaml = require("js-yaml");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const config = require("../config");
 const datetime = require("../utils/datetime");
 
@@ -226,16 +227,20 @@ function updateLdesFeedsYaml(graphName, url) {
  *       500:
  *         description: Server error
  */
-router.post("/sources", writeLimiter, (req, res) => {
+router.post("/sources", requireAdmin, writeLimiter, (req, res) => {
   const { source_path, source_type, description } = req.body;
   
-  if (!source_path) {
-    return res.status(400).json({ error: "Missing source_path" });
+  // SECURITY FIX: Added requireAdmin middleware and validation
+  if (!source_path || typeof source_path !== 'string') {
+    return res.status(400).json({ error: "Invalid source_path" });
   }
   
   // Validate source_type if provided
-  if (source_type && !['LDES', 'Static_file'].includes(source_type)) {
-    return res.status(400).json({ error: "Invalid source_type. Must be 'LDES' or 'Static_file'" });
+  const validTypes = ['LDES', 'Static_file'];
+  if (source_type && !validTypes.includes(source_type)) {
+    return res.status(400).json({ 
+      error: `Invalid source_type. Must be one of: ${validTypes.join(', ')}` 
+    });
   }
   
   try {
@@ -251,6 +256,20 @@ router.post("/sources", writeLimiter, (req, res) => {
     
     // Update the source with the auto-generated graph_name
     db.prepare("UPDATE sources SET graph_name = ? WHERE source_id = ?").run(autoGraphName, sourceId);
+    
+    // Audit log
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'source_created',
+      JSON.stringify({ 
+        source_id: sourceId, 
+        source_path, 
+        source_type: source_type || 'Static_file'
+      })
+    );
     
     // If this is an LDES feed, update ldes-feeds.yaml
     if (source_type === 'LDES') {
@@ -269,7 +288,8 @@ router.post("/sources", writeLimiter, (req, res) => {
     
     res.status(201).json(source);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Sources] Create error:', err);
+    res.status(500).json({ error: 'Failed to create source' });
   }
 });
 
@@ -438,23 +458,27 @@ router.get("/sources/:id", apiLimiter, (req, res) => {
  *       404:
  *         description: Source not found
  */
-router.put("/sources/:id", writeLimiter, (req, res) => {
+router.put("/sources/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { source_path, source_type, description } = req.body;
   
+  // SECURITY FIX: Added requireAdmin middleware
   // Validate that id is a valid integer
   const sourceId = parseInt(id, 10);
   if (isNaN(sourceId) || sourceId < 1) {
     return res.status(400).json({ error: "Invalid source ID" });
   }
   
-  if (!source_path) {
-    return res.status(400).json({ error: "Missing source_path" });
+  if (!source_path || typeof source_path !== 'string') {
+    return res.status(400).json({ error: "Invalid source_path" });
   }
   
   // Validate source_type if provided
-  if (source_type && !['LDES', 'Static_file'].includes(source_type)) {
-    return res.status(400).json({ error: "Invalid source_type. Must be 'LDES' or 'Static_file'" });
+  const validTypes = ['LDES', 'Static_file'];
+  if (source_type && !validTypes.includes(source_type)) {
+    return res.status(400).json({ 
+      error: `Invalid source_type. Must be one of: ${validTypes.join(', ')}` 
+    });
   }
   
   try {
@@ -471,12 +495,27 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
       "UPDATE sources SET source_path = ?, source_type = ?, description = ?, last_modified = CURRENT_TIMESTAMP WHERE source_id = ?"
     ).run(source_path, source_type || existing.source_type || 'Static_file', description || null, sourceId);
     
+    // Audit log
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'source_updated',
+      JSON.stringify({ 
+        source_id: sourceId,
+        source_path, 
+        source_type: source_type || existing.source_type || 'Static_file'
+      })
+    );
+    
     // Fetch updated source
     const updated = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
     
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Sources] Update error:', err);
+    res.status(500).json({ error: 'Failed to update source' });
   }
 });
 
@@ -508,9 +547,10 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
  *       404:
  *         description: Source not found
  */
-router.delete("/sources/:id", writeLimiter, async (req, res) => {
+router.delete("/sources/:id", requireAdmin, writeLimiter, async (req, res) => {
   const { id } = req.params;
   
+  // SECURITY FIX: Added requireAdmin middleware
   // Validate that id is a valid integer
   const sourceId = parseInt(id, 10);
   if (isNaN(sourceId) || sourceId < 1) {
@@ -544,6 +584,21 @@ router.delete("/sources/:id", writeLimiter, async (req, res) => {
     
     // Delete the source
     db.prepare("DELETE FROM sources WHERE source_id = ?").run(sourceId);
+    
+    // Audit log
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'source_deleted',
+      JSON.stringify({ 
+        source_id: sourceId,
+        source_path: existing.source_path,
+        terms_deleted: termCount,
+        fields_deleted: fieldCount
+      })
+    );
     
     // Attempt to delete the named graph from GraphDB if graph_name is specified
     let graphdbDeleted = false;
@@ -593,7 +648,8 @@ router.delete("/sources/:id", writeLimiter, async (req, res) => {
       warnings: graphdbError ? [graphdbError] : []
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Sources] Delete error:', err);
+    res.status(500).json({ error: 'Failed to delete source' });
   }
 });
 
@@ -737,7 +793,8 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *       500:
  *         description: Server error
  */
-router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, res) => {
+router.post("/sources/upload", requireAdmin, writeLimiter, upload.single('file'), async (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -767,7 +824,7 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
     
     // Create a task for the file upload processing
-    const created_by = req.session?.user?.username || null;
+    const created_by = req.session?.user?.id || req.session?.user?.user_id || null;
     const taskMetadata = JSON.stringify({
       filename: req.file.originalname,
       size: req.file.size,
@@ -779,6 +836,19 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     );
     const taskInfo = taskStmt.run('file_upload', source.source_id, taskMetadata, created_by, 'pending');
     const taskId = taskInfo.lastInsertRowid;
+    
+    // Audit log
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      created_by,
+      'source_file_uploaded',
+      JSON.stringify({ 
+        source_id: sourceId,
+        filename: req.file.originalname,
+        size: req.file.size
+      })
+    );
     
     // Start the upload task asynchronously
     (async () => {
@@ -819,7 +889,8 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
         if (unlinkErr) console.error('Error deleting file:', unlinkErr);
       });
     }
-    res.status(500).json({ error: err.message });
+    console.error('[Sources] Upload error:', err);
+    res.status(500).json({ error: 'Failed to upload file' });
   }
 });
 

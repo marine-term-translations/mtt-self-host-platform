@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const datetime = require("../utils/datetime");
 
 /**
@@ -34,7 +35,8 @@ const datetime = require("../utils/datetime");
  *       200:
  *         description: Returns paginated schedulers
  */
-router.get("/task-schedulers", apiLimiter, (req, res) => {
+router.get("/task-schedulers", requireAdmin, apiLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   try {
     const db = getDatabase();
     
@@ -96,7 +98,8 @@ router.get("/task-schedulers", apiLimiter, (req, res) => {
  *       404:
  *         description: Scheduler not found
  */
-router.get("/task-schedulers/:id", apiLimiter, (req, res) => {
+router.get("/task-schedulers/:id", requireAdmin, apiLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   const { id } = req.params;
   
   const schedulerId = parseInt(id, 10);
@@ -154,7 +157,8 @@ router.get("/task-schedulers/:id", apiLimiter, (req, res) => {
  *       201:
  *         description: Scheduler created successfully
  */
-router.post("/task-schedulers", writeLimiter, (req, res) => {
+router.post("/task-schedulers", requireAdmin, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   const { name, task_type, schedule_config, enabled, source_id } = req.body;
   
   if (!name || !task_type || !schedule_config) {
@@ -238,7 +242,8 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
  *       200:
  *         description: Scheduler updated successfully
  */
-router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
+router.put("/task-schedulers/:id", requireAdmin, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   const { id } = req.params;
   const { name, task_type, schedule_config, enabled, source_id } = req.body;
   
@@ -334,7 +339,8 @@ router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
  *       200:
  *         description: Scheduler deleted successfully
  */
-router.delete("/task-schedulers/:id", writeLimiter, (req, res) => {
+router.delete("/task-schedulers/:id", requireAdmin, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   const { id } = req.params;
   
   const schedulerId = parseInt(id, 10);
@@ -377,7 +383,8 @@ router.delete("/task-schedulers/:id", writeLimiter, (req, res) => {
  *       200:
  *         description: Scheduler toggled successfully
  */
-router.post("/task-schedulers/:id/toggle", writeLimiter, (req, res) => {
+router.post("/task-schedulers/:id/toggle", requireAdmin, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAdmin middleware
   const { id } = req.params;
   
   const schedulerId = parseInt(id, 10);
