@@ -439,11 +439,11 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
     let missingTranslations = null;
 
     if (goal.goal_type === 'translation_count') {
-      // Count approved translations in target language within goal period
+      // Count approved and merged translations in target language within goal period
       let query = `
         SELECT COUNT(*) as count
         FROM translations
-        WHERE status = 'approved'
+        WHERE status IN ('approved', 'merged')
           AND created_at >= ?
       `;
       const params = [goal.start_date];
@@ -465,14 +465,14 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
         progress = Math.min(100, Math.round((currentCount / goal.target_count) * 100));
       }
     } else if (goal.goal_type === 'collection' && goal.collection_id) {
-      // Count approved translations for terms in the collection
+      // Count approved and merged translations for terms in the collection
       let query = `
         SELECT COUNT(DISTINCT tf.id) as count
         FROM term_fields tf
         INNER JOIN terms t ON tf.term_id = t.id
         INNER JOIN translations tr ON tf.id = tr.term_field_id
         WHERE t.source_id = ?
-          AND tr.status = 'approved'
+          AND tr.status IN ('approved', 'merged')
           AND tr.created_at >= ?
       `;
       const params = [goal.collection_id, goal.start_date];
@@ -508,16 +508,28 @@ router.get("/community-goals/:id/progress", apiLimiter, (req, res) => {
 
         if (goal.target_language) {
           // Single language - calculate missing
+          // Note: Date filters must be in ON clause for LEFT JOIN to work correctly
           const translatedQuery = `
             SELECT COUNT(DISTINCT tf.id) as count
             FROM term_fields tf
             INNER JOIN terms t ON tf.term_id = t.id
-            LEFT JOIN translations tr ON tf.id = tr.term_field_id AND tr.language = ? AND tr.status = 'approved'
+            LEFT JOIN translations tr ON tf.id = tr.term_field_id 
+              AND tr.language = ? 
+              AND tr.status IN ('approved', 'merged')
+              AND tr.created_at >= ?
+              AND tr.created_at <= ?
             WHERE t.source_id = ?
               AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
               AND tr.id IS NOT NULL
           `;
-          const translatedResult = db.prepare(translatedQuery).get(goal.target_language, goal.collection_id);
+          // Use far-future date if no end_date specified
+          const endDate = goal.end_date || '9999-12-31';
+          const translatedResult = db.prepare(translatedQuery).get(
+            goal.target_language,
+            goal.start_date,
+            endDate,
+            goal.collection_id
+          );
           const translatedCount = translatedResult.count;
           const missing = totalFields - translatedCount;
           
