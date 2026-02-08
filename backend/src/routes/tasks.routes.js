@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAuth } = require("../middleware/admin");
 
 /**
  * @openapi
@@ -168,7 +169,8 @@ router.get("/tasks/:id", apiLimiter, (req, res) => {
  *       201:
  *         description: Task created successfully
  */
-router.post("/tasks", writeLimiter, (req, res) => {
+router.post("/tasks", requireAuth, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAuth, removed created_by from request
   const { task_type, source_id, metadata } = req.body;
   
   if (!task_type) {
@@ -183,8 +185,8 @@ router.post("/tasks", writeLimiter, (req, res) => {
   try {
     const db = getDatabase();
     
-    // Get username from session if available
-    const created_by = req.session?.user?.username || null;
+    // SECURITY FIX: Get user ID from session, NOT from request
+    const created_by = req.session?.user?.id || req.session?.user?.user_id || null;
     
     const stmt = db.prepare(
       "INSERT INTO tasks (task_type, source_id, metadata, created_by) VALUES (?, ?, ?, ?)"
@@ -195,7 +197,8 @@ router.post("/tasks", writeLimiter, (req, res) => {
     
     res.status(201).json(task);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Tasks] Create error:', err);
+    res.status(500).json({ error: 'Failed to create task' });
   }
 });
 
@@ -229,7 +232,8 @@ router.post("/tasks", writeLimiter, (req, res) => {
  *       200:
  *         description: Task updated successfully
  */
-router.put("/tasks/:id", writeLimiter, (req, res) => {
+router.put("/tasks/:id", requireAuth, writeLimiter, (req, res) => {
+  // SECURITY FIX: Added requireAuth and ownership validation
   const { id } = req.params;
   const { status, error_message, metadata } = req.body;
   
@@ -252,6 +256,17 @@ router.put("/tasks/:id", writeLimiter, (req, res) => {
     const existing = db.prepare("SELECT * FROM tasks WHERE task_id = ?").get(taskId);
     if (!existing) {
       return res.status(404).json({ error: "Task not found" });
+    }
+    
+    // SECURITY FIX: Verify ownership or admin
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    const isAdmin = req.session.user.is_admin;
+    const isCreator = existing.created_by === currentUserId;
+    
+    if (!isAdmin && !isCreator) {
+      return res.status(403).json({ 
+        error: "You don't have permission to update this task" 
+      });
     }
     
     // Build update query dynamically based on provided fields
