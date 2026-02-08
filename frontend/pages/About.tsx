@@ -185,6 +185,62 @@ const About: React.FC = () => {
           </p>
       </div>
 
+      {/* Partners & Sponsors Section */}
+      <div className="bg-gradient-to-br from-marine-50 to-slate-50 dark:from-slate-800 dark:to-slate-900 border border-marine-200 dark:border-slate-700 rounded-2xl p-8 mb-16">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">Partners & Sponsors</h2>
+          <div className="prose prose-slate dark:prose-invert max-w-3xl mx-auto">
+              <p className="text-slate-600 dark:text-slate-300 mb-6 text-center">
+                  This platform is made possible through the collaboration and support of leading marine science organizations and European institutions.
+              </p>
+              
+              <div className="grid md:grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+                          <a href="https://vliz.be/en" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
+                              Flanders Marine Institute (VLIZ)
+                          </a>
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                          The parent organization that developed this platform. VLIZ is a leading research institute dedicated to marine sciences and knowledge exchange.
+                      </p>
+                  </div>
+                  
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+                          <a href="https://open-science.vliz.be/" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
+                              Open Science Team
+                          </a>
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                          The specialized team at VLIZ that built this platform, dedicated to advancing open science practices and tools for the marine science community.
+                      </p>
+                  </div>
+                  
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+                          <a href="https://commission.europa.eu/index_en" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
+                              European Commission
+                          </a>
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                          This platform was developed with support from the European Commission through the BlueCloud project phase 5.2, fostering innovation in marine data infrastructure.
+                      </p>
+                  </div>
+                  
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+                          <a href="https://vocab.vliz.be/" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
+                              VLIZ Vocabulary Server
+                          </a>
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                          A comprehensive vocabulary management tool that will leverage the multilingual translations created by this platform's community to enhance marine terminology accessibility.
+                      </p>
+                  </div>
+              </div>
+          </div>
+      </div>
+
       <div className="grid md:grid-cols-3 gap-8 text-center border-t border-slate-200 dark:border-slate-800 pt-12">
         <div className="px-4">
           <Globe className="mx-auto h-10 w-10 text-marine-500 mb-4" />
