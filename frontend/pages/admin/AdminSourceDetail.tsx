@@ -57,7 +57,6 @@ interface Source {
   translation_config?: TranslationConfig;
   containerStatus?: ContainerStatus | null;
 }
-}
 
 interface RDFType {
   type: string;
