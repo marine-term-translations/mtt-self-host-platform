@@ -15,11 +15,23 @@ import {
   PlayCircle,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Container,
+  Play,
+  FileText
 } from 'lucide-react';
 import { format, parse } from '@/src/utils/datetime';
 
 const API_URL = backendApi.baseUrl;
+
+interface ContainerStatus {
+  exists: boolean;
+  running: boolean;
+  status: string;
+  state: any;
+  created: string;
+  containerName?: string;
+}
 
 interface Source {
   source_id: number;
@@ -30,6 +42,8 @@ interface Source {
   created_at: string;
   last_modified: string;
   translation_config?: TranslationConfig;
+  containerStatus?: ContainerStatus | null;
+}
 }
 
 interface RDFType {
@@ -99,6 +113,10 @@ export default function AdminSourceDetail() {
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [nestedPredicates, setNestedPredicates] = useState<Map<string, Predicate[]>>(new Map());
   const [runningTask, setRunningTask] = useState<Task | null>(null);
+  const [containerLogs, setContainerLogs] = useState<string>('');
+  const [showLogs, setShowLogs] = useState(false);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [restartingContainer, setRestartingContainer] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [loadingTypes, setLoadingTypes] = useState(false);
@@ -334,6 +352,48 @@ export default function AdminSourceDetail() {
     }
   };
 
+  const handleLoadContainerLogs = async () => {
+    if (!source?.containerStatus?.containerName) return;
+    
+    setLoadingLogs(true);
+    try {
+      const response = await axios.get(
+        `${API_URL}/admin/docker/containers/${source.containerStatus.containerName}/logs?tail=200`,
+        { withCredentials: true }
+      );
+      setContainerLogs(response.data.logs);
+      setShowLogs(true);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to load container logs');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const handleRestartContainer = async () => {
+    if (!source?.containerStatus?.containerName) return;
+    
+    setRestartingContainer(true);
+    try {
+      await axios.post(
+        `${API_URL}/admin/docker/containers/${source.containerStatus.containerName}/restart`,
+        {},
+        { withCredentials: true }
+      );
+      setSuccess('Container restarted successfully');
+      setTimeout(() => setSuccess(''), 3000);
+      
+      // Reload source to get updated container status
+      setTimeout(() => loadSource(), 2000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to restart container');
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setRestartingContainer(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -474,6 +534,101 @@ export default function AdminSourceDetail() {
           </div>
         </div>
       </div>
+
+      {/* Docker Container Status (for LDES sources) */}
+      {source.source_type === 'LDES' && source.containerStatus && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Container className="w-5 h-5" />
+            LDES Consumer Container
+          </h2>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">Container Name:</span>
+                <span className="ml-2 text-gray-900 dark:text-white font-mono">
+                  {source.containerStatus.containerName || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">Status:</span>
+                <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                  source.containerStatus.running 
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}>
+                  {source.containerStatus.running ? 'Running' : 'Stopped'}
+                </span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-600 dark:text-gray-400">State:</span>
+                <span className="ml-2 text-gray-900 dark:text-white">
+                  {source.containerStatus.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={handleLoadContainerLogs}
+                disabled={loadingLogs}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+              >
+                {loadingLogs ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                View Logs
+              </button>
+              <button
+                onClick={handleRestartContainer}
+                disabled={restartingContainer}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
+              >
+                {restartingContainer ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                Restart Container
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Container Logs Modal */}
+      {showLogs && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Container Logs: {source.containerStatus?.containerName}
+              </h3>
+              <button
+                onClick={() => setShowLogs(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <pre className="text-xs font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded border border-gray-200 dark:border-gray-700 whitespace-pre-wrap break-words">
+                {containerLogs || 'No logs available'}
+              </pre>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setShowLogs(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Running Task Status */}
       {runningTask && (
