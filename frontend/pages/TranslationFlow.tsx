@@ -11,6 +11,7 @@ import {
   submitReview,
   getAvailableLanguages,
   endFlowSession,
+  getFlowStats,
   FlowTask,
   UserStats,
   DailyChallenge,
@@ -147,6 +148,16 @@ const TranslationFlow: React.FC = () => {
     }
   };
 
+  // Refresh daily goal
+  const refreshDailyGoal = async () => {
+    try {
+      const response = await getFlowStats();
+      setDailyGoal(response.dailyGoal);
+    } catch (error) {
+      console.error('Failed to refresh daily goal:', error);
+    }
+  };
+
   // Handle review submission
   const handleSubmitReview = async (action: 'approve' | 'reject') => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
@@ -185,6 +196,9 @@ const TranslationFlow: React.FC = () => {
           ? `Translation approved! +${result.points} reputation`
           : `Translation rejected. +${result.points} reputation`
       );
+
+      // Refresh daily goal
+      await refreshDailyGoal();
 
       // Load next task
       await loadNextTask();
@@ -275,6 +289,9 @@ const TranslationFlow: React.FC = () => {
       }
 
       toast.success('Translation submitted! +1 reputation');
+
+      // Refresh daily goal
+      await refreshDailyGoal();
 
       // Load next task
       await loadNextTask();
