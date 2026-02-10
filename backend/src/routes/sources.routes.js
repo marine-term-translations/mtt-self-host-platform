@@ -12,6 +12,7 @@ const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 const config = require("../config");
 const datetime = require("../utils/datetime");
 const dockerService = require("../services/docker.service");
+const { MAIN_LDES_CONSUMER_CONTAINER, getLdesConsumerContainerName } = require("../config/docker");
 
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
@@ -174,12 +175,11 @@ async function updateLdesFeedsYaml(graphName, url) {
     
     // Try to restart the LDES consumer container after updating the yaml
     try {
-      const containerName = 'marine_ldes_consumer'; // Main LDES consumer container
-      const containerStatus = await dockerService.getContainerStatus(containerName);
+      const containerStatus = await dockerService.getContainerStatus(MAIN_LDES_CONSUMER_CONTAINER);
       
       if (containerStatus && containerStatus.exists) {
-        console.log(`Restarting LDES consumer container: ${containerName}`);
-        await dockerService.restartContainer(containerName);
+        console.log(`Restarting LDES consumer container: ${MAIN_LDES_CONSUMER_CONTAINER}`);
+        await dockerService.restartContainer(MAIN_LDES_CONSUMER_CONTAINER);
         console.log(`LDES consumer container restarted successfully`);
       } else {
         console.log('LDES consumer container not found, skipping restart');
@@ -418,7 +418,7 @@ router.get("/sources/:id", apiLimiter, async (req, res) => {
     let containerStatus = null;
     if (source.source_type === 'LDES') {
       try {
-        const containerName = `ldes-consumer-source_${sourceId}`;
+        const containerName = getLdesConsumerContainerName(sourceId);
         containerStatus = await dockerService.getContainerStatus(containerName);
         
         if (containerStatus) {

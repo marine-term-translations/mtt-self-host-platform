@@ -24,11 +24,24 @@ import { format, parse } from '@/src/utils/datetime';
 
 const API_URL = backendApi.baseUrl;
 
+interface DockerContainerState {
+  Running: boolean;
+  Paused: boolean;
+  Restarting: boolean;
+  OOMKilled: boolean;
+  Dead: boolean;
+  Pid: number;
+  ExitCode: number;
+  Error: string;
+  StartedAt: string;
+  FinishedAt: string;
+}
+
 interface ContainerStatus {
   exists: boolean;
   running: boolean;
   status: string;
-  state: any;
+  state: DockerContainerState;
   created: string;
   containerName?: string;
 }

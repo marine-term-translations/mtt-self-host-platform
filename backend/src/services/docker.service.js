@@ -1,9 +1,10 @@
 // Docker service - manages Docker container operations via the Docker socket
 const Docker = require('dockerode');
+const { DOCKER_SOCKET_PATH, getLdesConsumerContainerName } = require('../config/docker');
 
 // Initialize Docker client with socket connection
 // The Docker socket is mounted via docker-compose.yml
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+const docker = new Docker({ socketPath: DOCKER_SOCKET_PATH });
 
 /**
  * List all containers (both running and stopped)
@@ -159,7 +160,7 @@ async function restartContainer(containerName) {
  * @returns {Promise<Object|null>} Container status or null if not found
  */
 async function getLdesConsumerContainer(sourceId) {
-  const containerName = `ldes-consumer-source_${sourceId}`;
+  const containerName = getLdesConsumerContainerName(sourceId);
   return await getContainerStatus(containerName);
 }
 
@@ -169,7 +170,7 @@ async function getLdesConsumerContainer(sourceId) {
  * @returns {Promise<Object>} Result of restart operation
  */
 async function restartLdesConsumerContainer(sourceId) {
-  const containerName = `ldes-consumer-source_${sourceId}`;
+  const containerName = getLdesConsumerContainerName(sourceId);
   return await restartContainer(containerName);
 }
 
