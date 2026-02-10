@@ -11,6 +11,7 @@ const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
 const config = require("../config");
 const datetime = require("../utils/datetime");
+const dockerService = require("../services/docker.service");
 
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
@@ -114,8 +115,9 @@ async function uploadToGraphDB(filePath, graphName) {
 
 /**
  * Update or create ldes-feeds.yaml configuration file
+ * and restart LDES consumer container if it exists
  */
-function updateLdesFeedsYaml(graphName, url) {
+async function updateLdesFeedsYaml(graphName, url) {
   const ldesFeedsPath = process.env.NODE_ENV === 'production' 
     ? '/data/ldes-feeds.yaml' 
     : path.join(__dirname, '../../data/ldes-feeds.yaml');
@@ -169,6 +171,24 @@ function updateLdesFeedsYaml(graphName, url) {
     
     fs.writeFileSync(ldesFeedsPath, yamlContent, 'utf8');
     console.log(`Updated ldes-feeds.yaml with feed: ${graphName}`);
+    
+    // Try to restart the LDES consumer container after updating the yaml
+    try {
+      const containerName = 'marine_ldes_consumer'; // Main LDES consumer container
+      const containerStatus = await dockerService.getContainerStatus(containerName);
+      
+      if (containerStatus && containerStatus.exists) {
+        console.log(`Restarting LDES consumer container: ${containerName}`);
+        await dockerService.restartContainer(containerName);
+        console.log(`LDES consumer container restarted successfully`);
+      } else {
+        console.log('LDES consumer container not found, skipping restart');
+      }
+    } catch (restartError) {
+      // Log the error but don't fail the yaml update
+      console.error('Failed to restart LDES consumer:', restartError.message);
+    }
+    
     return true;
   } catch (error) {
     console.error('Error writing ldes-feeds.yaml:', error.message);
@@ -226,7 +246,7 @@ function updateLdesFeedsYaml(graphName, url) {
  *       500:
  *         description: Server error
  */
-router.post("/sources", writeLimiter, (req, res) => {
+router.post("/sources", writeLimiter, async (req, res) => {
   const { source_path, source_type, description } = req.body;
   
   if (!source_path) {
@@ -257,7 +277,7 @@ router.post("/sources", writeLimiter, (req, res) => {
       try {
         // Use the source_id as the feed key in ldes-feeds.yaml
         const feedKey = `source_${sourceId}`;
-        updateLdesFeedsYaml(feedKey, source_path);
+        await updateLdesFeedsYaml(feedKey, source_path);
       } catch (error) {
         console.error('Failed to update ldes-feeds.yaml:', error.message);
         // Continue - source is still created in database
@@ -377,7 +397,7 @@ router.get("/sources", apiLimiter, (req, res) => {
  *       404:
  *         description: Source not found
  */
-router.get("/sources/:id", apiLimiter, (req, res) => {
+router.get("/sources/:id", apiLimiter, async (req, res) => {
   const { id } = req.params;
   
   // Validate that id is a valid integer
@@ -394,7 +414,26 @@ router.get("/sources/:id", apiLimiter, (req, res) => {
       return res.status(404).json({ error: "Source not found" });
     }
     
-    res.json(source);
+    // If this is an LDES source, check for associated Docker container
+    let containerStatus = null;
+    if (source.source_type === 'LDES') {
+      try {
+        const containerName = `ldes-consumer-source_${sourceId}`;
+        containerStatus = await dockerService.getContainerStatus(containerName);
+        
+        if (containerStatus) {
+          containerStatus.containerName = containerName;
+        }
+      } catch (error) {
+        console.error(`Failed to get container status for source ${sourceId}:`, error.message);
+        // Continue without container status
+      }
+    }
+    
+    res.json({
+      ...source,
+      containerStatus
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
