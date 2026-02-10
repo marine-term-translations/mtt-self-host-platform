@@ -222,6 +222,7 @@ mtt-self-host-platform/
 | [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | Production deployment guide |
 | [docs/DATABASE_INITIALIZATION.md](docs/DATABASE_INITIALIZATION.md) | Database initialization and management |
 | [docs/COMMUNITY_GOALS.md](docs/COMMUNITY_GOALS.md) | Community goals feature guide |
+| [docs/DOCKER_ADMIN_CONTROL.md](docs/DOCKER_ADMIN_CONTROL.md) | Docker container management for admin users |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
 | [docs/GITEA_REMOVAL.md](docs/GITEA_REMOVAL.md) | Historical notes on Gitea removal (for reference) |
 
