@@ -496,23 +496,26 @@ function updateDailyGoalProgress(userIdentifier, increment = 1) {
   const wasCompleted = goal.completed === 1;
   const isCompleted = newCount >= goal.target_count ? 1 : 0;
   
+  // Update goal and check if we should award reward (atomically)
+  // Only award if: becoming completed AND not already rewarded
+  const shouldReward = isCompleted && !wasCompleted && !goal.rewarded;
+  
   db.prepare(
     `UPDATE user_daily_goals 
      SET current_count = ?, 
          completed = ?, 
+         rewarded = CASE WHEN ? = 1 AND completed = 0 AND rewarded = 0 THEN 1 ELSE rewarded END,
          completed_at = CASE WHEN ? = 1 AND completed = 0 THEN CURRENT_TIMESTAMP ELSE completed_at END,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`
-  ).run(newCount, isCompleted, isCompleted, goal.id);
+  ).run(newCount, isCompleted, isCompleted, isCompleted, goal.id);
   
-  // Award reputation if just completed (and not already rewarded)
-  if (isCompleted && !wasCompleted && !goal.rewarded) {
+  // Get updated goal to check if reward was applied
+  const updatedGoal = db.prepare("SELECT * FROM user_daily_goals WHERE id = ?").get(goal.id);
+  
+  // Award reputation if reward flag was just set (from 0 to 1)
+  if (shouldReward && updatedGoal.rewarded === 1) {
     applyReputationChange(userId, 5, 'daily_goal_completed');
-    
-    // Mark as rewarded
-    db.prepare(
-      "UPDATE user_daily_goals SET rewarded = 1 WHERE id = ?"
-    ).run(goal.id);
     
     // Log activity
     try {
@@ -528,7 +531,7 @@ function updateDailyGoalProgress(userIdentifier, increment = 1) {
     }
   }
   
-  return db.prepare("SELECT * FROM user_daily_goals WHERE id = ?").get(goal.id);
+  return updatedGoal;
 }
 
 module.exports = {

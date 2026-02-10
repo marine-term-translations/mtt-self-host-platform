@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Flame, Target, Award, AlertTriangle } from 'lucide-react';
+import { Trophy, Flame, Target, Award, AlertTriangle, Check } from 'lucide-react';
 import { UserStats, DailyChallenge, DailyGoal } from '../services/flow.api';
 import { useNavigate } from 'react-router-dom';
 
@@ -112,8 +112,9 @@ const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
             <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Reward</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {dailyGoal.rewarded === 1 ? '✓ ' : ''}+5 Reputation
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  {dailyGoal.rewarded === 1 && <Check className="w-4 h-4" />}
+                  +5 Reputation
                 </span>
               </div>
             </div>
@@ -204,8 +205,9 @@ const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      {isCompleted ? '✓ ' : ''}+{challenge.points_reward}
+                    <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      {isCompleted && <Check className="w-3 h-3" />}
+                      +{challenge.points_reward}
                     </div>
                   </div>
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
