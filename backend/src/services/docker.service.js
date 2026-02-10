@@ -25,12 +25,30 @@ async function listContainers(options = {}) {
 }
 
 /**
+ * Validate container name format
+ * @param {string} name - Container name to validate
+ * @returns {boolean} True if valid
+ */
+function isValidContainerName(name) {
+  if (!name || typeof name !== 'string') {
+    return false;
+  }
+  // Container names can only contain alphanumeric, underscore, hyphen, and dot
+  return /^[a-zA-Z0-9_\-\.]+$/.test(name);
+}
+
+/**
  * Get container by name or ID
  * @param {string} nameOrId - Container name or ID
  * @returns {Promise<Object|null>} Container object or null if not found
  */
 async function getContainer(nameOrId) {
   try {
+    // Validate input
+    if (!isValidContainerName(nameOrId)) {
+      throw new Error('Invalid container name format');
+    }
+    
     const containers = await listContainers();
     
     // Find container by name or ID
@@ -99,6 +117,11 @@ async function getContainerStatus(containerName) {
  */
 async function getContainerLogs(containerName, options = {}) {
   try {
+    // Validate input
+    if (!isValidContainerName(containerName)) {
+      throw new Error('Invalid container name format');
+    }
+    
     const containerInfo = await getContainer(containerName);
     
     if (!containerInfo) {
@@ -107,14 +130,24 @@ async function getContainerLogs(containerName, options = {}) {
     
     const container = docker.getContainer(containerInfo.id);
     
+    // Validate and sanitize tail option
+    let tail = 100; // default
+    if (options.tail !== undefined) {
+      const parsedTail = parseInt(options.tail, 10);
+      if (isNaN(parsedTail) || parsedTail < 1 || parsedTail > 10000) {
+        tail = 100; // fallback to default if invalid
+      } else {
+        tail = parsedTail;
+      }
+    }
+    
     // Default options for logs
     const logOptions = {
       follow: false,
       stdout: true,
       stderr: true,
-      tail: options.tail || 100, // Default to last 100 lines
+      tail: tail,
       timestamps: options.timestamps !== false, // Default to true
-      ...options
     };
     
     const stream = await container.logs(logOptions);
@@ -134,6 +167,11 @@ async function getContainerLogs(containerName, options = {}) {
  */
 async function restartContainer(containerName) {
   try {
+    // Validate input
+    if (!isValidContainerName(containerName)) {
+      throw new Error('Invalid container name format');
+    }
+    
     const containerInfo = await getContainer(containerName);
     
     if (!containerInfo) {

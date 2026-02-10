@@ -82,6 +82,20 @@ router.get("/admin/docker/containers", requireAdmin, apiLimiter, async (req, res
 router.get("/admin/docker/containers/:name", requireAdmin, apiLimiter, async (req, res) => {
   try {
     const { name } = req.params;
+    
+    // Validate container name to prevent injection attacks
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid container name' });
+    }
+    
+    // Sanitize container name - allow only alphanumeric, underscore, hyphen, and dot
+    if (!/^[a-zA-Z0-9_\-\.]+$/.test(name)) {
+      return res.status(400).json({ 
+        error: 'Invalid container name format',
+        message: 'Container name can only contain alphanumeric characters, underscores, hyphens, and dots'
+      });
+    }
+    
     const container = await dockerService.getContainer(name);
     
     if (!container) {
@@ -148,7 +162,33 @@ router.get("/admin/docker/containers/:name", requireAdmin, apiLimiter, async (re
 router.get("/admin/docker/containers/:name/logs", requireAdmin, apiLimiter, async (req, res) => {
   try {
     const { name } = req.params;
-    const tail = parseInt(req.query.tail) || 100;
+    
+    // Validate container name to prevent injection attacks
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid container name' });
+    }
+    
+    // Sanitize container name - allow only alphanumeric, underscore, hyphen, and dot
+    if (!/^[a-zA-Z0-9_\-\.]+$/.test(name)) {
+      return res.status(400).json({ 
+        error: 'Invalid container name format',
+        message: 'Container name can only contain alphanumeric characters, underscores, hyphens, and dots'
+      });
+    }
+    
+    // Validate and sanitize tail parameter
+    let tail = 100; // default
+    if (req.query.tail) {
+      const parsedTail = parseInt(req.query.tail, 10);
+      if (isNaN(parsedTail) || parsedTail < 1 || parsedTail > 10000) {
+        return res.status(400).json({ 
+          error: 'Invalid tail parameter',
+          message: 'Tail must be a number between 1 and 10000'
+        });
+      }
+      tail = parsedTail;
+    }
+    
     const timestamps = req.query.timestamps !== 'false';
     
     const logs = await dockerService.getContainerLogs(name, { tail, timestamps });
@@ -201,6 +241,20 @@ router.get("/admin/docker/containers/:name/logs", requireAdmin, apiLimiter, asyn
 router.post("/admin/docker/containers/:name/restart", requireAdmin, apiLimiter, async (req, res) => {
   try {
     const { name } = req.params;
+    
+    // Validate container name to prevent injection attacks
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Invalid container name' });
+    }
+    
+    // Sanitize container name - allow only alphanumeric, underscore, hyphen, and dot
+    if (!/^[a-zA-Z0-9_\-\.]+$/.test(name)) {
+      return res.status(400).json({ 
+        error: 'Invalid container name format',
+        message: 'Container name can only contain alphanumeric characters, underscores, hyphens, and dots'
+      });
+    }
+    
     const result = await dockerService.restartContainer(name);
     
     res.json(result);
