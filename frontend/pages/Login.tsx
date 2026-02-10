@@ -54,9 +54,11 @@ const Login: React.FC = () => {
             onClick={handleLogin}
             className="w-full flex items-center justify-center py-3 px-4 bg-[#609926] hover:bg-[#508020] text-white rounded-lg font-semibold transition-all shadow-sm hover:shadow active:scale-95"
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 256 256" fill="currentColor">
-              <path d="M256,128 C256,198.7 198.7,256 128,256 C57.3,256 0,198.7 0,128 C0,57.3 57.3,0 128,0 C198.7,0 256,57.3 256,128 Z M76.9,108.4 C76.9,96.3 86.8,86.3 98.9,86.3 C111,86.3 120.9,96.3 120.9,108.4 C120.9,120.5 111,130.4 98.9,130.4 C86.8,130.4 76.9,120.5 76.9,108.4 Z M135.1,108.4 C135.1,96.3 145,86.3 157.1,86.3 C169.2,86.3 179.1,96.3 179.1,108.4 C179.1,120.5 169.2,130.4 157.1,130.4 C145,130.4 135.1,120.5 135.1,108.4 Z M128,180 C154.5,180 176.2,158.3 176.2,131.8 L79.8,131.8 C79.8,158.3 101.5,180 128,180 Z"/>
-            </svg>
+            <img
+              src="/orcid.svg"
+              alt="ORCID"
+              className="w-5 h-5 mr-2"
+            />
             Sign in with ORCID
           </button>
           

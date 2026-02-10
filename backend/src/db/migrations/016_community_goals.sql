@@ -1,7 +1,7 @@
 -- Community Goals Feature
 -- Allows admins to create and manage community-wide translation goals
 
-CREATE TABLE community_goals (
+CREATE TABLE IF NOT EXISTS community_goals (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     title           TEXT NOT NULL,
     description     TEXT,
@@ -19,12 +19,12 @@ CREATE TABLE community_goals (
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_community_goals_active ON community_goals(is_active);
-CREATE INDEX idx_community_goals_language ON community_goals(target_language);
-CREATE INDEX idx_community_goals_dates ON community_goals(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_community_goals_active ON community_goals(is_active);
+CREATE INDEX IF NOT EXISTS idx_community_goals_language ON community_goals(target_language);
+CREATE INDEX IF NOT EXISTS idx_community_goals_dates ON community_goals(start_date, end_date);
 
 -- Track user dismissals of goal widgets
-CREATE TABLE community_goal_dismissals (
+CREATE TABLE IF NOT EXISTS community_goal_dismissals (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     goal_id         INTEGER NOT NULL REFERENCES community_goals(id) ON DELETE CASCADE,
@@ -32,4 +32,4 @@ CREATE TABLE community_goal_dismissals (
     UNIQUE(user_id, goal_id)
 );
 
-CREATE INDEX idx_community_goal_dismissals_user ON community_goal_dismissals(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_goal_dismissals_user ON community_goal_dismissals(user_id);
