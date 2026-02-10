@@ -21,12 +21,14 @@ async function startFlow(req, res) {
     // Get user stats and challenges
     const stats = gamificationService.getUserStats(userId);
     const challenges = gamificationService.getDailyChallenges(userId);
+    const dailyGoal = gamificationService.getDailyGoal(userId);
     
     res.json({
       success: true,
       sessionId: session.id,
       stats,
       challenges,
+      dailyGoal,
       language: language || null,
       source: source || null,
     });
@@ -107,10 +109,12 @@ async function getStats(req, res) {
     const userId = req.session.user.id || req.session.user.user_id;
     const stats = gamificationService.getUserStats(userId);
     const challenges = gamificationService.getDailyChallenges(userId);
+    const dailyGoal = gamificationService.getDailyGoal(userId);
     
     res.json({
       stats,
       challenges,
+      dailyGoal,
     });
   } catch (error) {
     console.error("[Flow] Get stats error:", error);

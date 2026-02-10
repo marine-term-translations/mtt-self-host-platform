@@ -1,10 +1,12 @@
 import React from 'react';
 import { Trophy, Flame, Target, Award, AlertTriangle } from 'lucide-react';
-import { UserStats, DailyChallenge } from '../services/flow.api';
+import { UserStats, DailyChallenge, DailyGoal } from '../services/flow.api';
+import { useNavigate } from 'react-router-dom';
 
 interface FlowStatsPanelProps {
   stats: UserStats | null;
   challenges: DailyChallenge[];
+  dailyGoal: DailyGoal | null;
   sessionPoints: number;
   sessionTranslations: number;
   sessionReviews: number;
@@ -13,10 +15,13 @@ interface FlowStatsPanelProps {
 const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
   stats,
   challenges,
+  dailyGoal,
   sessionPoints,
   sessionTranslations,
   sessionReviews,
 }) => {
+  const navigate = useNavigate();
+
   if (!stats) {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
@@ -24,6 +29,11 @@ const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
       </div>
     );
   }
+
+  const handleDailyGoalClick = () => {
+    // Direct user to the flow when they click on the daily goal
+    navigate('/flow');
+  };
 
   const getChallengeIcon = (type: string) => {
     switch (type) {
@@ -57,47 +67,63 @@ const FlowStatsPanel: React.FC<FlowStatsPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Warning Box */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
-              Work In Progress
-            </h4>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Session statistics and daily challenges are not fully implemented yet. Numbers may not update as expected.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Session Stats */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+      {/* Daily Goal - Replaces Session Stats */}
+      <div 
+        className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-blue-200 dark:border-blue-800"
+        onClick={handleDailyGoalClick}
+      >
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800 dark:text-white">
-          <Trophy className="w-5 h-5 text-yellow-500" />
-          Session Stats
+          <Target className="w-5 h-5 text-blue-500" />
+          Daily Goal
         </h3>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-300">Points Earned</span>
-            <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-              +{sessionPoints}
-            </span>
+        {dailyGoal ? (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-700 dark:text-gray-300 font-medium">
+                Complete 5 translations or reviews
+              </span>
+              {dailyGoal.completed === 1 && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                  <Trophy className="w-4 h-4" />
+                  Completed!
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Progress</span>
+                <span className="text-lg font-bold text-gray-800 dark:text-white">
+                  {dailyGoal.current_count}/{dailyGoal.target_count}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all duration-300 ${
+                    dailyGoal.completed === 1
+                      ? 'bg-emerald-500'
+                      : 'bg-blue-500'
+                  }`}
+                  style={{ 
+                    width: `${Math.min((dailyGoal.current_count / dailyGoal.target_count) * 100, 100)}%` 
+                  }}
+                />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Reward</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                  {dailyGoal.rewarded === 1 ? '✓ ' : ''}+5 Reputation
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
+              Click to start translating or reviewing →
+            </div>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-300">Translations</span>
-            <span className="text-lg font-semibold text-gray-800 dark:text-white">
-              {sessionTranslations}
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-300">Reviews</span>
-            <span className="text-lg font-semibold text-gray-800 dark:text-white">
-              {sessionReviews}
-            </span>
-          </div>
-        </div>
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading daily goal...</p>
+        )}
       </div>
 
       {/* Overall Stats */}

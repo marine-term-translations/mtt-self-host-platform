@@ -1347,6 +1347,10 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             createdByUserId,
             creationRewardResult,
           });
+          
+          // Update daily goal progress (5 translations or reviews)
+          const { updateDailyGoalProgress } = require("../services/gamification.service");
+          updateDailyGoalProgress(createdByUserId, 1);
         }
       }
     }

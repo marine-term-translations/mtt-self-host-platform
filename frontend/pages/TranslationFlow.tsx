@@ -14,6 +14,7 @@ import {
   FlowTask,
   UserStats,
   DailyChallenge,
+  DailyGoal,
   Language,
 } from '../services/flow.api';
 import { backendApi } from '../services/api';
@@ -30,6 +31,7 @@ const TranslationFlow: React.FC = () => {
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [challenges, setChallenges] = useState<DailyChallenge[]>([]);
+  const [dailyGoal, setDailyGoal] = useState<DailyGoal | null>(null);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [sessionPoints, setSessionPoints] = useState(0);
   const [sessionTranslations, setSessionTranslations] = useState(0);
@@ -54,6 +56,7 @@ const TranslationFlow: React.FC = () => {
         setSessionId(sessionData.sessionId);
         setStats(sessionData.stats);
         setChallenges(sessionData.challenges);
+        setDailyGoal(sessionData.dailyGoal);
         setLanguages(languagesData.languages);
 
         // Get first task
@@ -417,6 +420,7 @@ const TranslationFlow: React.FC = () => {
             <FlowStatsPanel
               stats={stats}
               challenges={challenges}
+              dailyGoal={dailyGoal}
               sessionPoints={sessionPoints}
               sessionTranslations={sessionTranslations}
               sessionReviews={sessionReviews}
