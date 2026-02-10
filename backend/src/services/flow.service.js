@@ -328,6 +328,10 @@ function submitReview(params) {
   // Update challenge progress
   updateChallengeProgress(resolvedUserId, 'review_10', 1);
   
+  // Update daily goal progress (5 translations or reviews)
+  const { updateDailyGoalProgress } = require("./gamification.service");
+  updateDailyGoalProgress(resolvedUserId, 1);
+  
   // Log activity
   try {
     db.prepare(

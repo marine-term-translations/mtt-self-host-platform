@@ -39,6 +39,19 @@ export interface DailyChallenge {
   points_reward: number;
 }
 
+export interface DailyGoal {
+  id: number;
+  user_id: number;
+  goal_date: string;
+  target_count: number;
+  current_count: number;
+  completed: number;
+  rewarded: number;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface StreakInfo {
   streak: number;
   longestStreak: number;
@@ -72,6 +85,7 @@ export async function startFlowSession(language?: string, source?: string): Prom
   sessionId: number;
   stats: UserStats;
   challenges: DailyChallenge[];
+  dailyGoal: DailyGoal;
   language?: string | null;
   source?: string | null;
 }> {
@@ -80,6 +94,7 @@ export async function startFlowSession(language?: string, source?: string): Prom
     sessionId: number;
     stats: UserStats;
     challenges: DailyChallenge[];
+    dailyGoal: DailyGoal;
     language?: string | null;
     source?: string | null;
   }>('/flow/start', { language, source });
@@ -116,10 +131,12 @@ export async function submitReview(
 export async function getFlowStats(): Promise<{
   stats: UserStats;
   challenges: DailyChallenge[];
+  dailyGoal: DailyGoal;
 }> {
   return backendApi.get<{
     stats: UserStats;
     challenges: DailyChallenge[];
+    dailyGoal: DailyGoal;
   }>('/flow/stats');
 }
 

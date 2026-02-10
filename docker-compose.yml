@@ -1,3 +1,4 @@
+name: ${COMPOSE_PROJECT_NAME:-kgap}
 services:
   backend:
     build: ./backend
@@ -13,6 +14,7 @@ services:
     volumes:
       - ./backend/data:/app/backend/data
       - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock # Required to spawn/restart docker containers
     ports:
       - "5000:5000"
 

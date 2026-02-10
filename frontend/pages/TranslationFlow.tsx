@@ -11,9 +11,11 @@ import {
   submitReview,
   getAvailableLanguages,
   endFlowSession,
+  getFlowStats,
   FlowTask,
   UserStats,
   DailyChallenge,
+  DailyGoal,
   Language,
 } from '../services/flow.api';
 import { backendApi } from '../services/api';
@@ -30,6 +32,7 @@ const TranslationFlow: React.FC = () => {
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [challenges, setChallenges] = useState<DailyChallenge[]>([]);
+  const [dailyGoal, setDailyGoal] = useState<DailyGoal | null>(null);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [sessionPoints, setSessionPoints] = useState(0);
   const [sessionTranslations, setSessionTranslations] = useState(0);
@@ -54,6 +57,7 @@ const TranslationFlow: React.FC = () => {
         setSessionId(sessionData.sessionId);
         setStats(sessionData.stats);
         setChallenges(sessionData.challenges);
+        setDailyGoal(sessionData.dailyGoal);
         setLanguages(languagesData.languages);
 
         // Get first task
@@ -144,6 +148,16 @@ const TranslationFlow: React.FC = () => {
     }
   };
 
+  // Refresh daily goal
+  const refreshDailyGoal = async () => {
+    try {
+      const response = await getFlowStats();
+      setDailyGoal(response.dailyGoal);
+    } catch (error) {
+      console.error('Failed to refresh daily goal:', error);
+    }
+  };
+
   // Handle review submission
   const handleSubmitReview = async (action: 'approve' | 'reject') => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
@@ -182,6 +196,9 @@ const TranslationFlow: React.FC = () => {
           ? `Translation approved! +${result.points} reputation`
           : `Translation rejected. +${result.points} reputation`
       );
+
+      // Refresh daily goal
+      await refreshDailyGoal();
 
       // Load next task
       await loadNextTask();
@@ -272,6 +289,9 @@ const TranslationFlow: React.FC = () => {
       }
 
       toast.success('Translation submitted! +1 reputation');
+
+      // Refresh daily goal
+      await refreshDailyGoal();
 
       // Load next task
       await loadNextTask();
@@ -417,6 +437,7 @@ const TranslationFlow: React.FC = () => {
             <FlowStatsPanel
               stats={stats}
               challenges={challenges}
+              dailyGoal={dailyGoal}
               sessionPoints={sessionPoints}
               sessionTranslations={sessionTranslations}
               sessionReviews={sessionReviews}

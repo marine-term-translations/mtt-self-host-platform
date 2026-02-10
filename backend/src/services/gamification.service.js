@@ -435,6 +435,105 @@ function getLeaderboard(limit = 10) {
   ).all(limit);
 }
 
+/**
+ * Get or create daily goal for a user
+ * Daily goal = 5 translations or reviews combined
+ * @param {number|string} userIdentifier - User ID or username
+ * @returns {object} Daily goal object
+ */
+function getDailyGoal(userIdentifier) {
+  const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return null;
+  }
+  
+  const today = datetime.format(datetime.now(), 'YYYY-MM-DD');
+  
+  // Get existing goal for today
+  let goal = db.prepare(
+    "SELECT * FROM user_daily_goals WHERE user_id = ? AND goal_date = ?"
+  ).get(userId, today);
+  
+  if (!goal) {
+    // Create new goal for today
+    db.prepare(
+      "INSERT INTO user_daily_goals (user_id, goal_date, target_count) VALUES (?, ?, ?)"
+    ).run(userId, today, 5);
+    
+    goal = db.prepare(
+      "SELECT * FROM user_daily_goals WHERE user_id = ? AND goal_date = ?"
+    ).get(userId, today);
+  }
+  
+  return goal;
+}
+
+/**
+ * Update daily goal progress
+ * Called when user completes a translation or review
+ * @param {number|string} userIdentifier - User ID or username
+ * @param {number} increment - Amount to increment (default 1)
+ * @returns {object|null} Updated goal object
+ */
+function updateDailyGoalProgress(userIdentifier, increment = 1) {
+  const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  const { applyReputationChange } = require("./reputation.service");
+  
+  if (!userId) {
+    return null;
+  }
+  
+  const goal = getDailyGoal(userId);
+  
+  if (!goal) {
+    return null;
+  }
+  
+  const newCount = goal.current_count + increment;
+  const wasCompleted = goal.completed === 1;
+  const isCompleted = newCount >= goal.target_count ? 1 : 0;
+  
+  // Update goal and check if we should award reward (atomically)
+  // Only award if: becoming completed AND not already rewarded
+  const shouldReward = isCompleted && !wasCompleted && !goal.rewarded;
+  
+  db.prepare(
+    `UPDATE user_daily_goals 
+     SET current_count = ?, 
+         completed = ?, 
+         rewarded = CASE WHEN ? = 1 AND completed = 0 AND rewarded = 0 THEN 1 ELSE rewarded END,
+         completed_at = CASE WHEN ? = 1 AND completed = 0 THEN CURRENT_TIMESTAMP ELSE completed_at END,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`
+  ).run(newCount, isCompleted, isCompleted, isCompleted, goal.id);
+  
+  // Get updated goal to check if reward was applied
+  const updatedGoal = db.prepare("SELECT * FROM user_daily_goals WHERE id = ?").get(goal.id);
+  
+  // Award reputation if reward flag was just set (from 0 to 1)
+  if (shouldReward && updatedGoal.rewarded === 1) {
+    applyReputationChange(userId, 5, 'daily_goal_completed');
+    
+    // Log activity
+    try {
+      db.prepare(
+        "INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)"
+      ).run(userId, 'daily_goal_completed', JSON.stringify({ 
+        date: goal.goal_date,
+        target: goal.target_count,
+        reward: 5
+      }));
+    } catch (err) {
+      console.log("Could not log daily goal completion activity:", err.message);
+    }
+  }
+  
+  return updatedGoal;
+}
+
 module.exports = {
   resolveUserIdentifier,
   ensureUserStats,
@@ -449,4 +548,6 @@ module.exports = {
   updateFlowSession,
   endFlowSession,
   getLeaderboard,
+  getDailyGoal,
+  updateDailyGoalProgress,
 };
