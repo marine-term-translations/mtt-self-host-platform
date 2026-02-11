@@ -40,19 +40,16 @@ router.get("/api/communities/:id/stats", apiLimiter, (req, res) => {
       return res.status(404).json({ error: 'Community not found' });
     }
     
-    // Calculate date filter based on period
-    let dateFilter = '';
+    // Calculate date cutoff based on period
+    let dateCutoff = null;
     const now = new Date();
     
     if (period === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      dateFilter = `AND t.created_at >= '${weekAgo.toISOString()}'`;
+      dateCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     } else if (period === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      dateFilter = `AND t.created_at >= '${monthAgo.toISOString()}'`;
+      dateCutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
     } else if (period === 'year') {
-      const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-      dateFilter = `AND t.created_at >= '${yearAgo.toISOString()}'`;
+      dateCutoff = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
     }
     
     // Get member IDs for community
@@ -73,68 +70,105 @@ router.get("/api/communities/:id/stats", apiLimiter, (req, res) => {
       });
     }
     
-    const memberIdsList = memberIds.join(',');
+    // Create placeholders for the IN clause
+    const placeholders = memberIds.map(() => '?').join(',');
     
     // Get total translations by community members
-    const totalTranslations = db.prepare(`
+    let totalTranslationsQuery = `
       SELECT COUNT(*) as count
       FROM translations t
-      WHERE t.created_by_id IN (${memberIdsList})
-      ${dateFilter}
-    `).get();
+      WHERE t.created_by_id IN (${placeholders})
+    `;
+    let totalTranslationsParams = [...memberIds];
+    
+    if (dateCutoff) {
+      totalTranslationsQuery += ' AND t.created_at >= ?';
+      totalTranslationsParams.push(dateCutoff);
+    }
+    
+    const totalTranslations = db.prepare(totalTranslationsQuery).get(...totalTranslationsParams);
     
     // Get translations by status
-    const translationsByStatus = db.prepare(`
+    let translationsByStatusQuery = `
       SELECT 
         t.status,
         COUNT(*) as count
       FROM translations t
-      WHERE t.created_by_id IN (${memberIdsList})
-      ${dateFilter}
-      GROUP BY t.status
-    `).all();
+      WHERE t.created_by_id IN (${placeholders})
+    `;
+    let translationsByStatusParams = [...memberIds];
+    
+    if (dateCutoff) {
+      translationsByStatusQuery += ' AND t.created_at >= ?';
+      translationsByStatusParams.push(dateCutoff);
+    }
+    
+    translationsByStatusQuery += ' GROUP BY t.status';
+    
+    const translationsByStatus = db.prepare(translationsByStatusQuery).all(...translationsByStatusParams);
     
     // Get translations by language (for language communities, focus on that language)
     let translationsByLanguage;
     if (community.type === 'language' && community.language_code) {
-      translationsByLanguage = db.prepare(`
+      let languageQuery = `
         SELECT 
           t.language,
           COUNT(*) as count
         FROM translations t
-        WHERE t.created_by_id IN (${memberIdsList})
+        WHERE t.created_by_id IN (${placeholders})
           AND t.language = ?
-          ${dateFilter}
-        GROUP BY t.language
-      `).all(community.language_code);
+      `;
+      let languageParams = [...memberIds, community.language_code];
+      
+      if (dateCutoff) {
+        languageQuery += ' AND t.created_at >= ?';
+        languageParams.push(dateCutoff);
+      }
+      
+      languageQuery += ' GROUP BY t.language';
+      
+      translationsByLanguage = db.prepare(languageQuery).all(...languageParams);
     } else {
-      translationsByLanguage = db.prepare(`
+      let languageQuery = `
         SELECT 
           t.language,
           COUNT(*) as count
         FROM translations t
-        WHERE t.created_by_id IN (${memberIdsList})
-        ${dateFilter}
-        GROUP BY t.language
-        ORDER BY count DESC
-        LIMIT 10
-      `).all();
+        WHERE t.created_by_id IN (${placeholders})
+      `;
+      let languageParams = [...memberIds];
+      
+      if (dateCutoff) {
+        languageQuery += ' AND t.created_at >= ?';
+        languageParams.push(dateCutoff);
+      }
+      
+      languageQuery += ' GROUP BY t.language ORDER BY count DESC LIMIT 10';
+      
+      translationsByLanguage = db.prepare(languageQuery).all(...languageParams);
     }
     
     // Get translations over time (by day for the period)
-    const translationsOverTime = db.prepare(`
+    let overTimeQuery = `
       SELECT 
         DATE(t.created_at) as date,
         COUNT(*) as count
       FROM translations t
-      WHERE t.created_by_id IN (${memberIdsList})
-      ${dateFilter}
-      GROUP BY DATE(t.created_at)
-      ORDER BY date ASC
-    `).all();
+      WHERE t.created_by_id IN (${placeholders})
+    `;
+    let overTimeParams = [...memberIds];
+    
+    if (dateCutoff) {
+      overTimeQuery += ' AND t.created_at >= ?';
+      overTimeParams.push(dateCutoff);
+    }
+    
+    overTimeQuery += ' GROUP BY DATE(t.created_at) ORDER BY date ASC';
+    
+    const translationsOverTime = db.prepare(overTimeQuery).all(...overTimeParams);
     
     // Get top contributors
-    const topContributors = db.prepare(`
+    let contributorsQuery = `
       SELECT 
         u.id,
         u.username,
@@ -143,12 +177,18 @@ router.get("/api/communities/:id/stats", apiLimiter, (req, res) => {
         COUNT(DISTINCT t.id) as translation_count
       FROM users u
       JOIN translations t ON u.id = t.created_by_id
-      WHERE u.id IN (${memberIdsList})
-      ${dateFilter}
-      GROUP BY u.id
-      ORDER BY translation_count DESC
-      LIMIT 10
-    `).all();
+      WHERE u.id IN (${placeholders})
+    `;
+    let contributorsParams = [...memberIds];
+    
+    if (dateCutoff) {
+      contributorsQuery += ' AND t.created_at >= ?';
+      contributorsParams.push(dateCutoff);
+    }
+    
+    contributorsQuery += ' GROUP BY u.id ORDER BY translation_count DESC LIMIT 10';
+    
+    const topContributors = db.prepare(contributorsQuery).all(...contributorsParams);
     
     res.json({
       community_id: communityId,
