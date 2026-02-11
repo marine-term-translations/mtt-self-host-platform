@@ -373,7 +373,7 @@ function submitReview(params) {
   
   // Get the translation
   const translation = db.prepare(
-    "SELECT * FROM translations WHERE id = ?"
+    "SELECT t.*, tf.term_id FROM translations t JOIN term_fields tf ON t.term_field_id = tf.id WHERE t.id = ?"
   ).get(translationId);
   
   if (!translation) {
@@ -383,6 +383,9 @@ function submitReview(params) {
   if (translation.status !== 'review') {
     throw new Error('Translation is not in review status');
   }
+  
+  // Store old status for logging
+  const oldStatus = translation.status;
   
   // Update translation status
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
@@ -429,15 +432,41 @@ function submitReview(params) {
   const { updateDailyGoalProgress } = require("./gamification.service");
   updateDailyGoalProgress(resolvedUserId, 1);
   
-  // Log activity with rejection reason
+  // Log activity with rejection reason and status change
   try {
-    const activityExtra = { sessionId };
+    const activityExtra = { 
+      sessionId,
+      old_status: oldStatus,
+      new_status: newStatus,
+      language: translation.language
+    };
     if (action === 'reject' && rejectionReason) {
       activityExtra.rejection_reason = rejectionReason.trim();
     }
+    
+    // Log status change action (consistent with term detail page)
     db.prepare(
-      "INSERT INTO user_activity (user_id, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-    ).run(resolvedUserId, `translation_${action}d`, translationId, JSON.stringify(activityExtra));
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      resolvedUserId, 
+      'translation_status_changed', 
+      translation.term_id,
+      translation.term_field_id,
+      translationId, 
+      JSON.stringify(activityExtra)
+    );
+    
+    // Also log the specific approved/rejected action for backward compatibility
+    db.prepare(
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      resolvedUserId, 
+      `translation_${action}d`, 
+      translation.term_id,
+      translation.term_field_id,
+      translationId, 
+      JSON.stringify(activityExtra)
+    );
   } catch (err) {
     console.log("Could not log activity:", err.message);
   }

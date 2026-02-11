@@ -92,6 +92,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
       case 'translation_edited': return 'Edited';
       case 'translation_approved': return 'Approved';
       case 'translation_rejected': return 'Rejected';
+      case 'translation_status_changed': return 'Status Changed';
       default: return action.replace(/_/g, ' ');
     }
   };
@@ -353,6 +354,11 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                      </span>
                                    )}
                                  </div>
+                                 {extra.old_status && extra.new_status && (
+                                   <div className="mt-1 text-slate-600 dark:text-slate-400">
+                                     {extra.old_status} → {extra.new_status}
+                                   </div>
+                                 )}
                                  {extra.rejection_reason && (
                                    <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
                                      Reason: {extra.rejection_reason}
@@ -523,6 +529,11 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                     </span>
                                   )}
                                 </div>
+                                {extra.old_status && extra.new_status && (
+                                  <div className="mt-1 text-slate-600 dark:text-slate-400">
+                                    {extra.old_status} → {extra.new_status}
+                                  </div>
+                                )}
                                 {extra.rejection_reason && (
                                   <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
                                     Reason: {extra.rejection_reason}
