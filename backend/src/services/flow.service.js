@@ -15,7 +15,7 @@ const {
 } = require("./reputation.service");
 
 // SQL pattern to check for translatable field roles
-const TRANSLATABLE_FIELD_PATTERN = ``;
+const TRANSLATABLE_FIELD_PATTERN = `(tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
 
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
@@ -171,7 +171,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE `;
+     WHERE ${TRANSLATABLE_FIELD_PATTERN}`;
   
   const params = [];
   
@@ -210,7 +210,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       WHERE 
+       WHERE ${TRANSLATABLE_FIELD_PATTERN}
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
@@ -238,7 +238,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
       `SELECT tf.field_uri, tf.original_value 
        FROM term_fields tf
        WHERE tf.term_id = ?
-       AND `
+       AND ${TRANSLATABLE_FIELD_PATTERN}`
     ).all(partiallyTranslated.term_id);
     
     return {
@@ -252,7 +252,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND `
+     AND ${TRANSLATABLE_FIELD_PATTERN}`
   ).all(untranslated.term_id);
   
   return {
