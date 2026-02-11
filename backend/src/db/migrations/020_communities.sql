@@ -54,8 +54,11 @@ CREATE INDEX idx_community_invitations_community ON community_invitations(commun
 ALTER TABLE community_goals ADD COLUMN community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE;
 CREATE INDEX idx_community_goals_community ON community_goals(community_id);
 
--- Insert language-based communities for existing languages
--- These are auto-created and have no owner
+-- Insert language-based communities for primary languages
+-- Note: Additional language communities are created automatically by the dbInit service
+-- at startup for all languages in the languages table. This migration only creates
+-- communities for the most commonly used languages (fr, nl, en, de, es, pt, it, ru, zh, ja)
+-- as mentioned in the original issue.
 INSERT INTO communities (name, description, type, access_type, language_code, owner_id)
 SELECT 
     name || ' Community' as name,
@@ -69,4 +72,4 @@ WHERE code IN ('en', 'fr', 'nl', 'de', 'es', 'pt', 'it', 'ru', 'zh', 'ja')
 ON CONFLICT DO NOTHING;
 
 -- Auto-assign users to language communities based on their preferences
--- This will be handled by application logic, not in migration
+-- This will be handled by application logic in the community service, not in migration
