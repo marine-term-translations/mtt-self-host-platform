@@ -19,6 +19,9 @@ import Documentation from './pages/Documentation';
 import TranslationFlow from './pages/TranslationFlow';
 import LdesFeeds from './pages/LdesFeeds';
 import CommunityGoals from './pages/CommunityGoals';
+import Communities from './pages/Communities';
+import CommunityDetail from './pages/CommunityDetail';
+import CreateCommunity from './pages/CreateCommunity';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminActivity from './pages/admin/AdminActivity';
@@ -76,6 +79,21 @@ const App: React.FC = () => {
         <Route path="/community-goals" element={
           <ProtectedRoute>
             <CommunityGoals />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities" element={
+          <ProtectedRoute>
+            <Communities />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities/create" element={
+          <ProtectedRoute>
+            <CreateCommunity />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities/:id" element={
+          <ProtectedRoute>
+            <CommunityDetail />
           </ProtectedRoute>
         } />
         <Route path="/dashboard" element={

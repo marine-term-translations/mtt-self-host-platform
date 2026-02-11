@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center space-x-8">
               <Link to="/about" className={isActive('/about')}>About</Link>
-              <Link to="/leaderboard" className={isActive('/leaderboard')}>Community</Link>
+              <Link to="/communities" className={isActive('/communities')}>Communities</Link>
               <Link to="/documentation" className={isActive('/documentation')}>Documentation</Link>
               {isAuthenticated && (
                 <>

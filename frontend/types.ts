@@ -182,6 +182,91 @@ export interface ApiCommunityGoalProgress {
   missing_translations?: Record<string, number> | null;
 }
 
+// Communities Feature Types
+
+export interface ApiCommunity {
+  id: number;
+  name: string;
+  description: string | null;
+  type: 'language' | 'user_created';
+  access_type: 'open' | 'invite_only';
+  language_code: string | null;
+  language_name?: string | null;
+  language_native_name?: string | null;
+  owner_id: number | null;
+  owner_username?: string | null;
+  member_count: number;
+  actual_member_count?: number;
+  created_at: string;
+  updated_at: string;
+  members?: ApiCommunityMember[];
+  user_membership?: ApiCommunityMember | null;
+}
+
+export interface ApiCommunityMember {
+  id: number;
+  community_id: number;
+  user_id: number;
+  username?: string;
+  reputation?: number;
+  extra?: string | null;
+  role: 'creator' | 'moderator' | 'member';
+  joined_at: string;
+}
+
+export interface ApiCommunityInvitation {
+  id: number;
+  community_id: number;
+  community_name?: string;
+  community_description?: string | null;
+  community_access_type?: string;
+  community_member_count?: number;
+  user_id: number;
+  invited_by_id: number;
+  invited_by_username?: string;
+  user_username?: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+  responded_at: string | null;
+}
+
+export interface ApiCommunityStats {
+  community_id: number;
+  community_name: string;
+  period: 'week' | 'month' | 'year' | 'all';
+  total_translations: number;
+  translations_by_status: Record<string, number>;
+  translations_by_language: Record<string, number>;
+  translations_over_time: Array<{
+    date: string;
+    count: number;
+  }>;
+  top_contributors: Array<{
+    id: number;
+    username: string;
+    display_name: string;
+    reputation: number;
+    translation_count: number;
+  }>;
+}
+
+export interface ApiCommunityLeaderboard {
+  community_id: number;
+  community_name: string;
+  metric: 'reputation' | 'translations' | 'reviews';
+  leaderboard: Array<{
+    rank: number;
+    id: number;
+    username: string;
+    display_name: string;
+    reputation: number;
+    role: 'creator' | 'moderator' | 'member';
+    joined_at: string;
+    translation_count: number;
+    review_count: number;
+  }>;
+}
+
 export interface ApiAdminActivity {
   id: number;
   user_id: number;
