@@ -215,9 +215,17 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
           updated_at = CURRENT_TIMESTAMP
       `).run(userId, newPreferredLanguages, newVisibleExtraLanguages);
       
-      // Sync user to language communities based on preferred languages
+      // Sync user to language communities based on both preferred and translation languages
+      const languagesToSync = [];
       if (preferredLanguages !== undefined && preferredLanguages.length > 0) {
-        syncUserLanguageCommunities(userId, preferredLanguages);
+        languagesToSync.push(...preferredLanguages);
+      }
+      if (translationLanguages !== undefined && translationLanguages.length > 0) {
+        languagesToSync.push(...translationLanguages);
+      }
+      
+      if (languagesToSync.length > 0) {
+        syncUserLanguageCommunities(userId, preferredLanguages || [], translationLanguages || []);
       }
     }
     

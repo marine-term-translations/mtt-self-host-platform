@@ -27,26 +27,41 @@ router.get("/api/communities", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const { type } = req.query;
+    const userId = req.session?.user?.id || req.session?.user?.user_id;
     
     let query = `
       SELECT 
         c.*,
         u.username as owner_username,
         l.name as language_name,
-        (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id) as actual_member_count
+        (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id) as actual_member_count,
+        ${userId ? `(SELECT 1 FROM community_members cm WHERE cm.community_id = c.id AND cm.user_id = ${userId}) as is_member` : '0 as is_member'}
       FROM communities c
       LEFT JOIN users u ON c.owner_id = u.id
       LEFT JOIN languages l ON c.language_code = l.code
     `;
     
     const params = [];
+    const conditions = [];
     
     if (type && type !== 'all') {
-      query += ' WHERE c.type = ?';
+      conditions.push('c.type = ?');
       params.push(type);
     }
     
-    query += ' ORDER BY c.type ASC, c.created_at DESC';
+    // Only show language communities that have at least one member
+    conditions.push('(c.type != ? OR (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id) > 0)');
+    params.push('language');
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    // Sort: user's communities first, then language communities, then by creation date
+    query += ` ORDER BY 
+      ${userId ? 'is_member DESC,' : ''}
+      c.type ASC,
+      c.created_at DESC`;
     
     const communities = db.prepare(query).all(...params);
     

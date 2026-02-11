@@ -6,11 +6,20 @@ const { getDatabase } = require("../db/database");
  * Sync user's language community memberships based on their language preferences
  * @param {number} userId - User ID
  * @param {string[]} preferredLanguages - Array of language codes the user prefers
+ * @param {string[]} translationLanguages - Array of language codes the user can translate
  */
-function syncUserLanguageCommunities(userId, preferredLanguages) {
+function syncUserLanguageCommunities(userId, preferredLanguages = [], translationLanguages = []) {
   const db = getDatabase();
   
   try {
+    // Combine both preferred and translation languages, remove duplicates
+    const allLanguages = [...new Set([...preferredLanguages, ...translationLanguages])].filter(Boolean);
+    
+    if (allLanguages.length === 0) {
+      console.log(`[Community Service] No languages specified for user ${userId}, skipping sync`);
+      return { success: true, added: 0, removed: 0 };
+    }
+    
     // Get all language communities
     const languageCommunities = db.prepare(
       'SELECT id, language_code FROM communities WHERE type = ?'
@@ -36,12 +45,12 @@ function syncUserLanguageCommunities(userId, preferredLanguages) {
     const currentCommunityIds = currentMemberships.map(m => m.community_id);
     
     // Determine which languages to add and remove
-    const languagesToAdd = preferredLanguages.filter(lang => 
+    const languagesToAdd = allLanguages.filter(lang => 
       !currentLanguages.includes(lang) && languageToCommunityMap[lang]
     );
     
     const languagesToRemove = currentLanguages.filter(lang =>
-      !preferredLanguages.includes(lang)
+      !allLanguages.includes(lang)
     );
     
     // Add user to new language communities
@@ -174,10 +183,11 @@ function syncAllUsersLanguageCommunities() {
   const db = getDatabase();
   
   try {
-    // Get all users with their preferred languages
+    // Get all users with their preferred languages and translation languages
     const users = db.prepare(`
       SELECT 
         u.id,
+        u.extra,
         up.preferred_languages
       FROM users u
       LEFT JOIN user_preferences up ON u.id = up.user_id
@@ -187,19 +197,35 @@ function syncAllUsersLanguageCommunities() {
     
     for (const user of users) {
       let preferredLanguages = [];
+      let translationLanguages = [];
       
+      // Get preferred languages from user_preferences table
       if (user.preferred_languages) {
         try {
           preferredLanguages = JSON.parse(user.preferred_languages);
         } catch (err) {
           console.error(`[Community Service] Error parsing preferred languages for user ${user.id}:`, err);
-          preferredLanguages = ['en']; // Default to English
         }
-      } else {
-        preferredLanguages = ['en']; // Default to English
       }
       
-      syncUserLanguageCommunities(user.id, preferredLanguages);
+      // Get translation languages from extra field
+      if (user.extra) {
+        try {
+          const extraData = JSON.parse(user.extra);
+          if (extraData.translationLanguages && Array.isArray(extraData.translationLanguages)) {
+            translationLanguages = extraData.translationLanguages;
+          }
+        } catch (err) {
+          console.error(`[Community Service] Error parsing extra data for user ${user.id}:`, err);
+        }
+      }
+      
+      // Default to English if no languages are specified
+      if (preferredLanguages.length === 0 && translationLanguages.length === 0) {
+        preferredLanguages = ['en'];
+      }
+      
+      syncUserLanguageCommunities(user.id, preferredLanguages, translationLanguages);
       syncedCount++;
     }
     
