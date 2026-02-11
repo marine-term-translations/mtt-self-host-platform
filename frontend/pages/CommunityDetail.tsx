@@ -25,6 +25,9 @@ const CommunityDetail: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
   
   // Edit mode states
   const [editMode, setEditMode] = useState(false);
@@ -38,6 +41,68 @@ const CommunityDetail: React.FC = () => {
       fetchCommunityData();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (showInviteModal && allUsers.length === 0) {
+      fetchAllUsers();
+    }
+  }, [showInviteModal]);
+
+  useEffect(() => {
+    if (inviteUsername.trim()) {
+      filterUsers(inviteUsername);
+      setShowDropdown(true);
+    } else {
+      setSearchResults([]);
+      setShowDropdown(false);
+    }
+  }, [inviteUsername, allUsers]);
+
+  const fetchAllUsers = async () => {
+    try {
+      const users = await backendApi.get<any[]>('/users');
+      setAllUsers(users);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  };
+
+  const filterUsers = (searchTerm: string) => {
+    if (!searchTerm.trim() || allUsers.length === 0) {
+      setSearchResults([]);
+      return;
+    }
+
+    const term = searchTerm.toLowerCase();
+    const filtered = allUsers
+      .filter(user => {
+        // Parse extra data to get display name
+        let displayName = user.username;
+        if (user.extra) {
+          try {
+            const extraData = JSON.parse(user.extra);
+            if (extraData.name) {
+              displayName = extraData.name;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        
+        // Filter by username or display name
+        return (
+          user.username.toLowerCase().includes(term) ||
+          displayName.toLowerCase().includes(term)
+        );
+      })
+      .filter(user => {
+        // Exclude users who are already members
+        return !community?.members?.some(member => member.user_id === user.id);
+      })
+      .slice(0, 10); // Limit to 10 results
+
+    setSearchResults(filtered);
+  };
 
   const fetchCommunityData = async () => {
     if (!id) return;
@@ -146,12 +211,27 @@ const CommunityDetail: React.FC = () => {
       toast.success(`Invitation sent to ${inviteUsername}`);
       setShowInviteModal(false);
       setInviteUsername('');
+      setSearchResults([]);
+      setShowDropdown(false);
     } catch (error: any) {
       console.error('Failed to invite member:', error);
       toast.error(error.response?.data?.error || 'Failed to send invitation');
     } finally {
       setInviteLoading(false);
     }
+  };
+
+  const handleSelectUser = (username: string) => {
+    setInviteUsername(username);
+    setShowDropdown(false);
+    setSearchResults([]);
+  };
+
+  const handleCloseInviteModal = () => {
+    setShowInviteModal(false);
+    setInviteUsername('');
+    setSearchResults([]);
+    setShowDropdown(false);
   };
 
   if (loading || !community) {
@@ -554,7 +634,7 @@ const CommunityDetail: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white">Invite Member</h3>
                 <button
-                  onClick={() => setShowInviteModal(false)}
+                  onClick={handleCloseInviteModal}
                   className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   <X size={24} />
@@ -562,29 +642,81 @@ const CommunityDetail: React.FC = () => {
               </div>
               
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Enter the username of the person you want to invite to this community.
+                Search for a user by their name or username to invite them to this community.
               </p>
               
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label htmlFor="username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Username
+                    Search User
                   </label>
                   <input
                     type="text"
                     id="username"
                     value={inviteUsername}
                     onChange={(e) => setInviteUsername(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleInviteMember()}
-                    placeholder="username"
+                    onKeyPress={(e) => e.key === 'Enter' && !showDropdown && handleInviteMember()}
+                    placeholder="Type name or username..."
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
                     autoFocus
+                    autoComplete="off"
                   />
+                  
+                  {/* Autocomplete Dropdown */}
+                  {showDropdown && searchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {searchResults.map((user) => {
+                        let displayName = user.username;
+                        if (user.extra) {
+                          try {
+                            const extraData = JSON.parse(user.extra);
+                            if (extraData.name) {
+                              displayName = extraData.name;
+                            }
+                          } catch (e) {
+                            // ignore
+                          }
+                        }
+                        
+                        return (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => handleSelectUser(user.username)}
+                            className="w-full px-4 py-3 text-left hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-200 dark:border-slate-700 last:border-b-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-marine-600 text-white flex items-center justify-center text-sm font-medium">
+                                {displayName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-medium text-slate-900 dark:text-white">
+                                  {displayName}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                  @{user.username}
+                                </div>
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {user.reputation} rep
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {showDropdown && inviteUsername.trim() && searchResults.length === 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg shadow-lg p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                      No users found matching "{inviteUsername}"
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setShowInviteModal(false)}
+                    onClick={handleCloseInviteModal}
                     className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
                   >
                     Cancel
