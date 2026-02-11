@@ -179,13 +179,6 @@ last_harvested_at: datetime.toISO(datetime.now())
 
 ---
 
-#### 1.6 Gitea Service (Removed)
-**File**: `/backend/src/services/gitea.service.js` *(This service has been removed from the platform)*
-
-**Note**: The Gitea service was removed when the platform migrated to ORCID-only authentication. This section is kept for historical reference only.
-
----
-
 ### Phase 2: Frontend Components (Priority: High)
 
 #### 2.1 Admin Tasks Page
@@ -558,7 +551,7 @@ If issues arise:
 
 ## Files Summary
 
-### Backend (6 files)
+### Backend (5 files)
 1. `/backend/src/routes/auth.routes.js` - ~5-8 changes
 2. `/backend/src/services/taskDispatcher.service.js` - ~12-15 changes
 3. `/backend/src/routes/task-schedulers.routes.js` - ~4-6 changes
