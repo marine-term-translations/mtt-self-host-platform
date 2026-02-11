@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
-import { ApiPublicUser, ApiUserActivity } from '../types';
-import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle } from 'lucide-react';
+import { ApiPublicUser, ApiUserActivity, ApiCommunity } from '../types';
+import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { parse, format, now } from '@/src/utils/datetime';
@@ -107,6 +107,7 @@ const UserProfile: React.FC = () => {
   const [nativeLanguage, setNativeLanguage] = useState<string | null>(null);
   const [extraData, setExtraData] = useState<any>({});
   const [history, setHistory] = useState<ApiUserActivity[]>([]);
+  const [communities, setCommunities] = useState<ApiCommunity[]>([]);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -139,6 +140,14 @@ const UserProfile: React.FC = () => {
             setHistory(historyData);
         } catch (e) {
             console.error("Failed to fetch user history", e);
+        }
+
+        // Fetch User Communities
+        try {
+            const communitiesData = await backendApi.get<{communities: ApiCommunity[]}>(`/users/${id}/communities`);
+            setCommunities(communitiesData.communities || []);
+        } catch (e) {
+            console.error("Failed to fetch user communities", e);
         }
 
       } catch (error) {
@@ -309,7 +318,7 @@ const UserProfile: React.FC = () => {
       </div>
 
       {/* Activity Section - Full Width */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 mb-8">
           <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Contribution Activity</h3>
               {isOwnProfile && (
@@ -322,6 +331,47 @@ const UserProfile: React.FC = () => {
           <ContributionHeatmap history={history} />
           
       </div>
+
+      {/* Communities Section */}
+      {communities.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Users size={20} />
+              Communities ({communities.length})
+            </h3>
+            <Link to="/communities" className="text-sm text-marine-600 hover:underline">
+              View All Communities
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {communities.map((community) => (
+              <Link
+                key={community.id}
+                to={`/communities/${community.id}`}
+                className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-marine-500 dark:hover:border-marine-500 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {community.type === 'language' ? (
+                    <Globe className="text-blue-600 dark:text-blue-400" size={16} />
+                  ) : (
+                    <Users className="text-purple-600 dark:text-purple-400" size={16} />
+                  )}
+                  <h4 className="font-semibold text-slate-900 dark:text-white truncate">
+                    {community.name}
+                  </h4>
+                </div>
+                {community.role && (
+                  <span className="inline-block text-xs bg-marine-100 dark:bg-marine-900/30 text-marine-700 dark:text-marine-400 px-2 py-1 rounded capitalize">
+                    {community.role}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
