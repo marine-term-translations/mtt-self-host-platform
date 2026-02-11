@@ -114,6 +114,46 @@ const CommunityDetail: React.FC = () => {
     }
   };
 
+  const handleSaveCommunity = async () => {
+    if (!id || !community) return;
+    
+    try {
+      setSaveLoading(true);
+      await backendApi.put(`/communities/${id}`, {
+        name: editName,
+        description: editDescription,
+        access_type: editAccessType
+      });
+      toast.success('Community updated successfully!');
+      setEditMode(false);
+      fetchCommunityData();
+    } catch (error: any) {
+      console.error('Failed to update community:', error);
+      toast.error(error.response?.data?.error || 'Failed to update community');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleInviteMember = async () => {
+    if (!id || !inviteUsername.trim()) return;
+    
+    try {
+      setInviteLoading(true);
+      await backendApi.post(`/communities/${id}/invite`, {
+        username: inviteUsername.trim()
+      });
+      toast.success(`Invitation sent to ${inviteUsername}`);
+      setShowInviteModal(false);
+      setInviteUsername('');
+    } catch (error: any) {
+      console.error('Failed to invite member:', error);
+      toast.error(error.response?.data?.error || 'Failed to send invitation');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
   if (loading || !community) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
