@@ -522,6 +522,56 @@ FROM terms t
 LEFT JOIN term_fields tf ON t.id = tf.term_id
 LEFT JOIN translations tr ON tf.id = tr.term_field_id;
 
+-- Communities Feature: User-managed communities and language communities
+
+-- Communities table
+CREATE TABLE communities (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    description         TEXT,
+    type                TEXT NOT NULL CHECK(type IN ('language', 'user_created')),
+    access_type         TEXT NOT NULL DEFAULT 'open' CHECK(access_type IN ('open', 'invite_only')),
+    language_code       TEXT,  -- For language communities, references languages(code)
+    owner_id            INTEGER REFERENCES users(id) ON DELETE SET NULL,  -- NULL for language communities
+    member_count        INTEGER DEFAULT 0,  -- Cached member count
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_communities_type ON communities(type);
+CREATE INDEX idx_communities_owner ON communities(owner_id);
+CREATE INDEX idx_communities_language ON communities(language_code);
+
+-- Community members table
+CREATE TABLE community_members (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    community_id        INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role                TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('creator', 'moderator', 'member')),
+    joined_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id, user_id)
+);
+
+CREATE INDEX idx_community_members_community ON community_members(community_id);
+CREATE INDEX idx_community_members_user ON community_members(user_id);
+CREATE INDEX idx_community_members_role ON community_members(community_id, role);
+
+-- Community invitations table
+CREATE TABLE community_invitations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    community_id        INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invited_by_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined')),
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at        DATETIME,
+    UNIQUE(community_id, user_id, status)
+);
+
+CREATE INDEX idx_community_invitations_user ON community_invitations(user_id, status);
+CREATE INDEX idx_community_invitations_community ON community_invitations(community_id, status);
+
 -- Community Goals Feature
 -- Allows admins to create and manage community-wide translation goals
 
@@ -533,6 +583,7 @@ CREATE TABLE community_goals (
     target_count    INTEGER,  -- Number of translations or terms to complete
     target_language TEXT,  -- Language code for translations (e.g., 'fr', 'nl')
     collection_id   INTEGER REFERENCES sources(source_id) ON DELETE CASCADE,  -- If goal is for a specific collection/source
+    community_id    INTEGER REFERENCES communities(id) ON DELETE CASCADE,  -- If goal is for a specific community
     is_recurring    INTEGER DEFAULT 0 CHECK(is_recurring IN (0, 1)),  -- Is this a recurring goal?
     recurrence_type TEXT CHECK(recurrence_type IN ('daily', 'weekly', 'monthly') OR recurrence_type IS NULL),  -- Type of recurrence
     start_date      DATETIME NOT NULL,
@@ -546,6 +597,7 @@ CREATE TABLE community_goals (
 CREATE INDEX idx_community_goals_active ON community_goals(is_active);
 CREATE INDEX idx_community_goals_language ON community_goals(target_language);
 CREATE INDEX idx_community_goals_dates ON community_goals(start_date, end_date);
+CREATE INDEX idx_community_goals_community ON community_goals(community_id);
 
 -- Track user dismissals of goal widgets
 CREATE TABLE community_goal_dismissals (
