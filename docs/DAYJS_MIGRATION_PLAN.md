@@ -179,25 +179,6 @@ last_harvested_at: datetime.toISO(datetime.now())
 
 ---
 
-#### 1.6 Gitea Service
-**File**: `/backend/src/services/gitea.service.js`
-
-**Current Issues**:
-- Uses `Date.now()` for API interactions
-
-**Changes Required**:
-```javascript
-const datetime = require('../utils/datetime');
-
-// Replace timestamp generation
-```
-
-**Lines to Update**: ~1-2 occurrences
-**Risk**: Low (affects Gitea integration)
-**Testing Required**: Gitea API calls
-
----
-
 ### Phase 2: Frontend Components (Priority: High)
 
 #### 2.1 Admin Tasks Page
@@ -486,7 +467,7 @@ import { parse, format } from '@/utils/datetime';
 ### Recommended Order:
 
 1. **Backend Services** (Phase 1) - ~3-5 commits
-   - Start with low-risk services (gitea, sources routes)
+   - Start with low-risk services (sources routes)
    - Then medium-risk (gamification, task schedulers)
    - Finally high-risk (auth, task dispatcher)
    - Test thoroughly after each service
@@ -570,13 +551,12 @@ If issues arise:
 
 ## Files Summary
 
-### Backend (6 files)
+### Backend (5 files)
 1. `/backend/src/routes/auth.routes.js` - ~5-8 changes
 2. `/backend/src/services/taskDispatcher.service.js` - ~12-15 changes
 3. `/backend/src/routes/task-schedulers.routes.js` - ~4-6 changes
 4. `/backend/src/services/gamification.service.js` - ~8-10 changes
 5. `/backend/src/routes/sources.routes.js` - ~2-3 changes
-6. `/backend/src/services/gitea.service.js` - ~1-2 changes
 
 ### Frontend (13 files)
 1. `/frontend/pages/admin/AdminTasks.tsx` - ~10-15 changes

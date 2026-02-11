@@ -191,8 +191,7 @@ mtt-self-host-platform/
 │   ├── SETUP.md                # Detailed setup guide
 │   ├── PRODUCTION_DEPLOYMENT.md # Production deployment
 │   ├── DATABASE_INITIALIZATION.md # Database setup
-│   ├── ORCID_MIGRATION.md      # ORCID OAuth guide
-│   └── GITEA_REMOVAL.md        # Historical: Gitea removal notes
+│   └── ORCID_MIGRATION.md      # ORCID OAuth guide
 │
 ├── infra/                       # Infrastructure scripts (legacy)
 │   ├── backup.sh               # Backup script
@@ -224,7 +223,6 @@ mtt-self-host-platform/
 | [docs/COMMUNITY_GOALS.md](docs/COMMUNITY_GOALS.md) | Community goals feature guide |
 | [docs/DOCKER_ADMIN_CONTROL.md](docs/DOCKER_ADMIN_CONTROL.md) | Docker container management for admin users |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
-| [docs/GITEA_REMOVAL.md](docs/GITEA_REMOVAL.md) | Historical notes on Gitea removal (for reference) |
 
 ---
 
