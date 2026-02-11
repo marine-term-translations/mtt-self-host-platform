@@ -84,6 +84,74 @@ function getPendingReviews(userIdentifier, language = null, sourceId = null) {
 }
 
 /**
+ * Get rejected translations that the user created (for re-translation)
+ * Returns translations that are in 'rejected' status and created by the user
+ * Only returns fields with field_role = 'translatable'
+ * @param {number|string} userIdentifier - User ID or username
+ * @param {string} language - Optional language filter
+ * @param {number} sourceId - Optional source filter
+ * @returns {object|null} Rejected translation needing re-work
+ */
+function getRejectedTranslations(userIdentifier, language = null, sourceId = null) {
+  const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve user identifier to user_id
+  let userId = typeof userIdentifier === 'number' ? userIdentifier : parseInt(userIdentifier, 10);
+  if (isNaN(userId)) {
+    userId = resolveUsernameToId(userIdentifier);
+    if (!userId) {
+      return null;
+    }
+  }
+  
+  // Build query to get rejected translations created by this user
+  let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
+            t.created_by_id, t.created_at, t.rejection_reason,
+            tf.field_uri, tf.original_value,
+            term.id as term_id, term.uri as term_uri, term.source_id
+     FROM translations t
+     JOIN term_fields tf ON t.term_field_id = tf.id
+     JOIN terms term ON tf.term_id = term.id
+     WHERE t.status = 'rejected' 
+       AND t.created_by_id = ?
+       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
+  
+  const params = [userId];
+  
+  if (language) {
+    query += ` AND t.language = ?`;
+    params.push(language);
+  }
+  
+  if (sourceId) {
+    query += ` AND term.source_id = ?`;
+    params.push(parseInt(sourceId, 10));
+  }
+  
+  query += ` ORDER BY datetime(t.updated_at) ASC LIMIT 1`;
+  
+  const rejected = db.prepare(query).get(...params);
+  
+  if (!rejected) {
+    return null;
+  }
+  
+  // Enrich with translatable fields for context
+  const allFields = db.prepare(
+    `SELECT tf.field_uri, tf.original_value 
+     FROM term_fields tf
+     WHERE tf.term_id = ?
+     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
+  ).all(rejected.term_id);
+  
+  return {
+    ...rejected,
+    term_fields: allFields,
+  };
+}
+
+/**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
  * Only returns fields with 'translatable' in field_roles
@@ -192,6 +260,10 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
 
 /**
  * Get the next task for the user (review or translate)
+ * Priority order:
+ * 1. Rejected translations from the user (needs re-work)
+ * 2. Pending reviews (other users' translations)
+ * 3. Untranslated terms
  * @param {number|string} userIdentifier - User ID or username
  * @param {string} language - Optional language filter (if not provided, cycles through user's translation languages)
  * @param {number} sourceId - Optional source filter
@@ -229,7 +301,17 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
   
   // Try each language in priority order
   for (const lang of languagesToCheck) {
-    // Priority 1: Pending reviews for this language (and source if specified)
+    // Priority 1: Rejected translations by this user (needs re-work)
+    const rejected = getRejectedTranslations(userIdentifier, lang, sourceId);
+    if (rejected) {
+      return {
+        type: 'rework',
+        task: rejected,
+        language: lang,
+      };
+    }
+    
+    // Priority 2: Pending reviews for this language (and source if specified)
     const review = getPendingReviews(userIdentifier, lang, sourceId);
     if (review) {
       return {
@@ -239,7 +321,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
       };
     }
     
-    // Priority 2: Untranslated terms for this language (and source if specified)
+    // Priority 3: Untranslated terms for this language (and source if specified)
     const untranslated = getRandomUntranslated(userIdentifier, lang, sourceId);
     if (untranslated) {
       return {
@@ -263,7 +345,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
  * @returns {object} Result of review
  */
 function submitReview(params) {
-  const { userId, translationId, action, sessionId } = params;
+  const { userId, translationId, action, sessionId, rejectionReason } = params;
   const db = getDatabase();
   const { resolveUsernameToId } = require("../db/database");
   
@@ -281,6 +363,11 @@ function submitReview(params) {
     throw new Error('Invalid action. Must be "approve" or "reject"');
   }
   
+  // Validate rejection reason if action is reject
+  if (action === 'reject' && (!rejectionReason || !rejectionReason.trim())) {
+    throw new Error('Rejection reason is required when rejecting a translation');
+  }
+  
   // Get the translation
   const translation = db.prepare(
     "SELECT * FROM translations WHERE id = ?"
@@ -296,9 +383,16 @@ function submitReview(params) {
   
   // Update translation status
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
-  db.prepare(
-    "UPDATE translations SET status = ?, reviewed_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-  ).run(newStatus, resolvedUserId, translationId);
+  
+  if (action === 'reject') {
+    db.prepare(
+      "UPDATE translations SET status = ?, reviewed_by_id = ?, rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(newStatus, resolvedUserId, rejectionReason.trim(), translationId);
+  } else {
+    db.prepare(
+      "UPDATE translations SET status = ?, reviewed_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(newStatus, resolvedUserId, translationId);
+  }
   
   // Apply reputation changes based on action using existing reputation system
   if (action === 'approve') {
@@ -332,11 +426,15 @@ function submitReview(params) {
   const { updateDailyGoalProgress } = require("./gamification.service");
   updateDailyGoalProgress(resolvedUserId, 1);
   
-  // Log activity
+  // Log activity with rejection reason
   try {
+    const activityExtra = { sessionId };
+    if (action === 'reject' && rejectionReason) {
+      activityExtra.rejection_reason = rejectionReason.trim();
+    }
     db.prepare(
       "INSERT INTO user_activity (user_id, action, translation_id, extra) VALUES (?, ?, ?, ?)"
-    ).run(resolvedUserId, `translation_${action}d`, translationId, JSON.stringify({ sessionId }));
+    ).run(resolvedUserId, `translation_${action}d`, translationId, JSON.stringify(activityExtra));
   } catch (err) {
     console.log("Could not log activity:", err.message);
   }
@@ -364,10 +462,42 @@ function getAvailableLanguages() {
   ];
 }
 
+/**
+ * Get translation history for a specific translation
+ * Returns activity log related to this translation
+ * @param {number} translationId - Translation ID
+ * @returns {array} Array of activity entries
+ */
+function getTranslationHistory(translationId) {
+  const db = getDatabase();
+  
+  // Get the translation to find related entries
+  const translation = db.prepare(
+    "SELECT * FROM translations WHERE id = ?"
+  ).get(translationId);
+  
+  if (!translation) {
+    return [];
+  }
+  
+  // Get all activity related to this translation
+  const history = db.prepare(
+    `SELECT ua.*, u.username 
+     FROM user_activity ua
+     LEFT JOIN users u ON ua.user_id = u.id
+     WHERE ua.translation_id = ?
+     ORDER BY ua.created_at ASC`
+  ).all(translationId);
+  
+  return history;
+}
+
 module.exports = {
   getPendingReviews,
+  getRejectedTranslations,
   getRandomUntranslated,
   getNextTask,
   submitReview,
   getAvailableLanguages,
+  getTranslationHistory,
 };

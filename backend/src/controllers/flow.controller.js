@@ -69,10 +69,14 @@ async function submitReview(req, res) {
     }
     
     const userId = req.session.user.id || req.session.user.user_id;
-    const { translationId, action, sessionId } = req.body;
+    const { translationId, action, sessionId, rejectionReason } = req.body;
     
     if (!translationId || !action) {
       return res.status(400).json({ error: "Missing required fields: translationId, action" });
+    }
+    
+    if (action === 'reject' && (!rejectionReason || !rejectionReason.trim())) {
+      return res.status(400).json({ error: "Rejection reason is required when rejecting a translation" });
     }
     
     const result = flowService.submitReview({
@@ -80,6 +84,7 @@ async function submitReview(req, res) {
       translationId,
       action,
       sessionId,
+      rejectionReason,
     });
     
     // Update session stats if provided
@@ -177,6 +182,26 @@ async function getLeaderboard(req, res) {
   }
 }
 
+/**
+ * Get translation history
+ */
+async function getTranslationHistory(req, res) {
+  try {
+    const translationId = parseInt(req.params.translationId);
+    
+    if (!translationId) {
+      return res.status(400).json({ error: "Missing translationId" });
+    }
+    
+    const history = flowService.getTranslationHistory(translationId);
+    
+    res.json({ history });
+  } catch (error) {
+    console.error("[Flow] Get translation history error:", error);
+    res.status(500).json({ error: error.message || "Failed to get translation history" });
+  }
+}
+
 module.exports = {
   startFlow,
   getNextTask,
@@ -185,4 +210,5 @@ module.exports = {
   getLanguages,
   endSession,
   getLeaderboard,
+  getTranslationHistory,
 };
