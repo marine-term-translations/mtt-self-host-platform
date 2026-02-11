@@ -38,12 +38,3 @@ sh infra/rebuild.sh
 # Rebuild and wipe database (⚠️ deletes all data)
 sh infra/rebuild.sh --wipe
 ```
-
-## Obsolete Scripts
-
-The following scripts are no longer used but kept for reference:
-
-- `setup-gitea.sh` - Previously used for Gitea initialization (Gitea has been removed)
-- `push-mirror-setup.sh` - Previously used for GitHub mirror setup
-
-See [docs/GITEA_REMOVAL.md](../docs/GITEA_REMOVAL.md) for more information about the Gitea removal.

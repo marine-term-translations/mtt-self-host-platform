@@ -1,10 +1,10 @@
-# ORCID OAuth Migration Guide
+# ORCID OAuth Configuration Guide
 
-This guide explains how to migrate from Gitea-based authentication to ORCID OAuth authentication.
+This guide explains how to configure ORCID OAuth authentication for the Marine Term Translations platform.
 
 ## Overview
 
-The platform now uses ORCID OAuth for secure, session-based authentication instead of Gitea username/password authentication. This provides:
+The platform uses ORCID OAuth for secure, session-based authentication, providing:
 
 - **Secure authentication** via ORCID's trusted identity provider
 - **No password management** - credentials stay with ORCID
@@ -121,15 +121,6 @@ docker compose up -d --build
 | `/api/auth/orcid/callback` | GET | ORCID OAuth callback |
 | `/api/me` | GET | Get current authenticated user |
 | `/api/logout` | POST | Logout current user |
-
-### Deprecated Endpoints
-
-The following endpoints are deprecated but remain for backward compatibility:
-
-| Endpoint | Method | Status |
-|----------|--------|--------|
-| `/api/login-gitea` | POST | Deprecated |
-| `/api/check-admin` | POST | Deprecated |
 
 ## User Experience Changes
 
@@ -257,14 +248,6 @@ The logging added for debugging is automatically disabled in production (`NODE_E
 - [ ] Deploy to production
 - [ ] Test login flow in production
 - [ ] Communicate changes to users
-
-## Rollback Plan
-
-If you need to rollback:
-
-1. Revert to the previous commit before ORCID changes
-2. Redeploy containers: `docker compose up -d --build`
-3. Users can continue using Gitea authentication
 
 ## Support
 
