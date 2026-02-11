@@ -159,7 +159,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle review submission
-  const handleSubmitReview = async (action: 'approve' | 'reject') => {
+  const handleSubmitReview = async (action: 'approve' | 'reject', rejectionReason?: string) => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
 
     try {
@@ -167,7 +167,8 @@ const TranslationFlow: React.FC = () => {
       const result = await submitReview(
         currentTask.task.translation_id,
         action,
-        sessionId
+        sessionId,
+        rejectionReason
       );
 
       // Update session stats
@@ -419,9 +420,9 @@ const TranslationFlow: React.FC = () => {
           <div className="lg:col-span-2">
             <FlowTermCard
               task={currentTask.task}
-              taskType={currentTask.type as 'review' | 'translate'}
+              taskType={currentTask.type as 'review' | 'translate' | 'rework'}
               languages={
-                selectedLanguage && currentTask.type === 'translate'
+                selectedLanguage && (currentTask.type === 'translate' || currentTask.type === 'rework')
                   ? languages.filter(lang => lang.code === selectedLanguage)
                   : languages
               }

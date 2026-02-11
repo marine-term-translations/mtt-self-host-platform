@@ -1,16 +1,16 @@
-
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import { useOpenRouterApiKey } from '../hooks/useOpenRouterApiKey';
+import { getTranslationHistory } from '../services/flow.api';
 
 interface FlowTermCardProps {
   task: any;
-  taskType: 'review' | 'translate';
+  taskType: 'review' | 'translate' | 'rework';
   languages: Array<{ code: string; name: string }>;
-  onSubmitReview: (action: 'approve' | 'reject') => void;
+  onSubmitReview: (action: 'approve' | 'reject', rejectionReason?: string) => void;
   onSubmitTranslation: (language: string, value: string) => void;
   isSubmitting: boolean;
   relevantGoal?: { goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null;
@@ -29,6 +29,11 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const [translationValue, setTranslationValue] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const { apiKey, hasApiKey, isLoading: isLoadingApiKey } = useOpenRouterApiKey();
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Update selected language if languages prop changes (e.g. from loading state)
   useEffect(() => {
@@ -36,6 +41,60 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
         setSelectedLanguage(languages[0].code);
     }
   }, [languages, selectedLanguage]);
+
+  // Pre-fill translation value for rework tasks
+  useEffect(() => {
+    if (taskType === 'rework' && task?.value) {
+      setTranslationValue(task.value);
+    } else {
+      setTranslationValue('');
+    }
+  }, [taskType, task]);
+
+  // Load history for review tasks
+  useEffect(() => {
+    if ((taskType === 'review' || taskType === 'rework') && task?.translation_id) {
+      loadHistory();
+    }
+  }, [taskType, task]);
+
+  const loadHistory = async () => {
+    if (!task?.translation_id) return;
+    
+    setHistoryLoading(true);
+    try {
+      const result = await getTranslationHistory(task.translation_id);
+      setHistory(result.history || []);
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleReject = () => {
+    setShowRejectModal(true);
+  };
+
+  const handleRejectSubmit = () => {
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a reason for rejection');
+      return;
+    }
+    setShowRejectModal(false);
+    onSubmitReview('reject', rejectionReason.trim());
+    setRejectionReason('');
+  };
+
+  const formatHistoryAction = (action: string) => {
+    switch (action) {
+      case 'translation_created': return 'Created';
+      case 'translation_edited': return 'Edited';
+      case 'translation_approved': return 'Approved';
+      case 'translation_rejected': return 'Rejected';
+      default: return action.replace(/_/g, ' ');
+    }
+  };
 
   if (!task) {
     return null;
@@ -175,11 +234,15 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-               {taskType === 'review' ? 'Review Task' : 'Translation Task'}
+               {taskType === 'review' ? 'Review Task' : taskType === 'rework' ? 'Rework Task' : 'Translation Task'}
              </span>
              {taskType === 'review' ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
                   Verify
+                </span>
+             ) : taskType === 'rework' ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  Improve
                 </span>
              ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
@@ -225,7 +288,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     {task.field_uri?.split('/').pop()?.split('#').pop() || 'Unknown Field'}
                 </span>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                    Source Text to {taskType === 'review' ? 'Verify' : 'Translate'}
+                    Source Text to {taskType === 'review' ? 'Verify' : taskType === 'rework' ? 'Improve' : 'Translate'}
                 </span>
             </div>
             <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner overflow-wrap-anywhere">
@@ -255,9 +318,53 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                      </div>
                  </div>
 
+                 {/* Translation History */}
+                 {history.length > 0 && (
+                   <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                     <button
+                       onClick={() => setShowHistory(!showHistory)}
+                       className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
+                     >
+                       <Clock size={16} />
+                       Translation History ({history.length})
+                       <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>▼</span>
+                     </button>
+                     
+                     {showHistory && (
+                       <div className="mt-4 space-y-2">
+                         {history.map((entry, idx) => {
+                           const extra = entry.extra ? JSON.parse(entry.extra) : {};
+                           return (
+                             <div key={entry.id} className="flex items-start gap-3 text-xs">
+                               <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
+                                 {formatDate(entry.created_at)}
+                               </div>
+                               <div className="flex-grow">
+                                 <div className="font-medium text-slate-700 dark:text-slate-300">
+                                   {formatHistoryAction(entry.action)}
+                                   {entry.username && (
+                                     <span className="ml-1 text-slate-500 dark:text-slate-400">
+                                       by {entry.username}
+                                     </span>
+                                   )}
+                                 </div>
+                                 {extra.rejection_reason && (
+                                   <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
+                                     Reason: {extra.rejection_reason}
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     )}
+                   </div>
+                 )}
+
                  <div className="flex gap-4 pt-4">
                     <button
-                        onClick={() => onSubmitReview('reject')}
+                        onClick={handleReject}
                         disabled={isSubmitting}
                         className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
@@ -349,7 +456,165 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                 </button>
             </form>
         )}
+
+        {taskType === 'rework' && (
+            <form onSubmit={handleTranslationSubmit} className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                {/* Rejection Notice */}
+                {task.rejection_reason && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-red-800 dark:text-red-300 mb-1">Translation Rejected</h4>
+                        <p className="text-sm text-red-700 dark:text-red-400">{task.rejection_reason}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Previous Translation */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Your Previous Translation ({task.language?.toUpperCase()})
+                  </label>
+                  <div className="p-4 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 italic">
+                    {task.value}
+                  </div>
+                </div>
+
+                {/* Translation History */}
+                {history.length > 0 && (
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
+                    >
+                      <Clock size={16} />
+                      Translation History ({history.length})
+                      <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+                    
+                    {showHistory && (
+                      <div className="mt-4 space-y-2">
+                        {history.map((entry) => {
+                          const extra = entry.extra ? JSON.parse(entry.extra) : {};
+                          return (
+                            <div key={entry.id} className="flex items-start gap-3 text-xs">
+                              <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
+                                {formatDate(entry.created_at)}
+                              </div>
+                              <div className="flex-grow">
+                                <div className="font-medium text-slate-700 dark:text-slate-300">
+                                  {formatHistoryAction(entry.action)}
+                                  {entry.username && (
+                                    <span className="ml-1 text-slate-500 dark:text-slate-400">
+                                      by {entry.username}
+                                    </span>
+                                  )}
+                                </div>
+                                {extra.rejection_reason && (
+                                  <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
+                                    Reason: {extra.rejection_reason}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                    <div className="flex justify-between items-end mb-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Improved Translation ({task.language?.toUpperCase()})
+                        </label>
+                        {hasApiKey && !isLoadingApiKey && (
+                          <button
+                              type="button"
+                              onClick={handleAiSuggest}
+                              disabled={aiLoading || isSubmitting}
+                              className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5"
+                          >
+                              {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                              AI Suggest
+                          </button>
+                        )}
+                    </div>
+                    <div className="relative">
+                        <textarea
+                            value={translationValue}
+                            onChange={(e) => setTranslationValue(e.target.value)}
+                            placeholder="Enter your improved translation..."
+                            rows={4}
+                            className="w-full px-5 py-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 focus:border-marine-500 outline-none resize-none shadow-sm transition-shadow text-lg"
+                            disabled={isSubmitting}
+                            required
+                        />
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    disabled={isSubmitting || !translationValue.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 disabled:transform-none disabled:shadow-none"
+                >
+                    {isSubmitting ? (
+                        <>
+                           <Loader2 className="w-5 h-5 animate-spin" />
+                           Resubmitting...
+                        </>
+                    ) : (
+                        <>
+                           <Send className="w-5 h-5" />
+                           Resubmit Translation
+                        </>
+                    )}
+                </button>
+            </form>
+        )}
       </div>
+
+      {/* Rejection Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRejectModal(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Rejection Reason Required</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Please provide a clear reason for rejecting this translation. This helps the translator improve.
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="e.g., Incorrect terminology, grammar issues, missing context..."
+              rows={4}
+              className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
+              autoFocus
+            />
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectionReason('');
+                }}
+                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectSubmit}
+                disabled={!rejectionReason.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Reject Translation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
