@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Users, Globe, Lock, Settings, UserPlus, UserMinus, 
   Loader2, ArrowLeft, TrendingUp, Award, Calendar,
-  Target, Mail, X, Edit, Save
+  Target, Mail, X, Edit, Save, Flag, Plus, Trash2
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { backendApi } from '../services/api';
@@ -35,6 +35,21 @@ const CommunityDetail: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [editAccessType, setEditAccessType] = useState<'open' | 'invite_only'>('open');
   const [saveLoading, setSaveLoading] = useState(false);
+
+  // Goal creation states
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
+  const [goalTargetCount, setGoalTargetCount] = useState('');
+  const [goalStartDate, setGoalStartDate] = useState('');
+  const [goalEndDate, setGoalEndDate] = useState('');
+  const [goalLoading, setGoalLoading] = useState(false);
+
+  // Report modal states
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -234,6 +249,77 @@ const CommunityDetail: React.FC = () => {
     setShowDropdown(false);
   };
 
+  const handleCreateGoal = async () => {
+    if (!id || !goalTitle || !goalTargetCount || !goalStartDate) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setGoalLoading(true);
+      await backendApi.post(`/communities/${id}/goals`, {
+        title: goalTitle,
+        description: goalDescription,
+        goal_type: 'translation_count',
+        target_count: parseInt(goalTargetCount),
+        start_date: new Date(goalStartDate).toISOString(),
+        end_date: goalEndDate ? new Date(goalEndDate).toISOString() : null
+      });
+      toast.success('Goal created successfully!');
+      setShowGoalModal(false);
+      setGoalTitle('');
+      setGoalDescription('');
+      setGoalTargetCount('');
+      setGoalStartDate('');
+      setGoalEndDate('');
+      fetchCommunityData();
+    } catch (error: any) {
+      console.error('Failed to create goal:', error);
+      toast.error(error.response?.data?.error || 'Failed to create goal');
+    } finally {
+      setGoalLoading(false);
+    }
+  };
+
+  const handleDeleteGoal = async (goalId: number) => {
+    if (!confirm('Are you sure you want to delete this goal?')) {
+      return;
+    }
+
+    try {
+      await backendApi.delete(`/communities/${id}/goals/${goalId}`);
+      toast.success('Goal deleted successfully');
+      fetchCommunityData();
+    } catch (error: any) {
+      console.error('Failed to delete goal:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete goal');
+    }
+  };
+
+  const handleReportCommunity = async () => {
+    if (!id || !reportReason) {
+      toast.error('Please select a reason for reporting');
+      return;
+    }
+
+    try {
+      setReportLoading(true);
+      await backendApi.post(`/communities/${id}/report`, {
+        reason: reportReason,
+        description: reportDescription
+      });
+      toast.success('Report submitted successfully');
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDescription('');
+    } catch (error: any) {
+      console.error('Failed to report community:', error);
+      toast.error(error.response?.data?.error || 'Failed to submit report');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   if (loading || !community) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
@@ -430,6 +516,17 @@ const CommunityDetail: React.FC = () => {
                   Leave
                 </button>
               )}
+
+              {!isLanguageCommunity && !isOwner && (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                  title="Report community"
+                >
+                  <Flag size={20} />
+                  Report
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -605,24 +702,59 @@ const CommunityDetail: React.FC = () => {
 
         {activeTab === 'goals' && (
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Community Goals</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Community Goals</h3>
+              {isOwner && !isLanguageCommunity && (
+                <button
+                  onClick={() => setShowGoalModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg transition-colors"
+                >
+                  <Plus size={18} />
+                  Create Goal
+                </button>
+              )}
+            </div>
             {goals.length > 0 ? (
               <div className="space-y-4">
                 {goals.map((goal) => (
                   <div key={goal.id} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">{goal.title}</h4>
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-semibold text-slate-900 dark:text-white">{goal.title}</h4>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleDeleteGoal(goal.id)}
+                          className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                          title="Delete goal"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                     {goal.description && (
                       <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{goal.description}</p>
                     )}
                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <Target size={14} />
-                      <span>{goal.target_count} translations in {goal.target_language?.toUpperCase()}</span>
+                      <span>{goal.target_count} translations{goal.target_language && ` in ${goal.target_language.toUpperCase()}`}</span>
                     </div>
+                    {goal.start_date && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <Calendar size={14} />
+                        <span>
+                          {new Date(goal.start_date).toLocaleDateString()}
+                          {goal.end_date && ` - ${new Date(goal.end_date).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-slate-600 dark:text-slate-400">No community goals yet</p>
+              <p className="text-slate-600 dark:text-slate-400">
+                {isOwner && !isLanguageCommunity 
+                  ? 'No community goals yet. Create one to motivate your community members!' 
+                  : 'No community goals yet'}
+              </p>
             )}
           </div>
         )}
@@ -735,6 +867,197 @@ const CommunityDetail: React.FC = () => {
                       <>
                         <Mail size={16} />
                         Send Invite
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Goal Creation Modal */}
+        {showGoalModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Create Goal</h3>
+                <button
+                  onClick={() => setShowGoalModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Goal Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={goalTitle}
+                    onChange={(e) => setGoalTitle(e.target.value)}
+                    placeholder="e.g., Complete 100 translations"
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={goalDescription}
+                    onChange={(e) => setGoalDescription(e.target.value)}
+                    placeholder="Optional description of the goal"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Target Count *
+                  </label>
+                  <input
+                    type="number"
+                    value={goalTargetCount}
+                    onChange={(e) => setGoalTargetCount(e.target.value)}
+                    placeholder="Number of translations"
+                    min="1"
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Start Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={goalStartDate}
+                      onChange={(e) => setGoalStartDate(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={goalEndDate}
+                      onChange={(e) => setGoalEndDate(e.target.value)}
+                      min={goalStartDate}
+                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowGoalModal(false)}
+                    className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateGoal}
+                    disabled={goalLoading || !goalTitle || !goalTargetCount || !goalStartDate}
+                    className="flex-1 px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {goalLoading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Target size={16} />
+                        Create Goal
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Report Modal */}
+        {showReportModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Report Community</h3>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                If this community violates our guidelines, please report it with a reason.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Reason *
+                  </label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                  >
+                    <option value="">Select a reason...</option>
+                    <option value="offensive">Offensive content</option>
+                    <option value="spam">Spam</option>
+                    <option value="inappropriate">Inappropriate content</option>
+                    <option value="harassment">Harassment</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Additional Details
+                  </label>
+                  <textarea
+                    value={reportDescription}
+                    onChange={(e) => setReportDescription(e.target.value)}
+                    placeholder="Please provide more details about this report..."
+                    rows={4}
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReportCommunity}
+                    disabled={reportLoading || !reportReason}
+                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {reportLoading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Flag size={16} />
+                        Submit Report
                       </>
                     )}
                   </button>
