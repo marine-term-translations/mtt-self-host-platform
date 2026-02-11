@@ -26,7 +26,7 @@ const { apiLimiter } = require("../middleware/rateLimit");
  *       200:
  *         description: Community statistics
  */
-router.get("/api/communities/:id/stats", apiLimiter, (req, res) => {
+router.get("/communities/:id/stats", apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const period = req.query.period || 'month';
@@ -257,7 +257,7 @@ router.get("/api/communities/:id/stats", apiLimiter, (req, res) => {
  *       200:
  *         description: Community leaderboard
  */
-router.get("/api/communities/:id/leaderboard", apiLimiter, (req, res) => {
+router.get("/communities/:id/leaderboard", apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const metric = req.query.metric || 'reputation';
@@ -387,7 +387,7 @@ router.get("/api/communities/:id/leaderboard", apiLimiter, (req, res) => {
  *       200:
  *         description: List of community goals
  */
-router.get("/api/communities/:id/goals", apiLimiter, (req, res) => {
+router.get("/communities/:id/goals", apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const db = getDatabase();
@@ -432,7 +432,7 @@ router.get("/api/communities/:id/goals", apiLimiter, (req, res) => {
  *       200:
  *         description: List of user's communities
  */
-router.get("/api/users/:id/communities", apiLimiter, (req, res) => {
+router.get("/users/:id/communities", apiLimiter, (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const db = getDatabase();

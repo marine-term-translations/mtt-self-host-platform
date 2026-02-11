@@ -32,7 +32,7 @@ const { apiLimiter } = require("../middleware/rateLimit");
  *       200:
  *         description: Invitation sent successfully
  */
-router.post("/api/communities/:id/invite", requireAuth, apiLimiter, (req, res) => {
+router.post("/communities/:id/invite", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const { user_id, username } = req.body;
@@ -130,7 +130,7 @@ router.post("/api/communities/:id/invite", requireAuth, apiLimiter, (req, res) =
  *       200:
  *         description: List of pending invitations
  */
-router.get("/api/invitations", requireAuth, apiLimiter, (req, res) => {
+router.get("/invitations", requireAuth, apiLimiter, (req, res) => {
   try {
     const userId = req.session.user.id || req.session.user.user_id;
     const db = getDatabase();
@@ -172,7 +172,7 @@ router.get("/api/invitations", requireAuth, apiLimiter, (req, res) => {
  *       200:
  *         description: Invitation accepted successfully
  */
-router.post("/api/invitations/:id/accept", requireAuth, apiLimiter, (req, res) => {
+router.post("/invitations/:id/accept", requireAuth, apiLimiter, (req, res) => {
   try {
     const invitationId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;
@@ -266,7 +266,7 @@ router.post("/api/invitations/:id/accept", requireAuth, apiLimiter, (req, res) =
  *       200:
  *         description: Invitation declined successfully
  */
-router.post("/api/invitations/:id/decline", requireAuth, apiLimiter, (req, res) => {
+router.post("/invitations/:id/decline", requireAuth, apiLimiter, (req, res) => {
   try {
     const invitationId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;
@@ -327,7 +327,7 @@ router.post("/api/invitations/:id/decline", requireAuth, apiLimiter, (req, res) 
  *       200:
  *         description: List of community invitations
  */
-router.get("/api/communities/:id/invitations", requireAuth, apiLimiter, (req, res) => {
+router.get("/communities/:id/invitations", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;

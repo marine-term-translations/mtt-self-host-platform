@@ -23,7 +23,7 @@ const datetime = require("../utils/datetime");
  *       200:
  *         description: List of communities
  */
-router.get("/api/communities", apiLimiter, (req, res) => {
+router.get("/communities", apiLimiter, (req, res) => {
   try {
     const db = getDatabase();
     const { type } = req.query;
@@ -87,7 +87,7 @@ router.get("/api/communities", apiLimiter, (req, res) => {
  *       200:
  *         description: Community details
  */
-router.get("/api/communities/:id", apiLimiter, (req, res) => {
+router.get("/communities/:id", apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const db = getDatabase();
@@ -171,7 +171,7 @@ router.get("/api/communities/:id", apiLimiter, (req, res) => {
  *       201:
  *         description: Community created successfully
  */
-router.post("/api/communities", requireAuth, apiLimiter, (req, res) => {
+router.post("/communities", requireAuth, apiLimiter, (req, res) => {
   try {
     const { name, description, access_type = 'open' } = req.body;
     
@@ -266,7 +266,7 @@ router.post("/api/communities", requireAuth, apiLimiter, (req, res) => {
  *       200:
  *         description: Community updated successfully
  */
-router.put("/api/communities/:id", requireAuth, apiLimiter, (req, res) => {
+router.put("/communities/:id", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const { name, description, access_type } = req.body;
@@ -366,7 +366,7 @@ router.put("/api/communities/:id", requireAuth, apiLimiter, (req, res) => {
  *       200:
  *         description: Community deleted successfully
  */
-router.delete("/api/communities/:id", requireAuth, apiLimiter, (req, res) => {
+router.delete("/communities/:id", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;
@@ -423,7 +423,7 @@ router.delete("/api/communities/:id", requireAuth, apiLimiter, (req, res) => {
  *       200:
  *         description: Successfully joined community
  */
-router.post("/api/communities/:id/join", requireAuth, apiLimiter, (req, res) => {
+router.post("/communities/:id/join", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;
@@ -495,7 +495,7 @@ router.post("/api/communities/:id/join", requireAuth, apiLimiter, (req, res) => 
  *       200:
  *         description: Successfully left community
  */
-router.delete("/api/communities/:id/leave", requireAuth, apiLimiter, (req, res) => {
+router.delete("/communities/:id/leave", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const userId = req.session.user.id || req.session.user.user_id;
@@ -580,7 +580,7 @@ router.delete("/api/communities/:id/leave", requireAuth, apiLimiter, (req, res) 
  *       200:
  *         description: Member removed successfully
  */
-router.delete("/api/communities/:id/members/:userId", requireAuth, apiLimiter, (req, res) => {
+router.delete("/communities/:id/members/:userId", requireAuth, apiLimiter, (req, res) => {
   try {
     const communityId = parseInt(req.params.id);
     const targetUserId = parseInt(req.params.userId);
