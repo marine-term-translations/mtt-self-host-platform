@@ -1122,13 +1122,14 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
       // Process translations for this field
       for (const t of translations) {
-        const { language, value, status, created_by } = t;
+        const { language, value, status, created_by, rejection_reason } = t;
         console.log("Processing translation", {
           fieldId,
           language,
           value,
           status,
           created_by,
+          rejection_reason,
         });
         if (!language || !value) {
           console.log("Skipping translation due to missing data", t);
@@ -1143,17 +1144,32 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           usedTranslationIds.add(existingTranslation.id);
           const needsUpdate =
             existingTranslation.value !== value ||
-            existingTranslation.status !== (status || "draft");
+            existingTranslation.status !== (status || "draft") ||
+            (status === "rejected" && existingTranslation.rejection_reason !== rejection_reason);
 
           if (needsUpdate) {
-            db.prepare(
-              "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-            ).run(value, status || "draft", currentUserId, existingTranslation.id);
+            // Update with rejection_reason if status is rejected
+            if (status === "rejected" && rejection_reason) {
+              db.prepare(
+                "UPDATE translations SET value = ?, status = ?, rejection_reason = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+              ).run(value, status, rejection_reason, currentUserId, existingTranslation.id);
+            } else if (status !== "rejected" && existingTranslation.rejection_reason) {
+              // Clear rejection_reason if status is no longer rejected
+              db.prepare(
+                "UPDATE translations SET value = ?, status = ?, rejection_reason = NULL, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+              ).run(value, status || "draft", currentUserId, existingTranslation.id);
+            } else {
+              db.prepare(
+                "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+              ).run(value, status || "draft", currentUserId, existingTranslation.id);
+            }
             console.log("Updated translation", {
               id: existingTranslation.id,
               fieldId,
               language,
               value,
+              status,
+              rejection_reason,
             });
           }
 
@@ -1188,7 +1204,21 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               language,
               old_status: existingTranslation.status,
               new_status: status || "draft",
+              rejection_reason,
             });
+            
+            const activityExtra = {
+              field_uri,
+              language,
+              old_status: existingTranslation.status,
+              new_status: status || "draft",
+            };
+            
+            // Include rejection reason if status is being changed to rejected
+            if (status === "rejected" && rejection_reason) {
+              activityExtra.rejection_reason = rejection_reason;
+            }
+            
             db.prepare(
               "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
             ).run(
@@ -1197,12 +1227,7 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               id,
               fieldId,
               existingTranslation.id,
-              JSON.stringify({
-                field_uri,
-                language,
-                old_status: existingTranslation.status,
-                new_status: status || "draft",
-              })
+              JSON.stringify(activityExtra)
             );
 
             // Apply reputation penalties based on status change
