@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Users, Globe, Lock, Settings, UserPlus, UserMinus, 
   Loader2, ArrowLeft, TrendingUp, Award, Calendar,
-  Target, Mail
+  Target, Mail, X, Edit, Save
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { backendApi } from '../services/api';
@@ -20,6 +20,18 @@ const CommunityDetail: React.FC = () => {
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'stats' | 'goals'>('overview');
+  
+  // Modal states
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  
+  // Edit mode states
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editAccessType, setEditAccessType] = useState<'open' | 'invite_only'>('open');
+  const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -43,6 +55,11 @@ const CommunityDetail: React.FC = () => {
       setStats(statsData);
       setLeaderboard(leaderboardData);
       setGoals(goalsData);
+      
+      // Initialize edit fields
+      setEditName(communityData.name);
+      setEditDescription(communityData.description || '');
+      setEditAccessType(communityData.access_type);
     } catch (error) {
       console.error('Failed to fetch community data:', error);
       toast.error('Failed to load community');
@@ -138,9 +155,19 @@ const CommunityDetail: React.FC = () => {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                    {community.name}
-                  </h1>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="text-3xl font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded border-2 border-marine-500"
+                      placeholder="Community name"
+                    />
+                  ) : (
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+                      {community.name}
+                    </h1>
+                  )}
                   {community.access_type === 'invite_only' && !isLanguageCommunity && (
                     <span className="flex items-center gap-1 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full">
                       <Lock size={14} />
@@ -160,10 +187,53 @@ const CommunityDetail: React.FC = () => {
                   </p>
                 )}
                 
-                {community.description && (
-                  <p className="text-slate-600 dark:text-slate-400">
-                    {community.description}
-                  </p>
+                {editMode ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="w-full text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded border-2 border-marine-500"
+                      placeholder="Community description"
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Access Type
+                      </label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="access_type"
+                            value="open"
+                            checked={editAccessType === 'open'}
+                            onChange={(e) => setEditAccessType('open')}
+                            className="text-marine-600"
+                          />
+                          <span className="text-sm text-slate-700 dark:text-slate-300">Open</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="access_type"
+                            value="invite_only"
+                            checked={editAccessType === 'invite_only'}
+                            onChange={(e) => setEditAccessType('invite_only')}
+                            className="text-marine-600"
+                          />
+                          <span className="text-sm text-slate-700 dark:text-slate-300">Invite Only</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {community.description && (
+                      <p className="text-slate-600 dark:text-slate-400">
+                        {community.description}
+                      </p>
+                    )}
+                  </>
                 )}
                 
                 <div className="flex items-center gap-4 mt-4 text-sm text-slate-600 dark:text-slate-400">
@@ -185,13 +255,40 @@ const CommunityDetail: React.FC = () => {
             {/* Action Buttons */}
             <div className="flex gap-2">
               {isOwner && !isLanguageCommunity && (
-                <button
-                  onClick={() => navigate(`/communities/${id}/settings`)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
-                >
-                  <Settings size={20} />
-                  Settings
-                </button>
+                <>
+                  {!editMode ? (
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                    >
+                      <Settings size={20} />
+                      Settings
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleSaveCommunity}
+                        disabled={saveLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {saveLoading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditMode(false);
+                          setEditName(community.name);
+                          setEditDescription(community.description || '');
+                          setEditAccessType(community.access_type);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                      >
+                        <X size={20} />
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </>
               )}
               
               {!isMember && community.access_type === 'open' && (
@@ -296,7 +393,7 @@ const CommunityDetail: React.FC = () => {
               </h3>
               {isOwner && !isLanguageCommunity && (
                 <button
-                  onClick={() => navigate(`/communities/${id}/invite`)}
+                  onClick={() => setShowInviteModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg transition-colors text-sm"
                 >
                   <Mail size={16} />
@@ -407,6 +504,71 @@ const CommunityDetail: React.FC = () => {
             ) : (
               <p className="text-slate-600 dark:text-slate-400">No community goals yet</p>
             )}
+          </div>
+        )}
+        
+        {/* Invite Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Invite Member</h3>
+                <button
+                  onClick={() => setShowInviteModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                Enter the username of the person you want to invite to this community.
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="username" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    id="username"
+                    value={inviteUsername}
+                    onChange={(e) => setInviteUsername(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleInviteMember()}
+                    placeholder="username"
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-marine-500"
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleInviteMember}
+                    disabled={inviteLoading || !inviteUsername.trim()}
+                    className="flex-1 px-4 py-2 bg-marine-600 hover:bg-marine-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {inviteLoading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail size={16} />
+                        Send Invite
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
