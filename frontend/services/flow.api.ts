@@ -131,6 +131,7 @@ export interface TranslationHistoryEntry {
   id: number;
   user_id: number;
   username: string;
+  display_name?: string;
   action: string;
   created_at: string;
   extra: string | null;

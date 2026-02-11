@@ -415,9 +415,18 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
                                        {formatHistoryAction(entry.action)}
                                      </span>
-                                     {entry.username && (
+                                     {(entry.display_name || entry.username) && (
                                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                                         by <span className="font-medium text-slate-700 dark:text-slate-300">{entry.username}</span>
+                                         by <a 
+                                           href={`/user/${entry.user_id}`}
+                                           className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
+                                           onClick={(e) => {
+                                             e.preventDefault();
+                                             window.location.href = `/user/${entry.user_id}`;
+                                           }}
+                                         >
+                                           {entry.display_name || entry.username}
+                                         </a>
                                        </span>
                                      )}
                                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
@@ -622,9 +631,18 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                     <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
                                       {formatHistoryAction(entry.action)}
                                     </span>
-                                    {entry.username && (
+                                    {(entry.display_name || entry.username) && (
                                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        by <span className="font-medium text-slate-700 dark:text-slate-300">{entry.username}</span>
+                                        by <a 
+                                          href={`/user/${entry.user_id}`}
+                                          className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            window.location.href = `/user/${entry.user_id}`;
+                                          }}
+                                        >
+                                          {entry.display_name || entry.username}
+                                        </a>
                                       </span>
                                     )}
                                     <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">

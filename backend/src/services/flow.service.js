@@ -514,14 +514,31 @@ function getTranslationHistory(translationId) {
   
   // Get all activity related to this translation
   const history = db.prepare(
-    `SELECT ua.*, u.username 
+    `SELECT ua.*, u.username, u.extra as user_extra
      FROM user_activity ua
      LEFT JOIN users u ON ua.user_id = u.id
      WHERE ua.translation_id = ?
      ORDER BY ua.created_at ASC`
   ).all(translationId);
   
-  return history;
+  // Parse user extra to get display name
+  return history.map(entry => {
+    let displayName = entry.username;
+    if (entry.user_extra) {
+      try {
+        const extraData = JSON.parse(entry.user_extra);
+        if (extraData.name) {
+          displayName = extraData.name;
+        }
+      } catch (e) {
+        // If parsing fails, use username
+      }
+    }
+    return {
+      ...entry,
+      display_name: displayName
+    };
+  });
 }
 
 module.exports = {
