@@ -212,4 +212,30 @@ router.post("/flow/session/end", writeLimiter, flowController.endSession);
  */
 router.get("/flow/leaderboard", apiLimiter, flowController.getLeaderboard);
 
+/**
+ * @openapi
+ * /api/flow/translation/:translationId/history:
+ *   get:
+ *     summary: Get translation history
+ *     tags: [Flow]
+ *     parameters:
+ *       - in: path
+ *         name: translationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Translation ID
+ *     responses:
+ *       200:
+ *         description: History retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 history:
+ *                   type: array
+ */
+router.get("/flow/translation/:translationId/history", apiLimiter, flowController.getTranslationHistory);
+
 module.exports = router;

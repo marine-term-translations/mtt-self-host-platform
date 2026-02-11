@@ -385,7 +385,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
     }
   };
 
-  const submitUpdate = async (targetFieldId?: number, targetStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged') => {
+  const submitUpdate = async (targetFieldId?: number, targetStatus?: 'draft' | 'review' | 'approved' | 'rejected' | 'merged', rejectionReason?: string) => {
     if (!term || !user) return;
     setIsSubmitting(true);
 
@@ -414,12 +414,19 @@ Original Text (${fieldName}): "${field.original_value}"`;
             }
           }
 
-          translationsPayload.push({
+          const translationPayload: any = {
             language: currentLangCode,
             value: newValue,
             status: newStatus,
             created_by: prevTrans?.created_by || user.username
-          });
+          };
+          
+          // Include rejection_reason if status is rejected and reason is provided
+          if (newStatus === 'rejected' && rejectionReason && targetFieldId === field.id) {
+            translationPayload.rejection_reason = rejectionReason;
+          }
+          
+          translationsPayload.push(translationPayload);
         }
 
         return {
@@ -477,6 +484,11 @@ Original Text (${fieldName}): "${field.original_value}"`;
 
   const confirmRejection = async () => {
     if (!user || !rejectionModal.translationId || !rejectionModal.fieldId) return;
+    
+    if (!rejectionModal.reason.trim()) {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -487,7 +499,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
         token: user.token
       });
 
-      await submitUpdate(rejectionModal.fieldId, 'rejected');
+      await submitUpdate(rejectionModal.fieldId, 'rejected', rejectionModal.reason);
 
       setRejectionModal(prev => ({ ...prev, isOpen: false, reason: '' }));
       toast.success("Translation rejected and appeal created");

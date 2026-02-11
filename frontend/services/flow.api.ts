@@ -3,7 +3,7 @@
 import { backendApi } from './api';
 
 export interface FlowTask {
-  type: 'review' | 'translate' | 'none';
+  type: 'review' | 'translate' | 'rework' | 'none';
   task?: any;
   message?: string;
 }
@@ -116,13 +116,36 @@ export async function getNextTask(language?: string, source?: string): Promise<F
 export async function submitReview(
   translationId: number,
   action: 'approve' | 'reject',
-  sessionId?: number
+  sessionId?: number,
+  rejectionReason?: string
 ): Promise<ReviewResult> {
   return backendApi.post<ReviewResult>('/flow/review', {
     translationId,
     action,
     sessionId,
+    rejectionReason,
   });
+}
+
+export interface TranslationHistoryEntry {
+  id: number;
+  user_id: number;
+  username: string;
+  display_name?: string;
+  action: string;
+  created_at: string;
+  extra: string | null;
+}
+
+/**
+ * Get translation history
+ */
+export async function getTranslationHistory(translationId: number): Promise<{
+  history: TranslationHistoryEntry[];
+}> {
+  return backendApi.get<{
+    history: TranslationHistoryEntry[];
+  }>(`/flow/translation/${translationId}/history`);
 }
 
 /**

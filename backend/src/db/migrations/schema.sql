@@ -35,6 +35,7 @@ CREATE TABLE translations (
     modified_at    DATETIME,
     modified_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    rejection_reason TEXT,  -- Reason for rejection when status is 'rejected'
     UNIQUE(term_field_id, language, status)
 );
 
