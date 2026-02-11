@@ -418,11 +418,11 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                      {(entry.display_name || entry.username) && (
                                        <span className="text-xs text-slate-500 dark:text-slate-400">
                                          by <a 
-                                           href={`/user/${entry.user_id}`}
+                                           href={`#/user/${entry.user_id}`}
                                            className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
                                            onClick={(e) => {
                                              e.preventDefault();
-                                             window.location.href = `/user/${entry.user_id}`;
+                                             window.location.href = `#/user/${entry.user_id}`;
                                            }}
                                          >
                                            {entry.display_name || entry.username}
@@ -634,11 +634,11 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                     {(entry.display_name || entry.username) && (
                                       <span className="text-xs text-slate-500 dark:text-slate-400">
                                         by <a 
-                                          href={`/user/${entry.user_id}`}
+                                          href={`#/user/${entry.user_id}`}
                                           className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
                                           onClick={(e) => {
                                             e.preventDefault();
-                                            window.location.href = `/user/${entry.user_id}`;
+                                            window.location.href = `#/user/${entry.user_id}`;
                                           }}
                                         >
                                           {entry.display_name || entry.username}
