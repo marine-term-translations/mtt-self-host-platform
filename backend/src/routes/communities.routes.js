@@ -651,4 +651,412 @@ router.delete("/communities/:id/members/:userId", requireAuth, apiLimiter, (req,
   }
 });
 
+/**
+ * @openapi
+ * /api/communities/{id}/goals:
+ *   post:
+ *     summary: Create a goal for a community (owner only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       201:
+ *         description: Goal created successfully
+ */
+router.post("/communities/:id/goals", requireAuth, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const userId = req.session.user.id || req.session.user.user_id;
+    const {
+      title,
+      description,
+      goal_type,
+      target_count,
+      target_language,
+      collection_id,
+      is_recurring,
+      recurrence_type,
+      start_date,
+      end_date
+    } = req.body;
+
+    const db = getDatabase();
+
+    // Check if community exists
+    const community = db.prepare('SELECT * FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    // Check if user is the owner (language communities have no owner, so only user-created communities can have goals created by owners)
+    if (community.type === 'language' || community.owner_id !== userId) {
+      return res.status(403).json({ error: 'Only the community owner can create goals for this community' });
+    }
+
+    // Validation
+    if (!title || !goal_type || !start_date) {
+      return res.status(400).json({ error: 'Missing required fields: title, goal_type, start_date' });
+    }
+
+    if (!['translation_count', 'collection'].includes(goal_type)) {
+      return res.status(400).json({ error: 'Invalid goal_type. Must be translation_count or collection' });
+    }
+
+    if (goal_type === 'collection' && !collection_id) {
+      return res.status(400).json({ error: 'collection_id is required for collection goals' });
+    }
+
+    if (goal_type === 'translation_count' && !target_count) {
+      return res.status(400).json({ error: 'target_count is required for translation_count goals' });
+    }
+
+    if (is_recurring && !recurrence_type) {
+      return res.status(400).json({ error: 'recurrence_type is required for recurring goals' });
+    }
+
+    const result = db.prepare(`
+      INSERT INTO community_goals (
+        title, description, goal_type, target_count, target_language,
+        collection_id, community_id, is_recurring, recurrence_type, start_date, end_date, created_by_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title,
+      description || null,
+      goal_type,
+      target_count || null,
+      target_language || null,
+      collection_id || null,
+      communityId,
+      is_recurring ? 1 : 0,
+      recurrence_type || null,
+      start_date,
+      end_date || null,
+      userId
+    );
+
+    const goalId = result.lastInsertRowid;
+
+    // Log activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      userId,
+      'community_goal_created',
+      JSON.stringify({ community_id: communityId, goal_id: goalId, title })
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Goal created successfully',
+      goalId
+    });
+  } catch (err) {
+    console.error('[Communities] Error creating goal:', err);
+    res.status(500).json({ error: 'Failed to create goal' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/communities/{id}/goals/{goalId}:
+ *   put:
+ *     summary: Update a community goal (owner only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Goal updated successfully
+ */
+router.put("/communities/:id/goals/:goalId", requireAuth, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const goalId = parseInt(req.params.goalId);
+    const userId = req.session.user.id || req.session.user.user_id;
+
+    const db = getDatabase();
+
+    // Check if community exists and user is owner
+    const community = db.prepare('SELECT * FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    if (community.owner_id !== userId) {
+      return res.status(403).json({ error: 'Only the community owner can update goals' });
+    }
+
+    // Check if goal exists and belongs to this community
+    const goal = db.prepare('SELECT * FROM community_goals WHERE id = ? AND community_id = ?').get(goalId, communityId);
+    
+    if (!goal) {
+      return res.status(404).json({ error: 'Goal not found in this community' });
+    }
+
+    const {
+      title,
+      description,
+      goal_type,
+      target_count,
+      target_language,
+      collection_id,
+      is_recurring,
+      recurrence_type,
+      start_date,
+      end_date,
+      is_active
+    } = req.body;
+
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+
+    if (title !== undefined) {
+      updates.push('title = ?');
+      params.push(title);
+    }
+    if (description !== undefined) {
+      updates.push('description = ?');
+      params.push(description);
+    }
+    if (goal_type !== undefined) {
+      updates.push('goal_type = ?');
+      params.push(goal_type);
+    }
+    if (target_count !== undefined) {
+      updates.push('target_count = ?');
+      params.push(target_count);
+    }
+    if (target_language !== undefined) {
+      updates.push('target_language = ?');
+      params.push(target_language);
+    }
+    if (collection_id !== undefined) {
+      updates.push('collection_id = ?');
+      params.push(collection_id);
+    }
+    if (is_recurring !== undefined) {
+      updates.push('is_recurring = ?');
+      params.push(is_recurring ? 1 : 0);
+    }
+    if (recurrence_type !== undefined) {
+      updates.push('recurrence_type = ?');
+      params.push(recurrence_type);
+    }
+    if (start_date !== undefined) {
+      updates.push('start_date = ?');
+      params.push(start_date);
+    }
+    if (end_date !== undefined) {
+      updates.push('end_date = ?');
+      params.push(end_date);
+    }
+    if (is_active !== undefined) {
+      updates.push('is_active = ?');
+      params.push(is_active ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(goalId);
+
+    const query = `UPDATE community_goals SET ${updates.join(', ')} WHERE id = ?`;
+    db.prepare(query).run(...params);
+
+    // Log activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      userId,
+      'community_goal_updated',
+      JSON.stringify({ community_id: communityId, goal_id: goalId, updates: Object.keys(req.body) })
+    );
+
+    res.json({ success: true, message: 'Goal updated successfully' });
+  } catch (err) {
+    console.error('[Communities] Error updating goal:', err);
+    res.status(500).json({ error: 'Failed to update goal' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/communities/{id}/goals/{goalId}:
+ *   delete:
+ *     summary: Delete a community goal (owner only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: goalId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Goal deleted successfully
+ */
+router.delete("/communities/:id/goals/:goalId", requireAuth, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const goalId = parseInt(req.params.goalId);
+    const userId = req.session.user.id || req.session.user.user_id;
+
+    const db = getDatabase();
+
+    // Check if community exists and user is owner
+    const community = db.prepare('SELECT * FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    if (community.owner_id !== userId) {
+      return res.status(403).json({ error: 'Only the community owner can delete goals' });
+    }
+
+    // Check if goal exists and belongs to this community
+    const goal = db.prepare('SELECT * FROM community_goals WHERE id = ? AND community_id = ?').get(goalId, communityId);
+    
+    if (!goal) {
+      return res.status(404).json({ error: 'Goal not found in this community' });
+    }
+
+    db.prepare('DELETE FROM community_goals WHERE id = ?').run(goalId);
+
+    // Log activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      userId,
+      'community_goal_deleted',
+      JSON.stringify({ community_id: communityId, goal_id: goalId, title: goal.title })
+    );
+
+    res.json({ success: true, message: 'Goal deleted successfully' });
+  } catch (err) {
+    console.error('[Communities] Error deleting goal:', err);
+    res.status(500).json({ error: 'Failed to delete goal' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/communities/{id}/report:
+ *   post:
+ *     summary: Report a community for offensive or inappropriate content
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 enum: [offensive, spam, inappropriate, harassment, other]
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Report submitted successfully
+ */
+router.post("/communities/:id/report", requireAuth, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const userId = req.session.user.id || req.session.user.user_id;
+    const { reason, description } = req.body;
+
+    const db = getDatabase();
+
+    // Check if community exists
+    const community = db.prepare('SELECT * FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    // Don't allow reporting language communities
+    if (community.type === 'language') {
+      return res.status(400).json({ error: 'Language communities cannot be reported' });
+    }
+
+    // Validation
+    if (!reason) {
+      return res.status(400).json({ error: 'Reason is required' });
+    }
+
+    const validReasons = ['offensive', 'spam', 'inappropriate', 'harassment', 'other'];
+    if (!validReasons.includes(reason)) {
+      return res.status(400).json({ error: 'Invalid reason' });
+    }
+
+    // Check for existing pending report from this user
+    const existingReport = db.prepare(
+      'SELECT id FROM community_reports WHERE community_id = ? AND reported_by_id = ? AND status = ?'
+    ).get(communityId, userId, 'pending');
+
+    if (existingReport) {
+      return res.status(400).json({ error: 'You have already reported this community' });
+    }
+
+    // Create report
+    const result = db.prepare(`
+      INSERT INTO community_reports (community_id, reported_by_id, reason, description, status)
+      VALUES (?, ?, ?, ?, 'pending')
+    `).run(communityId, userId, reason, description || null);
+
+    const reportId = result.lastInsertRowid;
+
+    // Log activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      userId,
+      'community_reported',
+      JSON.stringify({ community_id: communityId, report_id: reportId, reason })
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Report submitted successfully',
+      reportId
+    });
+  } catch (err) {
+    console.error('[Communities] Error submitting report:', err);
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
+
 module.exports = router;
