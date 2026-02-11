@@ -14,6 +14,9 @@ const {
   applyCreationReward,
 } = require("./reputation.service");
 
+// SQL pattern to check for translatable field roles
+const TRANSLATABLE_FIELD_PATTERN = ``;
+
 /**
  * Get pending reviews for a user (reviews they need to do, not their own translations)
  * Returns translations that are in 'review' status and not created by the user
@@ -47,7 +50,7 @@ function getPendingReviews(userIdentifier, language = null, sourceId = null) {
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
        AND (t.reviewed_by_id IS NULL)
-       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
+       AND ${TRANSLATABLE_FIELD_PATTERN}`;
   
   const params = [userId];
   
@@ -74,7 +77,7 @@ function getPendingReviews(userIdentifier, language = null, sourceId = null) {
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
+     AND ${TRANSLATABLE_FIELD_PATTERN}`
   ).all(reviews.term_id);
   
   return {
@@ -115,7 +118,7 @@ function getRejectedTranslations(userIdentifier, language = null, sourceId = nul
      JOIN terms term ON tf.term_id = term.id
      WHERE t.status = 'rejected' 
        AND t.created_by_id = ?
-       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
+       AND ${TRANSLATABLE_FIELD_PATTERN}`;
   
   const params = [userId];
   
@@ -129,7 +132,7 @@ function getRejectedTranslations(userIdentifier, language = null, sourceId = nul
     params.push(parseInt(sourceId, 10));
   }
   
-  query += ` ORDER BY datetime(t.updated_at) ASC LIMIT 1`;
+  query += ` ORDER BY t.updated_at ASC LIMIT 1`;
   
   const rejected = db.prepare(query).get(...params);
   
@@ -142,7 +145,7 @@ function getRejectedTranslations(userIdentifier, language = null, sourceId = nul
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
+     AND ${TRANSLATABLE_FIELD_PATTERN}`
   ).all(rejected.term_id);
   
   return {
@@ -168,7 +171,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`;
+     WHERE `;
   
   const params = [];
   
@@ -207,7 +210,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
     partialQuery += `) as translation_count
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
-       WHERE (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')
+       WHERE 
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
@@ -235,7 +238,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
       `SELECT tf.field_uri, tf.original_value 
        FROM term_fields tf
        WHERE tf.term_id = ?
-       AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
+       AND `
     ).all(partiallyTranslated.term_id);
     
     return {
@@ -249,7 +252,7 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
     `SELECT tf.field_uri, tf.original_value 
      FROM term_fields tf
      WHERE tf.term_id = ?
-     AND (tf.field_roles LIKE '%"translatable"%' OR tf.field_roles LIKE '%''translatable''%')`
+     AND `
   ).all(untranslated.term_id);
   
   return {

@@ -127,28 +127,23 @@ export async function submitReview(
   });
 }
 
+export interface TranslationHistoryEntry {
+  id: number;
+  user_id: number;
+  username: string;
+  action: string;
+  created_at: string;
+  extra: string | null;
+}
+
 /**
  * Get translation history
  */
 export async function getTranslationHistory(translationId: number): Promise<{
-  history: Array<{
-    id: number;
-    user_id: number;
-    username: string;
-    action: string;
-    created_at: string;
-    extra: string | null;
-  }>;
+  history: TranslationHistoryEntry[];
 }> {
   return backendApi.get<{
-    history: Array<{
-      id: number;
-      user_id: number;
-      username: string;
-      action: string;
-      created_at: string;
-      extra: string | null;
-    }>;
+    history: TranslationHistoryEntry[];
   }>(`/flow/translation/${translationId}/history`);
 }
 

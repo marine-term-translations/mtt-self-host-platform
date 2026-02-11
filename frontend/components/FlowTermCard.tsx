@@ -333,7 +333,12 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                      {showHistory && (
                        <div className="mt-4 space-y-2">
                          {history.map((entry, idx) => {
-                           const extra = entry.extra ? JSON.parse(entry.extra) : {};
+                           let extra = {};
+                           try {
+                             extra = entry.extra ? JSON.parse(entry.extra) : {};
+                           } catch (e) {
+                             console.error('Failed to parse history extra:', e);
+                           }
                            return (
                              <div key={entry.id} className="flex items-start gap-3 text-xs">
                                <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
@@ -498,7 +503,12 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     {showHistory && (
                       <div className="mt-4 space-y-2">
                         {history.map((entry) => {
-                          const extra = entry.extra ? JSON.parse(entry.extra) : {};
+                          let extra = {};
+                          try {
+                            extra = entry.extra ? JSON.parse(entry.extra) : {};
+                          } catch (e) {
+                            console.error('Failed to parse history extra:', e);
+                          }
                           return (
                             <div key={entry.id} className="flex items-start gap-3 text-xs">
                               <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
