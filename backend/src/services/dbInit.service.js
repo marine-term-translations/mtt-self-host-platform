@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const config = require("../config");
 const { isDatabaseInitialized, applySchema, getDatabase } = require("../db/database");
+const { initializeLanguageCommunities } = require("./community.service");
 
 /**
  * Ensure the database directory exists
@@ -127,6 +128,15 @@ function bootstrap() {
     console.log('[DB Init] Starting database initialization...');
     initializeDatabase();
     console.log('[DB Init] Database ready');
+    
+    // Initialize language communities
+    console.log('[DB Init] Initializing language communities...');
+    const result = initializeLanguageCommunities();
+    if (result.success) {
+      console.log(`[DB Init] ✓ Language communities initialized (${result.created} created)`);
+    } else {
+      console.error('[DB Init] WARNING: Failed to initialize language communities:', result.error);
+    }
   } catch (err) {
     console.error('[DB Init] ERROR: Failed to initialize database:', err.message);
     console.error('[DB Init] Stack trace:', err.stack);

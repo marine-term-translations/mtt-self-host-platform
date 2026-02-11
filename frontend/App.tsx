@@ -19,6 +19,9 @@ import Documentation from './pages/Documentation';
 import TranslationFlow from './pages/TranslationFlow';
 import LdesFeeds from './pages/LdesFeeds';
 import CommunityGoals from './pages/CommunityGoals';
+import Communities from './pages/Communities';
+import CommunityDetail from './pages/CommunityDetail';
+import CreateCommunity from './pages/CreateCommunity';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminActivity from './pages/admin/AdminActivity';
@@ -31,6 +34,7 @@ import AdminTasks from './pages/admin/AdminTasks';
 import AdminTaskDetail from './pages/admin/AdminTaskDetail';
 import AdminTranslations from './pages/admin/AdminTranslations';
 import AdminCommunityGoals from './pages/admin/AdminCommunityGoals';
+import AdminCommunities from './pages/admin/AdminCommunities';
 import Banned from './pages/Banned';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -76,6 +80,21 @@ const App: React.FC = () => {
         <Route path="/community-goals" element={
           <ProtectedRoute>
             <CommunityGoals />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities" element={
+          <ProtectedRoute>
+            <Communities />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities/create" element={
+          <ProtectedRoute>
+            <CreateCommunity />
+          </ProtectedRoute>
+        } />
+        <Route path="/communities/:id" element={
+          <ProtectedRoute>
+            <CommunityDetail />
           </ProtectedRoute>
         } />
         <Route path="/dashboard" element={
@@ -186,6 +205,11 @@ const App: React.FC = () => {
         <Route path="/admin/community-goals" element={
           <AdminRoute>
             <AdminCommunityGoals />
+          </AdminRoute>
+        } />
+        <Route path="/admin/communities" element={
+          <AdminRoute>
+            <AdminCommunities />
           </AdminRoute>
         } />
 

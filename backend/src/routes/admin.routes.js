@@ -954,4 +954,315 @@ router.get("/admin/activity", requireAdmin, apiLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/admin/communities:
+ *   get:
+ *     summary: Get all communities (admin only)
+ *     responses:
+ *       200:
+ *         description: List of all communities
+ */
+router.get("/admin/communities", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    const communities = db.prepare(`
+      SELECT 
+        c.*,
+        u.username as owner_username,
+        l.name as language_name,
+        (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id) as member_count,
+        (SELECT COUNT(*) FROM community_reports cr WHERE cr.community_id = c.id AND cr.status = 'pending') as pending_reports,
+        (SELECT COUNT(*) FROM community_goals cg WHERE cg.community_id = c.id AND cg.is_active = 1) as active_goals
+      FROM communities c
+      LEFT JOIN users u ON c.owner_id = u.id
+      LEFT JOIN languages l ON c.language_code = l.code
+      ORDER BY c.created_at DESC
+    `).all();
+    
+    res.json(communities);
+  } catch (err) {
+    console.error('[Admin Communities] Error fetching communities:', err);
+    res.status(500).json({ error: 'Failed to fetch communities' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/communities/{id}:
+ *   delete:
+ *     summary: Delete a community (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Community deleted successfully
+ */
+router.delete("/admin/communities/:id", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const db = getDatabase();
+
+    // Get community info before deleting
+    const community = db.prepare('SELECT * FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    // Prevent deletion of language communities
+    if (community.type === 'language') {
+      return res.status(400).json({ error: 'Language communities cannot be deleted' });
+    }
+    
+    db.prepare('DELETE FROM communities WHERE id = ?').run(communityId);
+
+    // Log admin activity
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_deleted',
+      JSON.stringify({ community_id: communityId, name: community.name })
+    );
+    
+    res.json({ success: true, message: 'Community deleted successfully' });
+  } catch (err) {
+    console.error('[Admin Communities] Error deleting community:', err);
+    res.status(500).json({ error: 'Failed to delete community' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/communities/{id}/goals:
+ *   post:
+ *     summary: Create a goal for any community (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       201:
+ *         description: Goal created successfully
+ */
+router.post("/admin/communities/:id/goals", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const communityId = parseInt(req.params.id);
+    const {
+      title,
+      description,
+      goal_type,
+      target_count,
+      target_language,
+      collection_id,
+      is_recurring,
+      recurrence_type,
+      start_date,
+      end_date
+    } = req.body;
+
+    const db = getDatabase();
+
+    // Check if community exists
+    const community = db.prepare('SELECT id FROM communities WHERE id = ?').get(communityId);
+    
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    // Validation
+    if (!title || !goal_type || !start_date) {
+      return res.status(400).json({ error: 'Missing required fields: title, goal_type, start_date' });
+    }
+
+    if (!['translation_count', 'collection'].includes(goal_type)) {
+      return res.status(400).json({ error: 'Invalid goal_type' });
+    }
+
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+
+    const result = db.prepare(`
+      INSERT INTO community_goals (
+        title, description, goal_type, target_count, target_language,
+        collection_id, community_id, is_recurring, recurrence_type, start_date, end_date, created_by_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title,
+      description || null,
+      goal_type,
+      target_count || null,
+      target_language || null,
+      collection_id || null,
+      communityId,
+      is_recurring ? 1 : 0,
+      recurrence_type || null,
+      start_date,
+      end_date || null,
+      currentUserId
+    );
+
+    const goalId = result.lastInsertRowid;
+
+    // Log admin activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_goal_created',
+      JSON.stringify({ community_id: communityId, goal_id: goalId, title })
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Goal created successfully',
+      goalId
+    });
+  } catch (err) {
+    console.error('[Admin Communities] Error creating goal:', err);
+    res.status(500).json({ error: 'Failed to create goal' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/community-reports:
+ *   get:
+ *     summary: Get all community reports (admin only)
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, reviewing, resolved, dismissed]
+ *     responses:
+ *       200:
+ *         description: List of community reports
+ */
+router.get("/admin/community-reports", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const db = getDatabase();
+    const { status } = req.query;
+    
+    let query = `
+      SELECT 
+        cr.*,
+        c.name as community_name,
+        c.type as community_type,
+        c.owner_id as community_owner_id,
+        u1.username as reported_by_username,
+        u2.username as reviewed_by_username,
+        u3.username as community_owner_username
+      FROM community_reports cr
+      INNER JOIN communities c ON cr.community_id = c.id
+      INNER JOIN users u1 ON cr.reported_by_id = u1.id
+      LEFT JOIN users u2 ON cr.reviewed_by_id = u2.id
+      LEFT JOIN users u3 ON c.owner_id = u3.id
+    `;
+    
+    const params = [];
+    
+    if (status) {
+      query += ' WHERE cr.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY cr.created_at DESC';
+    
+    const reports = db.prepare(query).all(...params);
+    
+    res.json(reports);
+  } catch (err) {
+    console.error('[Admin Community Reports] Error fetching reports:', err);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/community-reports/{id}/review:
+ *   put:
+ *     summary: Review a community report (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [reviewing, resolved, dismissed]
+ *               resolution_notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Report reviewed successfully
+ */
+router.put("/admin/community-reports/:id/review", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id);
+    const { status, resolution_notes } = req.body;
+    const db = getDatabase();
+
+    // Validate status
+    if (!['reviewing', 'resolved', 'dismissed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    // Check if report exists
+    const report = db.prepare('SELECT * FROM community_reports WHERE id = ?').get(reportId);
+    
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    const currentUserId = req.session.user.id || req.session.user.user_id;
+
+    // Update report
+    db.prepare(`
+      UPDATE community_reports 
+      SET status = ?, 
+          resolution_notes = ?,
+          reviewed_by_id = ?,
+          reviewed_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(status, resolution_notes || null, currentUserId, reportId);
+
+    // Log admin activity
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      currentUserId,
+      'admin_community_report_reviewed',
+      JSON.stringify({ report_id: reportId, status, community_id: report.community_id })
+    );
+
+    res.json({ success: true, message: 'Report reviewed successfully' });
+  } catch (err) {
+    console.error('[Admin Community Reports] Error reviewing report:', err);
+    res.status(500).json({ error: 'Failed to review report' });
+  }
+});
+
 module.exports = router;

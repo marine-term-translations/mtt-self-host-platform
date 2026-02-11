@@ -27,6 +27,9 @@ const adminRoutes = require("./routes/admin.routes");
 const dockerRoutes = require("./routes/docker.routes");
 const languagesRoutes = require("./routes/languages.routes");
 const communityGoalsRoutes = require("./routes/community-goals.routes");
+const communitiesRoutes = require("./routes/communities.routes");
+const communityInvitationsRoutes = require("./routes/community-invitations.routes");
+const communityStatsRoutes = require("./routes/community-stats.routes");
 
 const app = express();
 
@@ -103,5 +106,8 @@ app.use("/", adminRoutes);
 app.use("/", dockerRoutes);
 app.use("/", languagesRoutes);
 app.use("/", communityGoalsRoutes);
+app.use("/", communitiesRoutes);
+app.use("/", communityInvitationsRoutes);
+app.use("/", communityStatsRoutes);
 
 module.exports = app;
