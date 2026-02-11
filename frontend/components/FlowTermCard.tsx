@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle, PlusCircle, Edit3 } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
@@ -205,7 +205,59 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    // If less than 1 hour ago, show minutes
+    if (diffMins < 60) {
+      return diffMins <= 1 ? 'Just now' : `${diffMins}m ago`;
+    }
+    // If less than 24 hours ago, show hours
+    if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    }
+    // If less than 7 days ago, show days
+    if (diffDays < 7) {
+      return `${diffDays}d ago`;
+    }
+    // Otherwise show date
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const getStatusBadgeClass = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'approved':
+      case 'merged':
+        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+      case 'rejected':
+        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+      case 'review':
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+      case 'draft':
+        return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+      default:
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case 'translation_created':
+        return <PlusCircle size={14} className="flex-shrink-0" />;
+      case 'translation_edited':
+        return <Edit3 size={14} className="flex-shrink-0" />;
+      case 'translation_approved':
+        return <CheckCircle size={14} className="flex-shrink-0" />;
+      case 'translation_rejected':
+        return <XCircle size={14} className="flex-shrink-0" />;
+      case 'translation_status_changed':
+        return <Clock size={14} className="flex-shrink-0" />;
+      default:
+        return <AlertCircle size={14} className="flex-shrink-0" />;
+    }
   };
 
   const getGoalTypeLabel = (type: string) => {
@@ -321,18 +373,27 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
                  {/* Translation History */}
                  {history.length > 0 && (
-                   <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                   <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
                      <button
                        onClick={() => setShowHistory(!showHistory)}
-                       className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
+                       className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
                      >
-                       <Clock size={16} />
-                       Translation History ({history.length})
-                       <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>▼</span>
+                       <div className="flex items-center gap-2">
+                         <Clock size={18} className="text-marine-500" />
+                         <span>Translation History</span>
+                         <span className="ml-1 px-2 py-0.5 bg-marine-100 dark:bg-marine-900/40 text-marine-700 dark:text-marine-300 rounded-full text-xs font-bold">
+                           {history.length}
+                         </span>
+                       </div>
+                       <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>
+                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                           <path d="M4 6l4 4 4-4z"/>
+                         </svg>
+                       </span>
                      </button>
                      
                      {showHistory && (
-                       <div className="mt-4 space-y-2">
+                       <div className="mt-4 space-y-3">
                          {history.map((entry, idx) => {
                            let extra = {};
                            try {
@@ -341,29 +402,52 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                              console.error('Failed to parse history extra:', e);
                            }
                            return (
-                             <div key={entry.id} className="flex items-start gap-3 text-xs">
-                               <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
-                                 {formatDate(entry.created_at)}
-                               </div>
-                               <div className="flex-grow">
-                                 <div className="font-medium text-slate-700 dark:text-slate-300">
-                                   {formatHistoryAction(entry.action)}
-                                   {entry.username && (
-                                     <span className="ml-1 text-slate-500 dark:text-slate-400">
-                                       by {entry.username}
+                             <div 
+                               key={entry.id} 
+                               className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
+                             >
+                               <div className="flex items-start gap-3">
+                                 <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
+                                   {getActionIcon(entry.action)}
+                                 </div>
+                                 <div className="flex-grow min-w-0">
+                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                     <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                                       {formatHistoryAction(entry.action)}
                                      </span>
+                                     {entry.username && (
+                                       <span className="text-xs text-slate-500 dark:text-slate-400">
+                                         by <span className="font-medium text-slate-700 dark:text-slate-300">{entry.username}</span>
+                                       </span>
+                                     )}
+                                     <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
+                                       {formatDate(entry.created_at)}
+                                     </span>
+                                   </div>
+                                   
+                                   {extra.old_status && extra.new_status && (
+                                     <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
+                                         {extra.old_status}
+                                       </span>
+                                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
+                                         <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
+                                       </svg>
+                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
+                                         {extra.new_status}
+                                       </span>
+                                     </div>
+                                   )}
+                                   
+                                   {extra.rejection_reason && (
+                                     <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
+                                       <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
+                                       <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
+                                         {extra.rejection_reason}
+                                       </div>
+                                     </div>
                                    )}
                                  </div>
-                                 {extra.old_status && extra.new_status && (
-                                   <div className="mt-1 text-slate-600 dark:text-slate-400">
-                                     {extra.old_status} → {extra.new_status}
-                                   </div>
-                                 )}
-                                 {extra.rejection_reason && (
-                                   <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
-                                     Reason: {extra.rejection_reason}
-                                   </div>
-                                 )}
                                </div>
                              </div>
                            );
@@ -495,19 +579,28 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
                 {/* Translation History */}
                 {history.length > 0 && (
-                  <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
                     <button
                       type="button"
                       onClick={() => setShowHistory(!showHistory)}
-                      className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
+                      className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
                     >
-                      <Clock size={16} />
-                      Translation History ({history.length})
-                      <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>▼</span>
+                      <div className="flex items-center gap-2">
+                        <Clock size={18} className="text-marine-500" />
+                        <span>Translation History</span>
+                        <span className="ml-1 px-2 py-0.5 bg-marine-100 dark:bg-marine-900/40 text-marine-700 dark:text-marine-300 rounded-full text-xs font-bold">
+                          {history.length}
+                        </span>
+                      </div>
+                      <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M4 6l4 4 4-4z"/>
+                        </svg>
+                      </span>
                     </button>
                     
                     {showHistory && (
-                      <div className="mt-4 space-y-2">
+                      <div className="mt-4 space-y-3">
                         {history.map((entry) => {
                           let extra = {};
                           try {
@@ -516,29 +609,52 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                             console.error('Failed to parse history extra:', e);
                           }
                           return (
-                            <div key={entry.id} className="flex items-start gap-3 text-xs">
-                              <div className="flex-shrink-0 w-16 text-slate-500 dark:text-slate-400">
-                                {formatDate(entry.created_at)}
-                              </div>
-                              <div className="flex-grow">
-                                <div className="font-medium text-slate-700 dark:text-slate-300">
-                                  {formatHistoryAction(entry.action)}
-                                  {entry.username && (
-                                    <span className="ml-1 text-slate-500 dark:text-slate-400">
-                                      by {entry.username}
+                            <div 
+                              key={entry.id} 
+                              className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
+                                  {getActionIcon(entry.action)}
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                                      {formatHistoryAction(entry.action)}
                                     </span>
+                                    {entry.username && (
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        by <span className="font-medium text-slate-700 dark:text-slate-300">{entry.username}</span>
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
+                                      {formatDate(entry.created_at)}
+                                    </span>
+                                  </div>
+                                  
+                                  {extra.old_status && extra.new_status && (
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
+                                        {extra.old_status}
+                                      </span>
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
+                                        <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
+                                      </svg>
+                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
+                                        {extra.new_status}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {extra.rejection_reason && (
+                                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
+                                      <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
+                                      <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
+                                        {extra.rejection_reason}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
-                                {extra.old_status && extra.new_status && (
-                                  <div className="mt-1 text-slate-600 dark:text-slate-400">
-                                    {extra.old_status} → {extra.new_status}
-                                  </div>
-                                )}
-                                {extra.rejection_reason && (
-                                  <div className="mt-1 text-slate-600 dark:text-slate-400 italic">
-                                    Reason: {extra.rejection_reason}
-                                  </div>
-                                )}
                               </div>
                             </div>
                           );
