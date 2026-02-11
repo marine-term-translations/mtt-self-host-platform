@@ -34,6 +34,7 @@ import AdminTasks from './pages/admin/AdminTasks';
 import AdminTaskDetail from './pages/admin/AdminTaskDetail';
 import AdminTranslations from './pages/admin/AdminTranslations';
 import AdminCommunityGoals from './pages/admin/AdminCommunityGoals';
+import AdminCommunities from './pages/admin/AdminCommunities';
 import Banned from './pages/Banned';
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -204,6 +205,11 @@ const App: React.FC = () => {
         <Route path="/admin/community-goals" element={
           <AdminRoute>
             <AdminCommunityGoals />
+          </AdminRoute>
+        } />
+        <Route path="/admin/communities" element={
+          <AdminRoute>
+            <AdminCommunities />
           </AdminRoute>
         } />
 
