@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +7,7 @@ import { parse, format, now } from '@/src/utils/datetime';
 import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
+import InvitationsButton from './InvitationsButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -201,6 +201,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Community Goals Widget - hidden on mobile */}
       {isAuthenticated && <CommunityGoalWidget className="hidden md:block" />}
+      
+      {/* Invitations Button - hidden on mobile */}
+      {isAuthenticated && <InvitationsButton />}
       
       {/* Bottom Navigation - only on phone when authenticated */}
       {isAuthenticated && <BottomNav />}
