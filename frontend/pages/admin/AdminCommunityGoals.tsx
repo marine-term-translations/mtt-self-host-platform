@@ -525,6 +525,19 @@ const AdminCommunityGoals: React.FC = () => {
                         <span>Created by {goal.created_by_username}</span>
                       </div>
                     </div>
+                    {goal.linked_communities && goal.linked_communities.length > 0 && (
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Linked to:</span>
+                        {goal.linked_communities.map((community) => (
+                          <span
+                            key={community.id}
+                            className="text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded"
+                          >
+                            {community.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button

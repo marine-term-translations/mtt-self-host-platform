@@ -185,7 +185,21 @@ router.get("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
       ORDER BY cg.created_at DESC
     `).all();
 
-    res.json(goals);
+    // For each goal, get the linked communities
+    const getLinkedCommunities = db.prepare(`
+      SELECT c.id, c.name, c.language_code
+      FROM community_goal_links cgl
+      INNER JOIN communities c ON cgl.community_id = c.id
+      WHERE cgl.goal_id = ?
+      ORDER BY c.name
+    `);
+
+    const goalsWithCommunities = goals.map(goal => ({
+      ...goal,
+      linked_communities: getLinkedCommunities.all(goal.id)
+    }));
+
+    res.json(goalsWithCommunities);
   } catch (err) {
     console.error('[Community Goals] Error fetching goals:', err);
     res.status(500).json({ error: 'Failed to fetch community goals' });
