@@ -399,14 +399,15 @@ router.get("/communities/:id/goals", apiLimiter, (req, res) => {
       return res.status(404).json({ error: 'Community not found' });
     }
     
-    // Get community-specific goals
+    // Get community-specific goals using the linking table
     const goals = db.prepare(`
       SELECT 
         cg.*,
         s.source_path as collection_path
       FROM community_goals cg
+      INNER JOIN community_goal_links cgl ON cg.id = cgl.goal_id
       LEFT JOIN sources s ON cg.collection_id = s.source_id
-      WHERE cg.community_id = ? AND cg.is_active = 1
+      WHERE cgl.community_id = ? AND cg.is_active = 1
       ORDER BY cg.created_at DESC
     `).all(communityId);
     

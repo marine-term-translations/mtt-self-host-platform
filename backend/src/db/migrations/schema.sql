@@ -610,6 +610,18 @@ CREATE TABLE community_goal_dismissals (
 
 CREATE INDEX idx_community_goal_dismissals_user ON community_goal_dismissals(user_id);
 
+-- Link admin goals to language communities (many-to-many)
+CREATE TABLE community_goal_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id         INTEGER NOT NULL REFERENCES community_goals(id) ON DELETE CASCADE,
+    community_id    INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(goal_id, community_id)
+);
+
+CREATE INDEX idx_community_goal_links_goal ON community_goal_links(goal_id);
+CREATE INDEX idx_community_goal_links_community ON community_goal_links(community_id);
+
 -- Community Reports
 -- Allows users to report offensive or inappropriate communities
 

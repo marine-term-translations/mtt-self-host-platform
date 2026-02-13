@@ -974,7 +974,9 @@ router.get("/admin/communities", requireAdmin, apiLimiter, (req, res) => {
         l.name as language_name,
         (SELECT COUNT(*) FROM community_members cm WHERE cm.community_id = c.id) as member_count,
         (SELECT COUNT(*) FROM community_reports cr WHERE cr.community_id = c.id AND cr.status = 'pending') as pending_reports,
-        (SELECT COUNT(*) FROM community_goals cg WHERE cg.community_id = c.id AND cg.is_active = 1) as active_goals
+        (SELECT COUNT(*) FROM community_goal_links cgl 
+         INNER JOIN community_goals cg ON cgl.goal_id = cg.id 
+         WHERE cgl.community_id = c.id AND cg.is_active = 1) as active_goals
       FROM communities c
       LEFT JOIN users u ON c.owner_id = u.id
       LEFT JOIN languages l ON c.language_code = l.code

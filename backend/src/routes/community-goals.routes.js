@@ -8,6 +8,25 @@ const { apiLimiter } = require("../middleware/rateLimit");
 const datetime = require("../utils/datetime");
 
 /**
+ * Helper function to link a goal to all language communities
+ * @param {object} db - Database instance
+ * @param {number} goalId - Goal ID to link
+ */
+function linkGoalToAllLanguageCommunities(db, goalId) {
+  const languageCommunities = db.prepare(
+    'SELECT id FROM communities WHERE type = ?'
+  ).all('language');
+  
+  const insertLink = db.prepare(
+    'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+  );
+  
+  for (const community of languageCommunities) {
+    insertLink.run(goalId, community.id);
+  }
+}
+
+/**
  * @openapi
  * /api/admin/community-goals:
  *   post:
@@ -114,13 +133,40 @@ router.post("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
 
     const goalId = result.lastInsertRowid;
 
+    // Link goal to language communities
+    if (target_language) {
+      // If a specific language is assigned, link to that language's community
+      const languageCommunity = db.prepare(
+        'SELECT id FROM communities WHERE type = ? AND language_code = ?'
+      ).get('language', target_language);
+      
+      if (languageCommunity) {
+        db.prepare(
+          'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+        ).run(goalId, languageCommunity.id);
+      } else {
+        // Language community doesn't exist - link to all language communities as fallback
+        console.warn(`[Community Goals] Language community not found for ${target_language}, linking to all communities`);
+        linkGoalToAllLanguageCommunities(db, goalId);
+      }
+    } else {
+      // If no language is assigned, link to all language communities
+      linkGoalToAllLanguageCommunities(db, goalId);
+    }
+
     // Log admin activity
     db.prepare(
       'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
     ).run(
       currentUserId,
       'admin_community_goal_created',
-      JSON.stringify({ goal_id: goalId, title, goal_type })
+      JSON.stringify({ 
+        goal_id: goalId, 
+        title, 
+        goal_type, 
+        target_language: target_language || null,
+        linked_to_all_communities: !target_language
+      })
     );
 
     res.status(201).json({
@@ -158,7 +204,21 @@ router.get("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
       ORDER BY cg.created_at DESC
     `).all();
 
-    res.json(goals);
+    // For each goal, get the linked communities
+    const getLinkedCommunities = db.prepare(`
+      SELECT c.id, c.name, c.language_code
+      FROM community_goal_links cgl
+      INNER JOIN communities c ON cgl.community_id = c.id
+      WHERE cgl.goal_id = ?
+      ORDER BY c.name
+    `);
+
+    const goalsWithCommunities = goals.map(goal => ({
+      ...goal,
+      linked_communities: getLinkedCommunities.all(goal.id)
+    }));
+
+    res.json(goalsWithCommunities);
   } catch (err) {
     console.error('[Community Goals] Error fetching goals:', err);
     res.status(500).json({ error: 'Failed to fetch community goals' });
@@ -270,6 +330,32 @@ router.put("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res) =>
     const query = `UPDATE community_goals SET ${updates.join(', ')} WHERE id = ?`;
     db.prepare(query).run(...params);
 
+    // Update community links if target_language changed
+    if (target_language !== undefined) {
+      // Remove existing links
+      db.prepare('DELETE FROM community_goal_links WHERE goal_id = ?').run(goalId);
+      
+      if (target_language) {
+        // Link to specific language community
+        const languageCommunity = db.prepare(
+          'SELECT id FROM communities WHERE type = ? AND language_code = ?'
+        ).get('language', target_language);
+        
+        if (languageCommunity) {
+          db.prepare(
+            'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+          ).run(goalId, languageCommunity.id);
+        } else {
+          // Language community doesn't exist - link to all language communities as fallback
+          console.warn(`[Community Goals] Language community not found for ${target_language}, linking to all communities`);
+          linkGoalToAllLanguageCommunities(db, goalId);
+        }
+      } else {
+        // Link to all language communities
+        linkGoalToAllLanguageCommunities(db, goalId);
+      }
+    }
+
     // Log admin activity
     const currentUserId = req.session.user.id || req.session.user.user_id;
     db.prepare(
@@ -347,59 +433,62 @@ router.get("/community-goals", apiLimiter, (req, res) => {
     const db = getDatabase();
     const now = datetime.toISO(datetime.now());
     
-    // Get user's translation languages if authenticated
-    let userLanguages = [];
+    // Only show goals to authenticated users who are community members
+    // Unauthenticated users get an empty array (widget won't display)
+    let goals = [];
+    
     if (req.session?.user?.id || req.session?.user?.user_id) {
       const userId = req.session.user.id || req.session.user.user_id;
+      
+      // Get user's translation languages for optional filtering
       const prefs = db.prepare('SELECT preferred_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      let userLanguages = [];
       if (prefs && prefs.preferred_languages) {
         try {
-          const parsed = JSON.parse(prefs.preferred_languages);
-          userLanguages = parsed || [];
+          userLanguages = JSON.parse(prefs.preferred_languages) || [];
         } catch (e) {
           console.error('Error parsing user languages:', e);
         }
       }
-    }
 
-    // Get active goals
-    let goals = db.prepare(`
-      SELECT 
-        cg.*,
-        s.source_path as collection_path
-      FROM community_goals cg
-      LEFT JOIN sources s ON cg.collection_id = s.source_id
-      WHERE cg.is_active = 1
-        AND cg.start_date <= ?
-        AND (cg.end_date IS NULL OR cg.end_date >= ?)
-      ORDER BY cg.created_at DESC
-    `).all(now, now);
+      // Get goals from communities the user is a member of
+      goals = db.prepare(`
+        SELECT DISTINCT
+          cg.*,
+          s.source_path as collection_path
+        FROM community_goals cg
+        INNER JOIN community_goal_links cgl ON cg.id = cgl.goal_id
+        INNER JOIN community_members cm ON cgl.community_id = cm.community_id
+        LEFT JOIN sources s ON cg.collection_id = s.source_id
+        WHERE cm.user_id = ?
+          AND cg.is_active = 1
+          AND cg.start_date <= ?
+          AND (cg.end_date IS NULL OR cg.end_date >= ?)
+        ORDER BY cg.created_at DESC
+      `).all(userId, now, now);
 
-    // Filter goals by user's languages if user is authenticated
-    if (userLanguages.length > 0) {
-      goals = goals.filter(goal => {
-        // If no target language specified, show to all users
-        if (!goal.target_language) return true;
-        // Otherwise, only show if user can translate to that language
-        return userLanguages.includes(goal.target_language);
-      });
-    }
+      // Filter goals by user's languages if preferences are set
+      if (userLanguages.length > 0) {
+        goals = goals.filter(goal => {
+          // If no target language specified, show to all users
+          if (!goal.target_language) return true;
+          // Otherwise, only show if user can translate to that language
+          return userLanguages.includes(goal.target_language);
+        });
+      }
 
-    // Get dismissed goals for current user
-    let dismissedGoalIds = [];
-    if (req.session?.user?.id || req.session?.user?.user_id) {
-      const userId = req.session.user.id || req.session.user.user_id;
+      // Get dismissed goals for current user
       const dismissed = db.prepare(`
         SELECT goal_id FROM community_goal_dismissals WHERE user_id = ?
       `).all(userId);
-      dismissedGoalIds = dismissed.map(d => d.goal_id);
-    }
+      const dismissedGoalIds = dismissed.map(d => d.goal_id);
 
-    // Mark dismissed goals
-    goals = goals.map(goal => ({
-      ...goal,
-      is_dismissed: dismissedGoalIds.includes(goal.id)
-    }));
+      // Mark dismissed goals
+      goals = goals.map(goal => ({
+        ...goal,
+        is_dismissed: dismissedGoalIds.includes(goal.id)
+      }));
+    }
 
     res.json(goals);
   } catch (err) {

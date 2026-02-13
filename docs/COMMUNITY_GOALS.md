@@ -61,6 +61,21 @@ Tracks which users have dismissed which goals.
 | `goal_id` | INTEGER | The dismissed goal |
 | `dismissed_at` | DATETIME | When it was dismissed |
 
+### `community_goal_links` Table
+
+Links goals to language communities (many-to-many relationship).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key |
+| `goal_id` | INTEGER | Reference to community_goals |
+| `community_id` | INTEGER | Reference to communities |
+| `created_at` | DATETIME | When the link was created |
+
+**Note:** When an admin creates a goal:
+- If `target_language` is specified, the goal is automatically linked to that language's community
+- If `target_language` is not specified, the goal is automatically linked to ALL language communities
+
 ## API Endpoints
 
 ### Admin Endpoints
@@ -113,7 +128,13 @@ Permanently deletes a goal and all associated dismissals.
 GET /api/community-goals
 ```
 
-Returns active goals filtered by user's language preferences. Includes dismissal status.
+Returns active goals from communities the user is a member of, optionally filtered by user's language preferences. Includes dismissal status.
+
+**Behavior:**
+- Only returns goals from communities where the user is a member
+- Further filters by user's language preferences if set
+- Shows goals without a target language to all community members
+- Excludes dismissed goals
 
 #### Get Goal Progress
 ```

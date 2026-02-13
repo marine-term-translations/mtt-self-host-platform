@@ -171,6 +171,11 @@ export interface ApiCommunityGoal {
   created_at: string;
   updated_at: string;
   is_dismissed?: boolean;
+  linked_communities?: Array<{
+    id: number;
+    name: string;
+    language_code: string | null;
+  }>;
 }
 
 export interface ApiCommunityGoalProgress {
