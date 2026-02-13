@@ -3,6 +3,7 @@ import React from 'react';
 import { ArrowLeft, Award, ThumbsUp, ThumbsDown, ShieldAlert, Star, TrendingUp, Shield, ShieldCheck, Zap, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ReputationHistoryChart from '../components/ReputationHistoryChart';
 
 const Reputation: React.FC = () => {
   const { user } = useAuth();
@@ -39,6 +40,13 @@ const Reputation: React.FC = () => {
            </div>
         )}
       </div>
+
+      {/* Reputation History Chart - Show only if user is logged in */}
+      {user && user.id && (
+        <div className="mb-16">
+          <ReputationHistoryChart userId={user.id} />
+        </div>
+      )}
 
       {/* The Reputation Shield Section */}
       <div className="mb-16">

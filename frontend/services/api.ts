@@ -437,6 +437,30 @@ class ApiService {
   public async getLanguages(): Promise<ApiLanguage[]> {
     return this.get<ApiLanguage[]>('/languages');
   }
+
+  // --- Reputation History Methods ---
+
+  public async getReputationHistory(userId: number, limit: number = 100): Promise<any[]> {
+    return this.get(`/user/${userId}/reputation-history`, { limit: limit.toString() });
+  }
+
+  public async getReputationHistoryAggregated(userId: number, days: number = 90): Promise<any[]> {
+    return this.get(`/user/${userId}/reputation-history/aggregated`, { days: days.toString() });
+  }
+
+  // --- Admin Reputation Rules Methods ---
+
+  public async getReputationRules(): Promise<any[]> {
+    return this.get('/admin/reputation-rules');
+  }
+
+  public async updateReputationRule(ruleName: string, newValue: number): Promise<{ success: boolean; message: string }> {
+    return this.put('/admin/reputation-rules', { ruleName, newValue });
+  }
+
+  public async previewRuleChange(ruleName: string, newValue: number, sampleSize: number = 10): Promise<any> {
+    return this.post('/admin/reputation-rules/preview', { ruleName, newValue, sampleSize });
+  }
 }
 
 // Export pre-configured instances
