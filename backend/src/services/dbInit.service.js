@@ -6,6 +6,23 @@ const config = require("../config");
 const { isDatabaseInitialized, applySchema, getDatabase } = require("../db/database");
 const { initializeLanguageCommunities } = require("./community.service");
 
+function columnExists(db, tableName, columnName) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  return columns.some(column => column.name === columnName);
+}
+
+function shouldIgnoreMigrationError(db, filename, err) {
+  if (filename === '019_rejection_reason.sql' && /duplicate column name/i.test(err.message)) {
+    return columnExists(db, 'translations', 'rejection_reason');
+  }
+
+  if (filename === '020_communities.sql' && /duplicate column name/i.test(err.message)) {
+    return columnExists(db, 'community_goals', 'community_id');
+  }
+
+  return false;
+}
+
 /**
  * Ensure the database directory exists
  */
@@ -73,14 +90,22 @@ function applyMigrations() {
     
     try {
       db.exec(migrationSQL);
-      
+
       // Record that this migration has been applied
       db.prepare(
         "INSERT INTO migrations_applied (migration_name) VALUES (?)"
       ).run(migrationName);
-      
+
       console.log(`[DB Init] ✓ Migration ${filename} applied successfully`);
     } catch (err) {
+      if (shouldIgnoreMigrationError(db, filename, err)) {
+        console.warn(`[DB Init] Migration ${filename} already applied, marking as applied`);
+        db.prepare(
+          "INSERT INTO migrations_applied (migration_name) VALUES (?)"
+        ).run(migrationName);
+        return;
+      }
+
       console.error(`[DB Init] ERROR applying migration ${filename}:`, err.message);
       throw err;
     }

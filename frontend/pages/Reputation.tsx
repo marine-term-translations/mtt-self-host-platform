@@ -1,18 +1,48 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Award, ThumbsUp, ThumbsDown, ShieldAlert, Star, TrendingUp, Shield, ShieldCheck, Zap, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ReputationHistoryChart from '../components/ReputationHistoryChart';
+import { backendApi } from '../services/api';
 
 const Reputation: React.FC = () => {
   const { user } = useAuth();
+  const [rules, setRules] = useState<Record<string, number>>({});
+  const [isLoadingRules, setIsLoadingRules] = useState(true);
+  
   // Mock current reputation if not in user object, default to 0
   const currentRep = (user as any)?.reputation || 0;
 
+  useEffect(() => {
+    const fetchRules = async () => {
+      try {
+        const publicRules = await backendApi.getPublicReputationRules();
+        const rulesMap: Record<string, number> = {};
+        publicRules.forEach((rule: any) => {
+          rulesMap[rule.rule_name] = rule.rule_value;
+        });
+        setRules(rulesMap);
+      } catch (err) {
+        console.error('Failed to load reputation rules:', err);
+      } finally {
+        setIsLoadingRules(false);
+      }
+    };
+    fetchRules();
+  }, []);
+
+  // Get values from rules or use defaults
+  const getRule = (name: string, defaultValue: number) => rules[name] || defaultValue;
+
   const getTier = (rep: number) => {
-    if (rep >= 1000) return { name: 'Veteran', color: 'text-yellow-500', bg: 'bg-yellow-100 dark:bg-yellow-900/30', border: 'border-yellow-200 dark:border-yellow-700' };
-    if (rep >= 500) return { name: 'Trusted', color: 'text-teal-500', bg: 'bg-teal-100 dark:bg-teal-900/30', border: 'border-teal-200 dark:border-teal-700' };
-    if (rep >= 100) return { name: 'Regular', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-700' };
+    const veteran = getRule('REPUTATION_TIER_VETERAN', 1000);
+    const trusted = getRule('REPUTATION_TIER_TRUSTED', 500);
+    const regular = getRule('REPUTATION_TIER_REGULAR', 100);
+    
+    if (rep >= veteran) return { name: 'Veteran', color: 'text-yellow-500', bg: 'bg-yellow-100 dark:bg-yellow-900/30', border: 'border-yellow-200 dark:border-yellow-700' };
+    if (rep >= trusted) return { name: 'Trusted', color: 'text-teal-500', bg: 'bg-teal-100 dark:bg-teal-900/30', border: 'border-teal-200 dark:border-teal-700' };
+    if (rep >= regular) return { name: 'Regular', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-700' };
     return { name: 'New Contributor', color: 'text-slate-500', bg: 'bg-slate-100 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700' };
   };
 
@@ -40,6 +70,13 @@ const Reputation: React.FC = () => {
         )}
       </div>
 
+      {/* Reputation History Chart - Show only if user is logged in */}
+      {user && user.id && (
+        <div className="mb-16">
+          <ReputationHistoryChart userId={user.id} />
+        </div>
+      )}
+
       {/* The Reputation Shield Section */}
       <div className="mb-16">
         <div className="flex items-center gap-3 mb-6">
@@ -50,7 +87,7 @@ const Reputation: React.FC = () => {
             We value long-term contributors. As you gain reputation, you gain a <strong>Shield</strong>. 
             This shield protects you from penalties when mistakes happen. 
             <span className="block mt-2 text-sm italic opacity-80">
-                Note: "Cascading Penalty" means penalties normally increase (-5, -10, -15...) if you have multiple rejections in 14 days.
+                Note: "Cascading Penalty" means penalties normally increase ({getRule('BASE_REJECTION_PENALTY', -5)}, {getRule('BASE_REJECTION_PENALTY', -5) * 2}, {getRule('BASE_REJECTION_PENALTY', -5) * 3}...) if you have multiple rejections in {getRule('REJECTION_LOOKBACK_DAYS', 14)} days.
             </span>
         </p>
 
@@ -59,7 +96,7 @@ const Reputation: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-300"></div>
                 <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-1">New User</h3>
-                <div className="text-xs font-mono text-slate-400 mb-4">0 - 99 REP</div>
+                <div className="text-xs font-mono text-slate-400 mb-4">0 - {getRule('REPUTATION_TIER_REGULAR', 100) - 1} REP</div>
                 <ul className="space-y-3 text-sm">
                     <li className="flex items-start gap-2 text-slate-600 dark:text-slate-400">
                         <ShieldAlert size={16} className="text-red-400 shrink-0 mt-0.5" />
@@ -67,10 +104,10 @@ const Reputation: React.FC = () => {
                     </li>
                     <li className="flex items-start gap-2 text-slate-600 dark:text-slate-400">
                         <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                        <span>Full cascading penalties (-5, -10...)</span>
+                        <span>Full cascading penalties (up to {getRule('MAX_REJECTION_PENALTY', -50)})</span>
                     </li>
                     <li className="flex items-start gap-2 text-slate-600 dark:text-slate-400">
-                        <span className="font-mono text-red-500 font-bold">-10</span>
+                        <span className="font-mono text-red-500 font-bold">{getRule('BASE_FALSE_REJECTION_PENALTY', -10)}</span>
                         <span>False Rejection Penalty</span>
                     </li>
                 </ul>
@@ -80,7 +117,7 @@ const Reputation: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-blue-200 dark:border-blue-900 relative overflow-hidden shadow-sm">
                 <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
                 <h3 className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-1">Regular</h3>
-                <div className="text-xs font-mono text-blue-400 mb-4">100 - 499 REP</div>
+                <div className="text-xs font-mono text-blue-400 mb-4">{getRule('REPUTATION_TIER_REGULAR', 100)} - {getRule('REPUTATION_TIER_TRUSTED', 500) - 1} REP</div>
                 <ul className="space-y-3 text-sm">
                     <li className="flex items-start gap-2 text-slate-700 dark:text-slate-300">
                         <Shield size={16} className="text-blue-500 shrink-0 mt-0.5" />
@@ -91,7 +128,7 @@ const Reputation: React.FC = () => {
                         <span>Rejection penalty capped at <strong>-10</strong></span>
                     </li>
                      <li className="flex items-start gap-2 text-slate-600 dark:text-slate-400">
-                        <span className="font-mono text-red-500 font-bold">-10</span>
+                        <span className="font-mono text-red-500 font-bold">{getRule('BASE_FALSE_REJECTION_PENALTY', -10)}</span>
                         <span>False Rejection Penalty</span>
                     </li>
                 </ul>
@@ -101,7 +138,7 @@ const Reputation: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-teal-200 dark:border-teal-900 relative overflow-hidden shadow-md transform md:-translate-y-2">
                 <div className="absolute top-0 left-0 w-full h-1 bg-teal-500"></div>
                 <h3 className="text-lg font-bold text-teal-600 dark:text-teal-400 mb-1">Trusted</h3>
-                <div className="text-xs font-mono text-teal-400 mb-4">500 - 999 REP</div>
+                <div className="text-xs font-mono text-teal-400 mb-4">{getRule('REPUTATION_TIER_TRUSTED', 500)} - {getRule('REPUTATION_TIER_VETERAN', 1000) - 1} REP</div>
                 <ul className="space-y-3 text-sm">
                     <li className="flex items-start gap-2 text-slate-700 dark:text-slate-300">
                         <ShieldCheck size={16} className="text-teal-500 shrink-0 mt-0.5" />
@@ -124,7 +161,7 @@ const Reputation: React.FC = () => {
                 <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400 mb-1 flex items-center gap-2">
                     Veteran <Star size={14} fill="currentColor" />
                 </h3>
-                <div className="text-xs font-mono text-yellow-500 mb-4">1000+ REP</div>
+                <div className="text-xs font-mono text-yellow-500 mb-4">{getRule('REPUTATION_TIER_VETERAN', 1000)}+ REP</div>
                 <ul className="space-y-3 text-sm">
                     <li className="flex items-start gap-2 text-slate-900 dark:text-white font-medium">
                         <Zap size={16} className="text-yellow-500 shrink-0 mt-0.5" />
@@ -156,22 +193,22 @@ const Reputation: React.FC = () => {
             <li className="flex items-start">
               <Star className="w-5 h-5 text-yellow-500 mt-0.5 mr-3 flex-shrink-0" />
               <div>
-                <span className="font-bold text-slate-900 dark:text-white">+10 Points</span>
-                <p className="text-slate-600 dark:text-slate-400 text-sm">For every translation submitted that gets approved by a reviewer.</p>
+                <span className="font-bold text-slate-900 dark:text-white">+{getRule('TRANSLATION_MERGED', 10)} Points</span>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">For every translation submitted that gets merged (final approval).</p>
               </div>
             </li>
             <li className="flex items-start">
               <ThumbsUp className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
               <div>
-                <span className="font-bold text-slate-900 dark:text-white">+2 Points</span>
-                <p className="text-slate-600 dark:text-slate-400 text-sm">For reviewing another user's translation accurately.</p>
+                <span className="font-bold text-slate-900 dark:text-white">+{getRule('TRANSLATION_APPROVED', 5)} Points</span>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">For every translation that gets approved by a reviewer.</p>
               </div>
             </li>
             <li className="flex items-start">
               <Award className="w-5 h-5 text-purple-500 mt-0.5 mr-3 flex-shrink-0" />
               <div>
-                <span className="font-bold text-slate-900 dark:text-white">+50 Points</span>
-                <p className="text-slate-600 dark:text-slate-400 text-sm">Bonus for completing a language category milestone (e.g., 50 terms).</p>
+                <span className="font-bold text-slate-900 dark:text-white">+{getRule('TRANSLATION_CREATED', 1)} Point</span>
+                <p className="text-slate-600 dark:text-slate-400 text-sm">For creating a new translation.</p>
               </div>
             </li>
           </ul>
@@ -187,17 +224,17 @@ const Reputation: React.FC = () => {
           </div>
            <ul className="space-y-4">
             <li className="flex items-start">
-              <div className="w-5 h-5 flex items-center justify-center font-bold text-red-500 mt-0.5 mr-3">-5+</div>
+              <div className="w-5 h-5 flex items-center justify-center font-bold text-red-500 mt-0.5 mr-3">{getRule('BASE_REJECTION_PENALTY', -5)}+</div>
               <div>
                 <span className="font-bold text-slate-900 dark:text-white">Cascading Rejection</span>
                 <p className="text-slate-600 dark:text-slate-400 text-sm">
-                    Starts at -5. If you have multiple rejections in 14 days, the penalty increases (-10, -15...). 
+                    Starts at {getRule('BASE_REJECTION_PENALTY', -5)}. If you have multiple rejections in {getRule('REJECTION_LOOKBACK_DAYS', 14)} days, the penalty increases (max: {getRule('MAX_REJECTION_PENALTY', -50)}). 
                     <span className="text-teal-600 dark:text-teal-400 font-medium"> Use your shield to cap this!</span>
                 </p>
               </div>
             </li>
             <li className="flex items-start">
-              <div className="w-5 h-5 flex items-center justify-center font-bold text-amber-500 mt-0.5 mr-3">-10</div>
+              <div className="w-5 h-5 flex items-center justify-center font-bold text-amber-500 mt-0.5 mr-3">{getRule('BASE_FALSE_REJECTION_PENALTY', -10)}</div>
               <div>
                  <span className="font-bold text-slate-900 dark:text-white">False Rejection</span>
                 <p className="text-slate-600 dark:text-slate-400 text-sm">

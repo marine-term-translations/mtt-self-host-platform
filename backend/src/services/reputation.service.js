@@ -120,12 +120,34 @@ function countRecentRejections(userIdentifier, excludeTranslationId = null) {
 
 /**
  * Calculate the raw cascading rejection penalty based on recent rejections
+ * Now uses configurable rules from the database
  * @param {number} recentRejectionCount - Number of recent rejections
  * @returns {number} The raw penalty amount (negative number)
  */
 function calculateRawRejectionPenalty(recentRejectionCount) {
-  // Formula: -5 * (1 + count of recent rejections)
-  return BASE_REJECTION_PENALTY * (1 + recentRejectionCount);
+  const db = getDatabase();
+  
+  try {
+    // Get rules from database
+    const basePenalty = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('BASE_REJECTION_PENALTY')?.rule_value || BASE_REJECTION_PENALTY;
+    
+    const increment = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('REJECTION_PENALTY_INCREMENT')?.rule_value || BASE_REJECTION_PENALTY;
+    
+    const maxPenalty = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('MAX_REJECTION_PENALTY')?.rule_value || -50;
+    
+    // Calculate penalty: base + (increment * count of recent rejections)
+    const rawPenalty = basePenalty + (increment * recentRejectionCount);
+    
+    // Apply max penalty cap (both values are negative, so we use Math.max to get less severe penalty)
+    return Math.max(rawPenalty, maxPenalty);
+  } catch (err) {
+    // Fallback to hardcoded values if database query fails
+    console.error('Error fetching rejection penalty rules:', err.message);
+    return BASE_REJECTION_PENALTY * (1 + recentRejectionCount);
+  }
 }
 
 /**
@@ -615,4 +637,267 @@ module.exports = {
   isImmuneToRejectionPenalty,
   getReputationTierName,
   getReputationTierInfo,
+
+  // Reputation history functions
+  getReputationHistory,
+  getReputationHistoryAggregated,
+
+  // Reputation rules functions
+  getReputationRules,
+  updateReputationRule,
+  previewRuleChange,
 };
+
+/**
+ * Get full reputation history for a user
+ * @param {number|string} userIdentifier - User ID or username
+ * @param {number} limit - Maximum number of events to return (default: 100)
+ * @returns {Array} Array of reputation events
+ */
+function getReputationHistory(userIdentifier, limit = 100) {
+  const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return [];
+  }
+
+  const events = db
+    .prepare(`
+      SELECT 
+        re.id,
+        re.delta,
+        re.reason,
+        re.created_at,
+        re.related_activity_id
+      FROM reputation_events re
+      WHERE re.user_id = ?
+      ORDER BY datetime(re.created_at) DESC
+      LIMIT ?
+    `)
+    .all(userId, limit);
+
+  return events;
+}
+
+/**
+ * Get aggregated reputation history for a user (for graphing)
+ * Returns daily aggregated data with running total
+ * @param {number|string} userIdentifier - User ID or username
+ * @param {number} days - Number of days to look back (default: 90)
+ * @returns {Array} Array of { date, delta, cumulative_reputation, event_count }
+ */
+function getReputationHistoryAggregated(userIdentifier, days = 90) {
+  const db = getDatabase();
+  const userId = resolveUserIdentifier(userIdentifier);
+  
+  if (!userId) {
+    return [];
+  }
+
+  // Get daily aggregated reputation changes
+  const aggregated = db
+    .prepare(`
+      WITH RECURSIVE dates(date) AS (
+        SELECT DATE('now', '-' || ? || ' days')
+        UNION ALL
+        SELECT DATE(date, '+1 day')
+        FROM dates
+        WHERE date < DATE('now')
+      ),
+      daily_events AS (
+        SELECT 
+          DATE(re.created_at) as event_date,
+          SUM(re.delta) as daily_delta,
+          COUNT(*) as event_count
+        FROM reputation_events re
+        WHERE re.user_id = ?
+          AND DATE(re.created_at) >= DATE('now', '-' || ? || ' days')
+        GROUP BY DATE(re.created_at)
+      )
+      SELECT 
+        dates.date,
+        COALESCE(de.daily_delta, 0) as delta,
+        COALESCE(de.event_count, 0) as event_count
+      FROM dates
+      LEFT JOIN daily_events de ON dates.date = de.event_date
+      ORDER BY dates.date ASC
+    `)
+    .all(days, userId, days);
+
+  // Calculate cumulative reputation
+  const currentRep = getUserReputation(userId);
+  const totalDeltaInPeriod = aggregated.reduce((sum, day) => sum + day.delta, 0);
+  let runningTotal = currentRep - totalDeltaInPeriod;
+
+  return aggregated.map(day => {
+    runningTotal += day.delta;
+    return {
+      date: day.date,
+      delta: day.delta,
+      cumulative_reputation: runningTotal,
+      event_count: day.event_count
+    };
+  });
+}
+
+/**
+ * Get all reputation rules
+ * @returns {Array} Array of reputation rules
+ */
+function getReputationRules() {
+  const db = getDatabase();
+  
+  try {
+    const rules = db
+      .prepare(`
+        SELECT 
+          id,
+          rule_name,
+          rule_value,
+          description,
+          updated_at,
+          updated_by_id
+        FROM reputation_rules
+        ORDER BY rule_name ASC
+      `)
+      .all();
+    
+    return rules;
+  } catch (err) {
+    // Table might not exist in older databases
+    console.error('Error fetching reputation rules:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Update a reputation rule
+ * @param {string} ruleName - Name of the rule to update
+ * @param {number} newValue - New value for the rule
+ * @param {number|string} updatedBy - User ID or username of admin making the change
+ * @returns {boolean} True if updated successfully
+ */
+function updateReputationRule(ruleName, newValue, updatedBy) {
+  const db = getDatabase();
+  const userId = resolveUserIdentifier(updatedBy);
+  
+  if (!userId) {
+    throw new Error('Invalid user');
+  }
+
+  try {
+    const result = db
+      .prepare(`
+        UPDATE reputation_rules
+        SET rule_value = ?,
+            updated_at = CURRENT_TIMESTAMP,
+            updated_by_id = ?
+        WHERE rule_name = ?
+      `)
+      .run(newValue, userId, ruleName);
+    
+    return result.changes > 0;
+  } catch (err) {
+    console.error('Error updating reputation rule:', err.message);
+    throw err;
+  }
+}
+
+/**
+ * Preview the impact of changing a reputation rule on historical data
+ * This simulates what reputation scores would have been if the rule had different values
+ * @param {string} ruleName - Name of the rule to preview
+ * @param {number} newValue - Proposed new value
+ * @param {number} sampleSize - Number of users to sample (default: 10)
+ * @returns {object} Preview data showing before/after reputation for sample users
+ */
+function previewRuleChange(ruleName, newValue, sampleSize = 10) {
+  const db = getDatabase();
+  
+  // Get the current rule value
+  const currentRule = db
+    .prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+    .get(ruleName);
+  
+  if (!currentRule) {
+    throw new Error('Rule not found');
+  }
+  
+  const currentValue = currentRule.rule_value;
+  const delta = newValue - currentValue;
+  
+  // Determine which events would be affected based on rule name
+  let reasonPattern = '';
+  
+  if (ruleName === 'TRANSLATION_APPROVED') {
+    reasonPattern = '%approved%';
+  } else if (ruleName === 'TRANSLATION_MERGED') {
+    reasonPattern = '%merged%';
+  } else if (ruleName === 'TRANSLATION_CREATED') {
+    reasonPattern = '%created%';
+  } else if (ruleName === 'BASE_REJECTION_PENALTY') {
+    reasonPattern = '%rejected%';
+  } else if (ruleName === 'BASE_FALSE_REJECTION_PENALTY') {
+    reasonPattern = '%false_rejection%';
+  }
+  
+  if (!reasonPattern) {
+    // For tier thresholds and other rules, we can't easily preview
+    return {
+      currentValue,
+      newValue,
+      delta,
+      message: 'Preview not available for this rule type',
+      affectedUsers: []
+    };
+  }
+  
+  // Get sample of users affected by this rule
+  const affectedUsers = db
+    .prepare(`
+      SELECT 
+        u.id,
+        u.username,
+        u.reputation as current_reputation,
+        COUNT(re.id) as affected_event_count,
+        SUM(re.delta) as current_total_delta
+      FROM users u
+      INNER JOIN reputation_events re ON u.id = re.user_id
+      WHERE re.reason LIKE ?
+      GROUP BY u.id, u.username, u.reputation
+      ORDER BY affected_event_count DESC
+      LIMIT ?
+    `)
+    .all(reasonPattern, sampleSize);
+  
+  // Calculate projected reputation for each user
+  const preview = affectedUsers.map(user => {
+    const changePerEvent = delta;
+    const totalChange = changePerEvent * user.affected_event_count;
+    const projectedReputation = user.current_reputation + totalChange;
+    
+    return {
+      userId: user.id,
+      username: user.username,
+      currentReputation: user.current_reputation,
+      projectedReputation,
+      affectedEvents: user.affected_event_count,
+      reputationChange: totalChange
+    };
+  });
+  
+  return {
+    currentValue,
+    newValue,
+    delta,
+    affectedUsers: preview,
+    totalUsersAffected: db
+      .prepare(`
+        SELECT COUNT(DISTINCT user_id) as count
+        FROM reputation_events
+        WHERE reason LIKE ?
+      `)
+      .get(reasonPattern).count
+  };
+}

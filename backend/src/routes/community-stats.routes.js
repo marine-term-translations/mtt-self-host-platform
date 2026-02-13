@@ -21,7 +21,7 @@ const { apiLimiter } = require("../middleware/rateLimit");
  *         schema:
  *           type: string
  *           enum: [week, month, year, all]
- *         description: Time period for stats (default: month)
+ *         description: "Time period for stats (default: month)"
  *     responses:
  *       200:
  *         description: Community statistics
@@ -247,12 +247,12 @@ router.get("/communities/:id/stats", apiLimiter, (req, res) => {
  *         schema:
  *           type: string
  *           enum: [reputation, translations, reviews]
- *         description: Metric to rank by (default: reputation)
+ *         description: "Metric to rank by (default: reputation)"
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *         description: Number of results to return (default: 50, max: 100)
+ *         description: "Number of results to return (default: 50, max: 100)"
  *     responses:
  *       200:
  *         description: Community leaderboard

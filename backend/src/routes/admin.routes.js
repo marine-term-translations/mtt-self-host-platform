@@ -1265,4 +1265,106 @@ router.put("/admin/community-reports/:id/review", requireAdmin, apiLimiter, (req
   }
 });
 
+/**
+ * @openapi
+ * /api/admin/reputation-rules:
+ *   get:
+ *     summary: Get all reputation rules (admin only)
+ *     responses:
+ *       200:
+ *         description: List of reputation rules
+ */
+router.get("/admin/reputation-rules", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { getReputationRules } = require("../services/reputation.service");
+    const rules = getReputationRules();
+    res.json(rules);
+  } catch (err) {
+    console.error('[Admin Reputation Rules] Error fetching rules:', err);
+    res.status(500).json({ error: 'Failed to fetch reputation rules' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/reputation-rules:
+ *   put:
+ *     summary: Update a reputation rule (admin only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ruleName:
+ *                 type: string
+ *               newValue:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Rule updated successfully
+ */
+router.put("/admin/reputation-rules", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { updateReputationRule } = require("../services/reputation.service");
+    const { ruleName, newValue } = req.body;
+    
+    if (!ruleName || typeof newValue !== 'number' || isNaN(newValue)) {
+      return res.status(400).json({ error: 'Missing ruleName or invalid newValue' });
+    }
+    
+    const userId = req.session.user.id;
+    const success = updateReputationRule(ruleName, newValue, userId);
+    
+    if (!success) {
+      return res.status(404).json({ error: 'Rule not found' });
+    }
+    
+    res.json({ success: true, message: 'Rule updated successfully' });
+  } catch (err) {
+    console.error('[Admin Reputation Rules] Error updating rule:', err);
+    res.status(500).json({ error: 'Failed to update reputation rule' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/reputation-rules/preview:
+ *   post:
+ *     summary: Preview the impact of changing a reputation rule (admin only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ruleName:
+ *                 type: string
+ *               newValue:
+ *                 type: integer
+ *               sampleSize:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Preview data showing impact on sample users
+ */
+router.post("/admin/reputation-rules/preview", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { previewRuleChange } = require("../services/reputation.service");
+    const { ruleName, newValue, sampleSize = 10 } = req.body;
+    
+    if (!ruleName || typeof newValue !== 'number' || isNaN(newValue)) {
+      return res.status(400).json({ error: 'Missing ruleName or invalid newValue' });
+    }
+    
+    const preview = previewRuleChange(ruleName, newValue, sampleSize);
+    res.json(preview);
+  } catch (err) {
+    console.error('[Admin Reputation Rules] Error previewing rule change:', err);
+    res.status(500).json({ error: err.message || 'Failed to preview rule change' });
+  }
+});
+
 module.exports = router;

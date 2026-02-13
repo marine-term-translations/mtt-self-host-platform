@@ -498,6 +498,28 @@ const AdminDashboard: React.FC = () => {
                 View Tasks &rarr;
             </Link>
         </div>
+
+        {/* Reputation Rules Card */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex flex-col justify-between">
+            <div>
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                        <ShieldCheck className="text-yellow-600 dark:text-yellow-400" size={24} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-900 dark:text-white text-lg">
+                            Reputation Rules
+                        </h3>
+                    </div>
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Configure reputation system parameters and preview impact of rule changes
+                </p>
+            </div>
+            <Link to="/admin/reputation-rules" className="inline-block px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors mt-4">
+                Manage Rules &rarr;
+            </Link>
+        </div>
       </div>
 
       {/* Graphs Section */}

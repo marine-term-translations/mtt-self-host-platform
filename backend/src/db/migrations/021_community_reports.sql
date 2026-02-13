@@ -15,6 +15,6 @@ CREATE TABLE IF NOT EXISTS community_reports (
     UNIQUE(community_id, reported_by_id, status) -- Prevent duplicate pending reports from same user
 );
 
-CREATE INDEX idx_community_reports_community ON community_reports(community_id);
-CREATE INDEX idx_community_reports_status ON community_reports(status);
-CREATE INDEX idx_community_reports_reported_by ON community_reports(reported_by_id);
+CREATE INDEX IF NOT EXISTS idx_community_reports_community ON community_reports(community_id);
+CREATE INDEX IF NOT EXISTS idx_community_reports_status ON community_reports(status);
+CREATE INDEX IF NOT EXISTS idx_community_reports_reported_by ON community_reports(reported_by_id);

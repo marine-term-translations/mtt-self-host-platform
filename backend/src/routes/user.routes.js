@@ -484,4 +484,107 @@ router.get("/user/:id", apiLimiter, (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/user/:id/reputation-history:
+ *   get:
+ *     summary: Get reputation history for a user
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *     responses:
+ *       200:
+ *         description: Returns reputation history events
+ *       404:
+ *         description: User not found
+ */
+router.get("/user/:id/reputation-history", apiLimiter, (req, res) => {
+  try {
+    const { getReputationHistory } = require("../services/reputation.service");
+    const userId = parseInt(req.params.id, 10);
+    const limit = parseInt(req.query.limit, 10) || 100;
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    const history = getReputationHistory(userId, limit);
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/user/:id/reputation-history/aggregated:
+ *   get:
+ *     summary: Get aggregated reputation history for graphing
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 90
+ *     responses:
+ *       200:
+ *         description: Returns daily aggregated reputation data
+ */
+router.get("/user/:id/reputation-history/aggregated", apiLimiter, (req, res) => {
+  try {
+    const { getReputationHistoryAggregated } = require("../services/reputation.service");
+    const userId = parseInt(req.params.id, 10);
+    const days = parseInt(req.query.days, 10) || 90;
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    const aggregated = getReputationHistoryAggregated(userId, days);
+    res.json(aggregated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/reputation-rules/public:
+ *   get:
+ *     summary: Get public reputation rules for documentation display
+ *     responses:
+ *       200:
+ *         description: Returns public reputation rules
+ */
+router.get("/reputation-rules/public", apiLimiter, (req, res) => {
+  try {
+    const { getReputationRules } = require("../services/reputation.service");
+    const rules = getReputationRules();
+    
+    // Return rules without sensitive fields
+    const publicRules = rules.map(rule => ({
+      rule_name: rule.rule_name,
+      rule_value: rule.rule_value,
+      description: rule.description
+    }));
+    
+    res.json(publicRules);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS user_daily_goals (
     UNIQUE(user_id, goal_date)
 );
 
-CREATE INDEX idx_user_daily_goals_user ON user_daily_goals(user_id, goal_date);
-CREATE INDEX idx_user_daily_goals_date ON user_daily_goals(goal_date);
+CREATE INDEX IF NOT EXISTS idx_user_daily_goals_user ON user_daily_goals(user_id, goal_date);
+CREATE INDEX IF NOT EXISTS idx_user_daily_goals_date ON user_daily_goals(goal_date);
