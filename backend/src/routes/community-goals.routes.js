@@ -433,10 +433,13 @@ router.get("/community-goals", apiLimiter, (req, res) => {
     const db = getDatabase();
     const now = datetime.toISO(datetime.now());
     
-    // Get user's translation languages if authenticated
-    let userLanguages = [];
+    let goals = [];
+    
     if (req.session?.user?.id || req.session?.user?.user_id) {
       const userId = req.session.user.id || req.session.user.user_id;
+      
+      // Get user's translation languages for filtering
+      let userLanguages = [];
       const prefs = db.prepare('SELECT preferred_languages FROM user_preferences WHERE user_id = ?').get(userId);
       if (prefs && prefs.preferred_languages) {
         try {
@@ -446,46 +449,45 @@ router.get("/community-goals", apiLimiter, (req, res) => {
           console.error('Error parsing user languages:', e);
         }
       }
-    }
 
-    // Get active goals
-    let goals = db.prepare(`
-      SELECT 
-        cg.*,
-        s.source_path as collection_path
-      FROM community_goals cg
-      LEFT JOIN sources s ON cg.collection_id = s.source_id
-      WHERE cg.is_active = 1
-        AND cg.start_date <= ?
-        AND (cg.end_date IS NULL OR cg.end_date >= ?)
-      ORDER BY cg.created_at DESC
-    `).all(now, now);
+      // Get goals from communities the user is a member of
+      goals = db.prepare(`
+        SELECT DISTINCT
+          cg.*,
+          s.source_path as collection_path
+        FROM community_goals cg
+        INNER JOIN community_goal_links cgl ON cg.id = cgl.goal_id
+        INNER JOIN community_members cm ON cgl.community_id = cm.community_id
+        LEFT JOIN sources s ON cg.collection_id = s.source_id
+        WHERE cm.user_id = ?
+          AND cg.is_active = 1
+          AND cg.start_date <= ?
+          AND (cg.end_date IS NULL OR cg.end_date >= ?)
+        ORDER BY cg.created_at DESC
+      `).all(userId, now, now);
 
-    // Filter goals by user's languages if user is authenticated
-    if (userLanguages.length > 0) {
-      goals = goals.filter(goal => {
-        // If no target language specified, show to all users
-        if (!goal.target_language) return true;
-        // Otherwise, only show if user can translate to that language
-        return userLanguages.includes(goal.target_language);
-      });
-    }
+      // Filter goals by user's languages if preferences are set
+      if (userLanguages.length > 0) {
+        goals = goals.filter(goal => {
+          // If no target language specified, show to all users
+          if (!goal.target_language) return true;
+          // Otherwise, only show if user can translate to that language
+          return userLanguages.includes(goal.target_language);
+        });
+      }
 
-    // Get dismissed goals for current user
-    let dismissedGoalIds = [];
-    if (req.session?.user?.id || req.session?.user?.user_id) {
-      const userId = req.session.user.id || req.session.user.user_id;
+      // Get dismissed goals for current user
       const dismissed = db.prepare(`
         SELECT goal_id FROM community_goal_dismissals WHERE user_id = ?
       `).all(userId);
-      dismissedGoalIds = dismissed.map(d => d.goal_id);
-    }
+      const dismissedGoalIds = dismissed.map(d => d.goal_id);
 
-    // Mark dismissed goals
-    goals = goals.map(goal => ({
-      ...goal,
-      is_dismissed: dismissedGoalIds.includes(goal.id)
-    }));
+      // Mark dismissed goals
+      goals = goals.map(goal => ({
+        ...goal,
+        is_dismissed: dismissedGoalIds.includes(goal.id)
+      }));
+    }
 
     res.json(goals);
   } catch (err) {

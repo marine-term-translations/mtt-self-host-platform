@@ -128,7 +128,13 @@ Permanently deletes a goal and all associated dismissals.
 GET /api/community-goals
 ```
 
-Returns active goals filtered by user's language preferences. Includes dismissal status.
+Returns active goals from communities the user is a member of, optionally filtered by user's language preferences. Includes dismissal status.
+
+**Behavior:**
+- Only returns goals from communities where the user is a member
+- Further filters by user's language preferences if set
+- Shows goals without a target language to all community members
+- Excludes dismissed goals
 
 #### Get Goal Progress
 ```
