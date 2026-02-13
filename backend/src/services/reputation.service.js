@@ -120,12 +120,34 @@ function countRecentRejections(userIdentifier, excludeTranslationId = null) {
 
 /**
  * Calculate the raw cascading rejection penalty based on recent rejections
+ * Now uses configurable rules from the database
  * @param {number} recentRejectionCount - Number of recent rejections
  * @returns {number} The raw penalty amount (negative number)
  */
 function calculateRawRejectionPenalty(recentRejectionCount) {
-  // Formula: -5 * (1 + count of recent rejections)
-  return BASE_REJECTION_PENALTY * (1 + recentRejectionCount);
+  const db = getDatabase();
+  
+  try {
+    // Get rules from database
+    const basePenalty = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('BASE_REJECTION_PENALTY')?.rule_value || BASE_REJECTION_PENALTY;
+    
+    const increment = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('REJECTION_PENALTY_INCREMENT')?.rule_value || BASE_REJECTION_PENALTY;
+    
+    const maxPenalty = db.prepare('SELECT rule_value FROM reputation_rules WHERE rule_name = ?')
+      .get('MAX_REJECTION_PENALTY')?.rule_value || -50;
+    
+    // Calculate penalty: base + (increment * count of recent rejections)
+    const rawPenalty = basePenalty + (increment * recentRejectionCount);
+    
+    // Apply max penalty cap (both values are negative, so we use Math.max to get less severe penalty)
+    return Math.max(rawPenalty, maxPenalty);
+  } catch (err) {
+    // Fallback to hardcoded values if database query fails
+    console.error('Error fetching rejection penalty rules:', err.message);
+    return BASE_REJECTION_PENALTY * (1 + recentRejectionCount);
+  }
 }
 
 /**

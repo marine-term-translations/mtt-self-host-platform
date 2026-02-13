@@ -560,4 +560,31 @@ router.get("/user/:id/reputation-history/aggregated", apiLimiter, (req, res) => 
   }
 });
 
+/**
+ * @openapi
+ * /api/reputation-rules/public:
+ *   get:
+ *     summary: Get public reputation rules for documentation display
+ *     responses:
+ *       200:
+ *         description: Returns public reputation rules
+ */
+router.get("/reputation-rules/public", apiLimiter, (req, res) => {
+  try {
+    const { getReputationRules } = require("../services/reputation.service");
+    const rules = getReputationRules();
+    
+    // Return rules without sensitive fields
+    const publicRules = rules.map(rule => ({
+      rule_name: rule.rule_name,
+      rule_value: rule.rule_value,
+      description: rule.description
+    }));
+    
+    res.json(publicRules);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

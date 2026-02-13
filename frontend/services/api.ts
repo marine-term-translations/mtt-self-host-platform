@@ -448,6 +448,10 @@ class ApiService {
     return this.get(`/user/${userId}/reputation-history/aggregated`, { days: days.toString() });
   }
 
+  public async getPublicReputationRules(): Promise<any[]> {
+    return this.get('/reputation-rules/public');
+  }
+
   // --- Admin Reputation Rules Methods ---
 
   public async getReputationRules(): Promise<any[]> {

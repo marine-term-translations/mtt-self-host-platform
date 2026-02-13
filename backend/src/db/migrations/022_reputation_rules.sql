@@ -18,6 +18,8 @@ INSERT OR IGNORE INTO reputation_rules (rule_name, rule_value, description) VALU
 ('TRANSLATION_CREATED', 1, 'Small reward for creating a new translation'),
 ('BASE_REJECTION_PENALTY', -5, 'Base penalty for rejected translations'),
 ('BASE_FALSE_REJECTION_PENALTY', -10, 'Base penalty for false rejections'),
+('MAX_REJECTION_PENALTY', -50, 'Maximum rejection penalty cap'),
+('REJECTION_PENALTY_INCREMENT', -5, 'Increment for each additional rejection'),
 ('REJECTION_LOOKBACK_DAYS', 14, 'Days to look back for cascading rejection penalty'),
 ('REPUTATION_TIER_VETERAN', 1000, 'Reputation threshold for veteran tier'),
 ('REPUTATION_TIER_TRUSTED', 500, 'Reputation threshold for trusted tier'),

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Settings, Save, Eye, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Settings, Save, Eye, AlertCircle, CheckCircle, Search, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../../services/api';
 import toast from 'react-hot-toast';
+import ReputationHistoryChart from '../../components/ReputationHistoryChart';
 
 interface ReputationRule {
   id: number;
@@ -38,6 +39,12 @@ const AdminReputationRules: React.FC = () => {
   const [editedRules, setEditedRules] = useState<Record<string, number>>({});
   const [previewData, setPreviewData] = useState<Record<string, PreviewData>>({});
   const [previewingRule, setPreviewingRule] = useState<string | null>(null);
+  
+  // User history viewer state
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
 
   useEffect(() => {
     fetchRules();
@@ -113,6 +120,36 @@ const AdminReputationRules: React.FC = () => {
     } finally {
       setPreviewingRule(null);
     }
+  };
+
+  const handleUserSearch = async () => {
+    if (!userSearchQuery.trim()) {
+      toast.error('Please enter a username or user ID');
+      return;
+    }
+
+    try {
+      setSearchingUsers(true);
+      const users = await backendApi.getAdminUsers();
+      const filtered = users.filter((u: any) => 
+        u.username.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.id.toString() === userSearchQuery
+      );
+      setSearchResults(filtered.slice(0, 10));
+      if (filtered.length === 0) {
+        toast.error('No users found');
+      }
+    } catch (err: any) {
+      toast.error('Failed to search users');
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const selectUser = (userId: number) => {
+    setSelectedUserId(userId);
+    setSearchResults([]);
+    setUserSearchQuery('');
   };
 
   const getRuleDisplayName = (ruleName: string): string => {
@@ -310,6 +347,76 @@ const AdminReputationRules: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* User Reputation History Viewer */}
+      <div className="mt-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+            <User size={20} />
+            User Reputation History
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            View reputation history for a specific user
+          </p>
+        </div>
+
+        <div className="p-6">
+          {/* User Search */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Search User
+            </label>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleUserSearch()}
+                  placeholder="Enter username or user ID..."
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 focus:border-transparent"
+                />
+                {searchResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {searchResults.map((user: any) => (
+                      <button
+                        key={user.id}
+                        onClick={() => selectUser(user.id)}
+                        className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-between"
+                      >
+                        <span className="font-medium text-slate-900 dark:text-white">{user.username}</span>
+                        <span className="text-sm text-slate-500">ID: {user.id} | Rep: {user.reputation}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleUserSearch}
+                disabled={searchingUsers}
+                className="px-4 py-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <Search size={16} />
+                {searchingUsers ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+          </div>
+
+          {/* User History Chart */}
+          {selectedUserId && (
+            <div className="mt-6">
+              <ReputationHistoryChart userId={selectedUserId} />
+            </div>
+          )}
+
+          {!selectedUserId && (
+            <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+              <User size={48} className="mx-auto mb-4 opacity-50" />
+              <p>Search for a user to view their reputation history</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
