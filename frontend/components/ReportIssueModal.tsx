@@ -7,7 +7,7 @@ interface ReportIssueModalProps {
   onClose: () => void;
 }
 
-type IssueLabel = 'aesthetics' | 'bug' | 'feature request';
+type IssueLabel = 'aesthetics' | 'bug' | 'feature request' | 'content';
 
 const ReportIssueModal: React.FC<ReportIssueModalProps> = ({ isOpen, onClose }) => {
   const { user, isAuthenticated } = useAuth();
@@ -132,7 +132,7 @@ ${description}
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Issue Type <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 <button
                   type="button"
                   onClick={() => setSelectedLabel('aesthetics')}
@@ -165,6 +165,17 @@ ${description}
                   }`}
                 >
                   Feature Request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLabel('content')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all ${
+                    selectedLabel === 'content'
+                      ? 'border-marine-600 bg-marine-50 dark:bg-marine-900/30 text-marine-700 dark:text-marine-300 font-semibold'
+                      : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:border-marine-400'
+                  }`}
+                >
+                  Content
                 </button>
               </div>
             </div>
