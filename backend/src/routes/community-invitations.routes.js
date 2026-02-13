@@ -79,20 +79,30 @@ router.post("/communities/:id/invite", requireAuth, apiLimiter, (req, res) => {
       return res.status(409).json({ error: 'User is already a member of this community' });
     }
     
-    // Check if there's already a pending invitation
+    // Check for existing invitation (pending or declined)
     const existingInvitation = db.prepare(
-      'SELECT id FROM community_invitations WHERE community_id = ? AND user_id = ? AND status = ?'
-    ).get(communityId, targetUserId, 'pending');
+      'SELECT id, status FROM community_invitations WHERE community_id = ? AND user_id = ? AND status IN (?, ?)'
+    ).get(communityId, targetUserId, 'pending', 'declined');
     
     if (existingInvitation) {
-      return res.status(409).json({ error: 'An invitation has already been sent to this user' });
+      if (existingInvitation.status === 'pending') {
+        return res.status(409).json({ error: 'An invitation has already been sent to this user' });
+      }
+      
+      // Re-invite by updating the declined invitation to pending
+      // Preserve original created_at to maintain historical record
+      db.prepare(`
+        UPDATE community_invitations 
+        SET status = 'pending', invited_by_id = ?, responded_at = NULL
+        WHERE id = ?
+      `).run(currentUserId, existingInvitation.id);
+    } else {
+      // Create new invitation
+      db.prepare(`
+        INSERT INTO community_invitations (community_id, user_id, invited_by_id, status)
+        VALUES (?, ?, ?, 'pending')
+      `).run(communityId, targetUserId, currentUserId);
     }
-    
-    // Create invitation
-    db.prepare(`
-      INSERT INTO community_invitations (community_id, user_id, invited_by_id, status)
-      VALUES (?, ?, ?, 'pending')
-    `).run(communityId, targetUserId, currentUserId);
     
     // Log activity
     db.prepare(

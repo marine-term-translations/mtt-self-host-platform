@@ -565,12 +565,16 @@ CREATE TABLE community_invitations (
     invited_by_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined')),
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    responded_at        DATETIME,
-    UNIQUE(community_id, user_id, status)
+    responded_at        DATETIME
 );
 
 CREATE INDEX idx_community_invitations_user ON community_invitations(user_id, status);
 CREATE INDEX idx_community_invitations_community ON community_invitations(community_id, status);
+-- Unique index to prevent multiple pending invitations for same user in same community
+-- Allows re-invitation after decline
+CREATE UNIQUE INDEX idx_community_invitations_unique_pending 
+ON community_invitations(community_id, user_id) 
+WHERE status = 'pending';
 
 -- Community Goals Feature
 -- Allows admins to create and manage community-wide translation goals

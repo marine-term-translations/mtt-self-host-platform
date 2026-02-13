@@ -80,9 +80,14 @@ CREATE TABLE community_invitations (
     invited_by_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined')),
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    responded_at        DATETIME,
-    UNIQUE(community_id, user_id, status)
+    responded_at        DATETIME
 );
+
+-- Partial unique index to prevent duplicate pending invitations
+-- Allows re-invitation after decline
+CREATE UNIQUE INDEX idx_community_invitations_unique_pending 
+ON community_invitations(community_id, user_id) 
+WHERE status = 'pending';
 ```
 
 ## API Endpoints
@@ -221,6 +226,11 @@ or
   "username": "jane_doe"
 }
 ```
+
+**Notes:**
+- If the user has previously declined an invitation, the existing declined invitation will be updated to 'pending' status
+- This allows community owners to re-invite users who have declined
+- Multiple pending invitations for the same user in the same community are not allowed
 
 #### GET /api/invitations
 Get current user's pending invitations.
