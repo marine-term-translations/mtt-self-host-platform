@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon, AlertCircle } from 'lucide-react';
+import { Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon, AlertCircle } from 'lucide-react';
 import { parse, format, now } from '@/src/utils/datetime';
 import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
@@ -59,8 +59,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link to="/" className="flex items-center gap-2 group">
-                <div className="bg-marine-600 text-white p-1.5 rounded-lg group-hover:bg-marine-500 transition-colors">
-                  <Waves size={24} />
+                <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 group-hover:border-marine-500 transition-colors">
+                  <img src="/mtt-logo.svg" alt="Marine Term Translations" className="w-6 h-6" />
                 </div>
                 <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight hidden sm:block">Marine Term Translations</span>
                 <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight sm:hidden">MTT</span>
@@ -190,7 +190,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <footer className={`bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 ${isAuthenticated ? 'hidden md:block' : ''}`}>
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <Waves size={20} className="text-marine-600 dark:text-marine-400" />
+            <img src="/mtt-logo.svg" alt="Marine Term Translations" className="w-5 h-5" />
             <span className="font-semibold text-slate-700 dark:text-slate-300">Marine Term Translations</span>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center md:text-right">

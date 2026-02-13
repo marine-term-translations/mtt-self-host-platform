@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const Login: React.FC = () => {
@@ -42,8 +42,8 @@ const Login: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-900 px-4">
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8 space-y-8">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-marine-50 dark:bg-marine-900 text-marine-600 dark:text-marine-400 mb-6">
-            <Waves size={32} />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-marine-50 dark:bg-marine-900 mb-6">
+            <img src="/mtt-logo.svg" alt="Marine Term Translations" className="w-9 h-9" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h2>
           <p className="mt-2 text-slate-600 dark:text-slate-400">Sign in to contribute to Marine Term Translations</p>
