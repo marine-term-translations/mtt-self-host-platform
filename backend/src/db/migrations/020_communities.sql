@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS communities (
     FOREIGN KEY(language_code) REFERENCES languages(code) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_communities_type ON communities(type);
-CREATE INDEX idx_communities_owner ON communities(owner_id);
-CREATE INDEX idx_communities_language ON communities(language_code);
+CREATE INDEX IF NOT EXISTS idx_communities_type ON communities(type);
+CREATE INDEX IF NOT EXISTS idx_communities_owner ON communities(owner_id);
+CREATE INDEX IF NOT EXISTS idx_communities_language ON communities(language_code);
 
 -- Community members table
 CREATE TABLE IF NOT EXISTS community_members (
@@ -30,9 +30,9 @@ CREATE TABLE IF NOT EXISTS community_members (
     UNIQUE(community_id, user_id)
 );
 
-CREATE INDEX idx_community_members_community ON community_members(community_id);
-CREATE INDEX idx_community_members_user ON community_members(user_id);
-CREATE INDEX idx_community_members_role ON community_members(community_id, role);
+CREATE INDEX IF NOT EXISTS idx_community_members_community ON community_members(community_id);
+CREATE INDEX IF NOT EXISTS idx_community_members_user ON community_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_members_role ON community_members(community_id, role);
 
 -- Community invitations table
 CREATE TABLE IF NOT EXISTS community_invitations (
@@ -46,13 +46,13 @@ CREATE TABLE IF NOT EXISTS community_invitations (
     UNIQUE(community_id, user_id, status)
 );
 
-CREATE INDEX idx_community_invitations_user ON community_invitations(user_id, status);
-CREATE INDEX idx_community_invitations_community ON community_invitations(community_id, status);
+CREATE INDEX IF NOT EXISTS idx_community_invitations_user ON community_invitations(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_community_invitations_community ON community_invitations(community_id, status);
 
 -- Link community goals to communities
 -- Add community_id column to existing community_goals table
 ALTER TABLE community_goals ADD COLUMN community_id INTEGER REFERENCES communities(id) ON DELETE CASCADE;
-CREATE INDEX idx_community_goals_community ON community_goals(community_id);
+CREATE INDEX IF NOT EXISTS idx_community_goals_community ON community_goals(community_id);
 
 -- Insert language-based communities for primary languages
 -- Note: Additional language communities are created automatically by the dbInit service
