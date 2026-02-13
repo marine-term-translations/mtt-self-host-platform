@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon } from 'lucide-react';
+import { Waves, Menu, X, Sun, Moon, LogOut, User as UserIcon, ShieldCheck, Zap, Settings as SettingsIcon, AlertCircle } from 'lucide-react';
 import { parse, format, now } from '@/src/utils/datetime';
 import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
+import ReportIssueModal from './ReportIssueModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, isAuthenticated, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isReportIssueModalOpen, setIsReportIssueModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -84,6 +86,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </nav>
 
             <div className="hidden md:flex items-center gap-4">
+              <button 
+                onClick={() => setIsReportIssueModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-marine-600 dark:hover:text-marine-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <AlertCircle size={18} />
+                <span>Report Issue</span>
+              </button>
+              
               <button onClick={toggleDarkMode} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400">
                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
               </button>
@@ -136,6 +146,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {isMenuOpen && (
           <div className="md:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 absolute w-full shadow-lg">
             <div className="px-4 py-4 space-y-3">
+              <button 
+                onClick={() => {
+                  setIsReportIssueModalOpen(true);
+                  setIsMenuOpen(false);
+                }}
+                className="flex items-center gap-2 w-full py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600"
+              >
+                <AlertCircle size={18} />
+                <span>Report Issue</span>
+              </button>
               <Link to="/about" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>About</Link>
               <Link to="/leaderboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Community</Link>
               <Link to="/documentation" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Documentation</Link>
@@ -184,6 +204,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       {/* Bottom Navigation - only on phone when authenticated */}
       {isAuthenticated && <BottomNav />}
+
+      {/* Report Issue Modal */}
+      <ReportIssueModal 
+        isOpen={isReportIssueModalOpen} 
+        onClose={() => setIsReportIssueModalOpen(false)} 
+      />
     </div>
   );
 };
