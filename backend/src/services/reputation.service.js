@@ -705,8 +705,8 @@ function getReputationHistoryAggregated(userIdentifier, days = 90) {
 
   // Calculate cumulative reputation
   const currentRep = getUserReputation(userId);
-  let totalDelta = aggregated.reduce((sum, day) => sum + day.delta, 0);
-  let runningTotal = currentRep - totalDelta;
+  const totalDeltaInPeriod = aggregated.reduce((sum, day) => sum + day.delta, 0);
+  let runningTotal = currentRep - totalDeltaInPeriod;
 
   return aggregated.map(day => {
     runningTotal += day.delta;

@@ -118,7 +118,7 @@ const AdminReputationRules: React.FC = () => {
   const getRuleDisplayName = (ruleName: string): string => {
     return ruleName
       .split('_')
-      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
   };
 

@@ -1310,8 +1310,8 @@ router.put("/admin/reputation-rules", requireAdmin, apiLimiter, (req, res) => {
     const { updateReputationRule } = require("../services/reputation.service");
     const { ruleName, newValue } = req.body;
     
-    if (!ruleName || typeof newValue !== 'number') {
-      return res.status(400).json({ error: 'Missing ruleName or newValue' });
+    if (!ruleName || typeof newValue !== 'number' || isNaN(newValue)) {
+      return res.status(400).json({ error: 'Missing ruleName or invalid newValue' });
     }
     
     const userId = req.session.user.id;
@@ -1355,8 +1355,8 @@ router.post("/admin/reputation-rules/preview", requireAdmin, apiLimiter, (req, r
     const { previewRuleChange } = require("../services/reputation.service");
     const { ruleName, newValue, sampleSize = 10 } = req.body;
     
-    if (!ruleName || typeof newValue !== 'number') {
-      return res.status(400).json({ error: 'Missing ruleName or newValue' });
+    if (!ruleName || typeof newValue !== 'number' || isNaN(newValue)) {
+      return res.status(400).json({ error: 'Missing ruleName or invalid newValue' });
     }
     
     const preview = previewRuleChange(ruleName, newValue, sampleSize);
