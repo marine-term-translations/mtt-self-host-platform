@@ -433,18 +433,19 @@ router.get("/community-goals", apiLimiter, (req, res) => {
     const db = getDatabase();
     const now = datetime.toISO(datetime.now());
     
+    // Only show goals to authenticated users who are community members
+    // Unauthenticated users get an empty array (widget won't display)
     let goals = [];
     
     if (req.session?.user?.id || req.session?.user?.user_id) {
       const userId = req.session.user.id || req.session.user.user_id;
       
-      // Get user's translation languages for filtering
-      let userLanguages = [];
+      // Get user's translation languages for optional filtering
       const prefs = db.prepare('SELECT preferred_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      let userLanguages = [];
       if (prefs && prefs.preferred_languages) {
         try {
-          const parsed = JSON.parse(prefs.preferred_languages);
-          userLanguages = parsed || [];
+          userLanguages = JSON.parse(prefs.preferred_languages) || [];
         } catch (e) {
           console.error('Error parsing user languages:', e);
         }
