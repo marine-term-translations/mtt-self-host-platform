@@ -24,6 +24,13 @@ const ReportIssueModal: React.FC<ReportIssueModalProps> = ({ isOpen, onClose }) 
     }
   }, [isAuthenticated, user]);
 
+  const resetForm = () => {
+    setDescription('');
+    if (!isAuthenticated) {
+      setName('');
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -31,11 +38,14 @@ const ReportIssueModal: React.FC<ReportIssueModalProps> = ({ isOpen, onClose }) 
     const owner = 'marine-term-translations';
     const repo = 'mtt-self-host-platform';
     
+    // Sanitize name for URL (remove special characters that could break formatting)
+    const sanitizedName = name.replace(/[[\]]/g, '');
+    
     // Format issue title
-    const title = `[${selectedLabel.toUpperCase()}] Issue reported by ${name}`;
+    const title = `[${selectedLabel.toUpperCase()}] Issue reported by ${sanitizedName}`;
     
     // Format issue body
-    const body = `**Reporter:** ${name}
+    const body = `**Reporter:** ${sanitizedName}
 
 **Label:** ${selectedLabel}
 
@@ -58,18 +68,12 @@ ${description}
     
     // Close modal and reset form
     onClose();
-    setDescription('');
-    if (!isAuthenticated) {
-      setName('');
-    }
+    resetForm();
   };
 
   const handleClose = () => {
     onClose();
-    setDescription('');
-    if (!isAuthenticated) {
-      setName('');
-    }
+    resetForm();
   };
 
   if (!isOpen) return null;
