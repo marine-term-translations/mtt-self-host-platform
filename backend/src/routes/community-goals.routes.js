@@ -114,13 +114,40 @@ router.post("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
 
     const goalId = result.lastInsertRowid;
 
+    // Link goal to language communities
+    if (target_language) {
+      // If a specific language is assigned, link to that language's community
+      const languageCommunity = db.prepare(
+        'SELECT id FROM communities WHERE type = ? AND language_code = ?'
+      ).get('language', target_language);
+      
+      if (languageCommunity) {
+        db.prepare(
+          'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+        ).run(goalId, languageCommunity.id);
+      }
+    } else {
+      // If no language is assigned, link to all language communities
+      const languageCommunities = db.prepare(
+        'SELECT id FROM communities WHERE type = ?'
+      ).all('language');
+      
+      const insertLink = db.prepare(
+        'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+      );
+      
+      for (const community of languageCommunities) {
+        insertLink.run(goalId, community.id);
+      }
+    }
+
     // Log admin activity
     db.prepare(
       'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
     ).run(
       currentUserId,
       'admin_community_goal_created',
-      JSON.stringify({ goal_id: goalId, title, goal_type })
+      JSON.stringify({ goal_id: goalId, title, goal_type, target_language: target_language || 'all' })
     );
 
     res.status(201).json({
@@ -269,6 +296,38 @@ router.put("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res) =>
 
     const query = `UPDATE community_goals SET ${updates.join(', ')} WHERE id = ?`;
     db.prepare(query).run(...params);
+
+    // Update community links if target_language changed
+    if (target_language !== undefined) {
+      // Remove existing links
+      db.prepare('DELETE FROM community_goal_links WHERE goal_id = ?').run(goalId);
+      
+      if (target_language) {
+        // Link to specific language community
+        const languageCommunity = db.prepare(
+          'SELECT id FROM communities WHERE type = ? AND language_code = ?'
+        ).get('language', target_language);
+        
+        if (languageCommunity) {
+          db.prepare(
+            'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+          ).run(goalId, languageCommunity.id);
+        }
+      } else {
+        // Link to all language communities
+        const languageCommunities = db.prepare(
+          'SELECT id FROM communities WHERE type = ?'
+        ).all('language');
+        
+        const insertLink = db.prepare(
+          'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+        );
+        
+        for (const community of languageCommunities) {
+          insertLink.run(goalId, community.id);
+        }
+      }
+    }
 
     // Log admin activity
     const currentUserId = req.session.user.id || req.session.user.user_id;

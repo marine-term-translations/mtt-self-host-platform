@@ -746,6 +746,11 @@ router.post("/communities/:id/goals", requireAuth, apiLimiter, (req, res) => {
 
     const goalId = result.lastInsertRowid;
 
+    // Link goal to the community
+    db.prepare(
+      'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+    ).run(goalId, communityId);
+
     // Log activity
     db.prepare(
       'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
@@ -806,7 +811,12 @@ router.put("/communities/:id/goals/:goalId", requireAuth, apiLimiter, (req, res)
     }
 
     // Check if goal exists and belongs to this community
-    const goal = db.prepare('SELECT * FROM community_goals WHERE id = ? AND community_id = ?').get(goalId, communityId);
+    const goal = db.prepare(`
+      SELECT cg.* 
+      FROM community_goals cg
+      INNER JOIN community_goal_links cgl ON cg.id = cgl.goal_id
+      WHERE cg.id = ? AND cgl.community_id = ?
+    `).get(goalId, communityId);
     
     if (!goal) {
       return res.status(404).json({ error: 'Goal not found in this community' });
@@ -941,7 +951,12 @@ router.delete("/communities/:id/goals/:goalId", requireAuth, apiLimiter, (req, r
     }
 
     // Check if goal exists and belongs to this community
-    const goal = db.prepare('SELECT * FROM community_goals WHERE id = ? AND community_id = ?').get(goalId, communityId);
+    const goal = db.prepare(`
+      SELECT cg.* 
+      FROM community_goals cg
+      INNER JOIN community_goal_links cgl ON cg.id = cgl.goal_id
+      WHERE cg.id = ? AND cgl.community_id = ?
+    `).get(goalId, communityId);
     
     if (!goal) {
       return res.status(404).json({ error: 'Goal not found in this community' });
