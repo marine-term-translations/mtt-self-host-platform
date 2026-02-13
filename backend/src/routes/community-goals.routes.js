@@ -125,6 +125,20 @@ router.post("/admin/community-goals", requireAdmin, apiLimiter, (req, res) => {
         db.prepare(
           'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
         ).run(goalId, languageCommunity.id);
+      } else {
+        // Language community doesn't exist - link to all language communities as fallback
+        console.warn(`[Community Goals] Language community not found for ${target_language}, linking to all communities`);
+        const languageCommunities = db.prepare(
+          'SELECT id FROM communities WHERE type = ?'
+        ).all('language');
+        
+        const insertLink = db.prepare(
+          'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+        );
+        
+        for (const community of languageCommunities) {
+          insertLink.run(goalId, community.id);
+        }
       }
     } else {
       // If no language is assigned, link to all language communities
@@ -326,6 +340,20 @@ router.put("/admin/community-goals/:id", requireAdmin, apiLimiter, (req, res) =>
           db.prepare(
             'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
           ).run(goalId, languageCommunity.id);
+        } else {
+          // Language community doesn't exist - link to all language communities as fallback
+          console.warn(`[Community Goals] Language community not found for ${target_language}, linking to all communities`);
+          const languageCommunities = db.prepare(
+            'SELECT id FROM communities WHERE type = ?'
+          ).all('language');
+          
+          const insertLink = db.prepare(
+            'INSERT INTO community_goal_links (goal_id, community_id) VALUES (?, ?)'
+          );
+          
+          for (const community of languageCommunities) {
+            insertLink.run(goalId, community.id);
+          }
         }
       } else {
         // Link to all language communities
