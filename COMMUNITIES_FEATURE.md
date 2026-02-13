@@ -365,11 +365,22 @@ This is handled by the `syncUserLanguageCommunities()` function in `backend/src/
 
 ## Community Goals Integration
 
-Communities can have specific goals created by admins. These goals are linked to communities via the `community_id` field in the `community_goals` table.
+Communities can have specific goals created by admins or community owners. These goals are linked to communities via the `community_goal_links` many-to-many relationship table.
 
-- Global goals (community_id = NULL) are shown to all users
-- Community-specific goals are only shown to community members
-- Goals can track translation counts or collections
+**Admin-created Goals:**
+- When an admin creates a goal with a `target_language`, it's automatically linked to that language's community
+- When an admin creates a goal without a `target_language`, it's automatically linked to ALL language communities
+- Admin goals can be viewed in any language community they're linked to
+
+**User-created Goals:**
+- Community owners can create goals specific to their user-created communities
+- These goals are only visible to members of that specific community
+- Language communities cannot have goals created by users (admin-only)
+
+Goals can track:
+- Translation counts (e.g., "Complete 50 translations")
+- Collection progress (e.g., "Translate all terms in Marine Biology collection")
+- Language-specific targets (e.g., "100 French translations")
 
 ## Permissions
 
