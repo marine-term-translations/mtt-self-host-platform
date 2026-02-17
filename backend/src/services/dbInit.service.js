@@ -20,6 +20,10 @@ function shouldIgnoreMigrationError(db, filename, err) {
     return columnExists(db, 'community_goals', 'community_id');
   }
 
+  if (filename === '025_resubmission_motivation.sql' && /duplicate column name/i.test(err.message)) {
+    return columnExists(db, 'translations', 'resubmission_motivation');
+  }
+
   return false;
 }
 
