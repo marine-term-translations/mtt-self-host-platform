@@ -12,6 +12,7 @@ import {
   getAvailableLanguages,
   endFlowSession,
   getFlowStats,
+  getTranslationTask,
   FlowTask,
   UserStats,
   DailyChallenge,
@@ -24,9 +25,10 @@ import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const selectedLanguage = searchParams.get('language') || undefined;
   const selectedSource = searchParams.get('source') || undefined;
+  const translationIdParam = searchParams.get('translation_id');
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
@@ -60,13 +62,43 @@ const TranslationFlow: React.FC = () => {
         setDailyGoal(sessionData.dailyGoal);
         setLanguages(languagesData.languages);
 
-        // Get first task
-        const task = await getNextTask(selectedLanguage, selectedSource);
-        setCurrentTask(task);
-        
-        // Fetch relevant community goal for the first task
-        if (task && task.task) {
-          await fetchRelevantGoal(task);
+        // If translation_id is provided (from notification), load that specific translation
+        if (translationIdParam) {
+          try {
+            const task = await getTranslationTask(parseInt(translationIdParam));
+            setCurrentTask(task);
+            
+            // Remove translation_id from URL after loading
+            setSearchParams({ 
+              ...(selectedLanguage && { language: selectedLanguage }),
+              ...(selectedSource && { source: selectedSource })
+            });
+            
+            // Fetch relevant community goal
+            if (task && task.task) {
+              await fetchRelevantGoal(task);
+            }
+          } catch (error) {
+            console.error('Failed to load translation from notification:', error);
+            toast.error('Translation not found. Loading next task...');
+            
+            // Fall back to getting next task
+            const task = await getNextTask(selectedLanguage, selectedSource);
+            setCurrentTask(task);
+            
+            if (task && task.task) {
+              await fetchRelevantGoal(task);
+            }
+          }
+        } else {
+          // Get first task normally
+          const task = await getNextTask(selectedLanguage, selectedSource);
+          setCurrentTask(task);
+          
+          // Fetch relevant community goal for the first task
+          if (task && task.task) {
+            await fetchRelevantGoal(task);
+          }
         }
       } catch (error) {
         console.error('Failed to initialize flow:', error);
@@ -79,7 +111,7 @@ const TranslationFlow: React.FC = () => {
     if (user) {
       initFlow();
     }
-  }, [user, selectedLanguage, selectedSource]);
+  }, [user, selectedLanguage, selectedSource, translationIdParam]);
 
   // Load next task
   const loadNextTask = async () => {
@@ -159,7 +191,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle review submission
-  const handleSubmitReview = async (action: 'approve' | 'reject', rejectionReason?: string) => {
+  const handleSubmitReview = async (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string) => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
 
     try {
@@ -168,41 +200,49 @@ const TranslationFlow: React.FC = () => {
         currentTask.task.translation_id,
         action,
         sessionId,
-        rejectionReason
+        rejectionReason,
+        discussionMessage
       );
 
-      // Update session stats
-      setSessionPoints((prev) => prev + result.points);
-      setSessionReviews((prev) => prev + 1);
+      // For discussion, don't update stats but show success message
+      if (action === 'discuss') {
+        toast.success('Discussion message posted successfully');
+        // Stay on current translation - the FlowTermCard will reload history automatically
+        // when it detects a change (we don't need to manually reload here)
+      } else {
+        // Update session stats for approve/reject
+        setSessionPoints((prev) => prev + result.points);
+        setSessionReviews((prev) => prev + 1);
 
-      // Show celebration for new streak
-      if (result.streakInfo.isNewStreak && result.streakInfo.streak > 1) {
-        setShowCelebration(true);
-        setTimeout(() => setShowCelebration(false), 3000);
+        // Show celebration for new streak
+        if (result.streakInfo.isNewStreak && result.streakInfo.streak > 1) {
+          setShowCelebration(true);
+          setTimeout(() => setShowCelebration(false), 3000);
+        }
+
+        // Update stats
+        if (stats) {
+          setStats({
+            ...stats,
+            points: stats.points + result.points,
+            daily_streak: result.streakInfo.streak,
+            longest_streak: result.streakInfo.longestStreak,
+            reviews_count: stats.reviews_count + 1,
+          });
+        }
+
+        toast.success(
+          action === 'approve'
+            ? `Translation approved! +${result.points} reputation`
+            : `Translation rejected. +${result.points} reputation`
+        );
+
+        // Refresh daily goal
+        await refreshDailyGoal();
+
+        // Load next task
+        await loadNextTask();
       }
-
-      // Update stats
-      if (stats) {
-        setStats({
-          ...stats,
-          points: stats.points + result.points,
-          daily_streak: result.streakInfo.streak,
-          longest_streak: result.streakInfo.longestStreak,
-          reviews_count: stats.reviews_count + 1,
-        });
-      }
-
-      toast.success(
-        action === 'approve'
-          ? `Translation approved! +${result.points} reputation`
-          : `Translation rejected. +${result.points} reputation`
-      );
-
-      // Refresh daily goal
-      await refreshDailyGoal();
-
-      // Load next task
-      await loadNextTask();
     } catch (error) {
       console.error('Failed to submit review:', error);
       toast.error('Failed to submit review');
@@ -212,7 +252,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle translation submission
-  const handleSubmitTranslation = async (language: string, value: string) => {
+  const handleSubmitTranslation = async (language: string, value: string, resubmissionMotivation?: string) => {
     if (!currentTask?.task || !sessionId || !user) return;
 
     const task = currentTask.task;
@@ -251,6 +291,7 @@ const TranslationFlow: React.FC = () => {
                 value,
                 status: 'review',
                 created_by: translationsPayload[existingIndex].created_by,
+                ...(resubmissionMotivation ? { resubmission_motivation: resubmissionMotivation } : {}),
               };
             } else {
               // Add new translation
@@ -259,6 +300,7 @@ const TranslationFlow: React.FC = () => {
                 value,
                 status: 'review',
                 created_by: user.username,
+                ...(resubmissionMotivation ? { resubmission_motivation: resubmissionMotivation } : {}),
               });
             }
           }
@@ -420,7 +462,7 @@ const TranslationFlow: React.FC = () => {
           <div className="lg:col-span-2">
             <FlowTermCard
               task={currentTask.task}
-              taskType={currentTask.type as 'review' | 'translate' | 'rework'}
+              taskType={currentTask.type as 'review' | 'translate' | 'rework' | 'discussion'}
               languages={
                 selectedLanguage && (currentTask.type === 'translate' || currentTask.type === 'rework')
                   ? languages.filter(lang => lang.code === selectedLanguage)

@@ -22,6 +22,7 @@ import CommunityGoals from './pages/CommunityGoals';
 import Communities from './pages/Communities';
 import CommunityDetail from './pages/CommunityDetail';
 import CreateCommunity from './pages/CreateCommunity';
+import Notifications from './pages/Notifications';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminActivity from './pages/admin/AdminActivity';
@@ -136,6 +137,11 @@ const App: React.FC = () => {
             user ? <Navigate to={`/user/${user.id || user.user_id}`} replace /> : <Navigate to="/login" replace />
         } />
 
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <Notifications />
+          </ProtectedRoute>
+        } />
          <Route path="/history" element={
           <ProtectedRoute>
             <History />

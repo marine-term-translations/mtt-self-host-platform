@@ -1122,7 +1122,11 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
       // Process translations for this field
       for (const t of translations) {
-        const { language, value, status, created_by, rejection_reason } = t;
+        const { language, value, status, created_by, rejection_reason, resubmission_motivation } = t;
+        
+        // Normalize resubmission_motivation: treat empty strings, null, and undefined as null
+        const normalizedMotivation = (resubmission_motivation && resubmission_motivation.trim()) ? resubmission_motivation.trim() : null;
+        
         console.log("Processing translation", {
           fieldId,
           language,
@@ -1130,6 +1134,7 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           status,
           created_by,
           rejection_reason,
+          resubmission_motivation: normalizedMotivation,
         });
         if (!language || !value) {
           console.log("Skipping translation due to missing data", t);
@@ -1142,27 +1147,57 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
         if (existingTranslation) {
           // Update existing translation - preserves the ID and any appeals referencing it
           usedTranslationIds.add(existingTranslation.id);
-          const needsUpdate =
-            existingTranslation.value !== value ||
-            existingTranslation.status !== (status || "draft") ||
-            (status === "rejected" && existingTranslation.rejection_reason !== rejection_reason);
+          
+          // Determine what actually changed
+          const valueChanged = existingTranslation.value !== value;
+          const statusChanged = existingTranslation.status !== (status || "draft");
+          const rejectionReasonChanged = (status === "rejected" && existingTranslation.rejection_reason !== rejection_reason) ||
+                                         (status !== "rejected" && existingTranslation.rejection_reason !== null);
+          const motivationChanged = existingTranslation.resubmission_motivation !== normalizedMotivation;
+          
+          const needsUpdate = valueChanged || statusChanged || rejectionReasonChanged || motivationChanged;
 
           if (needsUpdate) {
-            // Update with rejection_reason if status is rejected
-            if (status === "rejected" && rejection_reason) {
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, rejection_reason = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status, rejection_reason, currentUserId, existingTranslation.id);
-            } else if (status !== "rejected" && existingTranslation.rejection_reason) {
-              // Clear rejection_reason if status is no longer rejected
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, rejection_reason = NULL, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status || "draft", currentUserId, existingTranslation.id);
-            } else {
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status || "draft", currentUserId, existingTranslation.id);
+            // Build dynamic UPDATE statement with only changed fields
+            const updateFields = [];
+            const updateValues = [];
+            
+            if (valueChanged) {
+              updateFields.push('value = ?');
+              updateValues.push(value);
             }
+            
+            if (statusChanged) {
+              updateFields.push('status = ?');
+              updateValues.push(status || "draft");
+            }
+            
+            // Handle rejection_reason: set if rejected, clear if not rejected anymore
+            if (status === "rejected" && rejection_reason) {
+              updateFields.push('rejection_reason = ?');
+              updateValues.push(rejection_reason);
+            } else if (status !== "rejected" && existingTranslation.rejection_reason) {
+              updateFields.push('rejection_reason = NULL');
+            }
+            
+            // Handle resubmission_motivation: update if changed
+            if (motivationChanged) {
+              if (normalizedMotivation) {
+                updateFields.push('resubmission_motivation = ?');
+                updateValues.push(normalizedMotivation);
+              } else {
+                updateFields.push('resubmission_motivation = NULL');
+              }
+            }
+            
+            // Always update these fields when any change is made
+            updateFields.push('modified_at = CURRENT_TIMESTAMP', 'modified_by_id = ?', 'updated_at = CURRENT_TIMESTAMP');
+            updateValues.push(currentUserId);
+            
+            updateValues.push(existingTranslation.id);
+            const updateSql = `UPDATE translations SET ${updateFields.join(', ')} WHERE id = ?`;
+            db.prepare(updateSql).run(...updateValues);
+            
             console.log("Updated translation", {
               id: existingTranslation.id,
               fieldId,
@@ -1170,17 +1205,25 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               value,
               status,
               rejection_reason,
+              resubmission_motivation: normalizedMotivation,
             });
           }
 
           // User activity logging for existing translation
           if (existingTranslation.value !== value) {
-            console.log("Logging translation_edited activity", {
-              userId: currentUserId,
+            const activityExtra = {
               field_uri,
               language,
               old_value: existingTranslation.value,
               new_value: value,
+            };
+            // Include resubmission_motivation if provided
+            if (resubmission_motivation) {
+              activityExtra.resubmission_motivation = resubmission_motivation;
+            }
+            console.log("Logging translation_edited activity", {
+              userId: currentUserId,
+              ...activityExtra,
             });
             db.prepare(
               "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
@@ -1190,23 +1233,9 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               id,
               fieldId,
               existingTranslation.id,
-              JSON.stringify({
-                field_uri,
-                language,
-                old_value: existingTranslation.value,
-                new_value: value,
-              })
+              JSON.stringify(activityExtra)
             );
           } else if (existingTranslation.status !== (status || "draft")) {
-            console.log("Logging translation_status_changed activity", {
-              userId: currentUserId,
-              field_uri,
-              language,
-              old_status: existingTranslation.status,
-              new_status: status || "draft",
-              rejection_reason,
-            });
-            
             const activityExtra = {
               field_uri,
               language,
@@ -1218,6 +1247,16 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             if (status === "rejected" && rejection_reason) {
               activityExtra.rejection_reason = rejection_reason;
             }
+            
+            // Include resubmission_motivation if provided
+            if (resubmission_motivation) {
+              activityExtra.resubmission_motivation = resubmission_motivation;
+            }
+            
+            console.log("Logging translation_status_changed activity", {
+              userId: currentUserId,
+              ...activityExtra,
+            });
             
             db.prepare(
               "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
@@ -1332,16 +1371,27 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           }
           const createdByUserId = createdByUser.id;
           
-          const translationResult = db
-            .prepare(
-              "INSERT INTO translations (term_field_id, language, value, status, created_by_id) VALUES (?, ?, ?, ?, ?)"
-            )
-            .run(fieldId, language, value, status || "draft", createdByUserId);
+          // Include resubmission_motivation if provided
+          let translationResult;
+          if (normalizedMotivation) {
+            translationResult = db
+              .prepare(
+                "INSERT INTO translations (term_field_id, language, value, status, created_by_id, resubmission_motivation) VALUES (?, ?, ?, ?, ?, ?)"
+              )
+              .run(fieldId, language, value, status || "draft", createdByUserId, normalizedMotivation);
+          } else {
+            translationResult = db
+              .prepare(
+                "INSERT INTO translations (term_field_id, language, value, status, created_by_id) VALUES (?, ?, ?, ?, ?)"
+              )
+              .run(fieldId, language, value, status || "draft", createdByUserId);
+          }
           console.log("Inserted translation", {
             translationResult,
             fieldId,
             language,
             value,
+            resubmission_motivation: normalizedMotivation,
           });
 
           // User activity logging for new translation

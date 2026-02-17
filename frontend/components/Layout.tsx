@@ -8,6 +8,7 @@ import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
 import InvitationsButton from './InvitationsButton';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -100,6 +101,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               
               {isAuthenticated ? (
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
+                   <InvitationsButton />
+                   <NotificationBell />
                    <div className="relative group">
                      <Link to={`/user/${user?.id || user?.user_id}`} className="flex items-center gap-2 hover:opacity-80">
                         <img src={user?.avatar} alt={user?.name} className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700" />

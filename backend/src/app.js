@@ -30,6 +30,7 @@ const communityGoalsRoutes = require("./routes/community-goals.routes");
 const communitiesRoutes = require("./routes/communities.routes");
 const communityInvitationsRoutes = require("./routes/community-invitations.routes");
 const communityStatsRoutes = require("./routes/community-stats.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 const app = express();
 
@@ -109,5 +110,6 @@ app.use("/", communityGoalsRoutes);
 app.use("/", communitiesRoutes);
 app.use("/", communityInvitationsRoutes);
 app.use("/", communityStatsRoutes);
+app.use("/api", notificationRoutes);
 
 module.exports = app;

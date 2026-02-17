@@ -111,19 +111,21 @@ export async function getNextTask(language?: string, source?: string): Promise<F
 }
 
 /**
- * Submit a review (approve or reject)
+ * Submit a review (approve, reject, or discuss)
  */
 export async function submitReview(
   translationId: number,
-  action: 'approve' | 'reject',
+  action: 'approve' | 'reject' | 'discuss',
   sessionId?: number,
-  rejectionReason?: string
+  rejectionReason?: string,
+  discussionMessage?: string
 ): Promise<ReviewResult> {
   return backendApi.post<ReviewResult>('/flow/review', {
     translationId,
     action,
     sessionId,
     rejectionReason,
+    discussionMessage,
   });
 }
 
@@ -204,4 +206,11 @@ export async function getLeaderboard(limit: number = 10): Promise<{
       reputation: number;
     }>;
   }>('/flow/leaderboard', { limit: limit.toString() });
+}
+
+/**
+ * Get a specific translation task by ID
+ */
+export async function getTranslationTask(translationId: number): Promise<FlowTask> {
+  return backendApi.get<FlowTask>(`/flow/translation/${translationId}`);
 }
