@@ -11,6 +11,16 @@ function columnExists(db, tableName, columnName) {
   return columns.some(column => column.name === columnName);
 }
 
+function tableExists(db, tableName) {
+  const table = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(tableName);
+  return !!table;
+}
+
+function indexExists(db, indexName) {
+  const index = db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).get(indexName);
+  return !!index;
+}
+
 function shouldIgnoreMigrationError(db, filename, err) {
   if (filename === '019_rejection_reason.sql' && /duplicate column name/i.test(err.message)) {
     return columnExists(db, 'translations', 'rejection_reason');
@@ -22,6 +32,12 @@ function shouldIgnoreMigrationError(db, filename, err) {
 
   if (filename === '025_resubmission_motivation.sql' && /duplicate column name/i.test(err.message)) {
     return columnExists(db, 'translations', 'resubmission_motivation');
+  }
+
+  if (filename === '026_notifications_and_discussion.sql' && /already exists/i.test(err.message)) {
+    // Check if the notifications and discussion_participants tables exist
+    // If they do, the migration has already been applied
+    return tableExists(db, 'notifications') && tableExists(db, 'discussion_participants');
   }
 
   return false;

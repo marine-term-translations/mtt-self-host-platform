@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_by_id   INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_read ON notifications(read);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 
 -- Create discussion_participants table to track who's involved in each translation discussion
 CREATE TABLE IF NOT EXISTS discussion_participants (
@@ -34,5 +34,5 @@ CREATE TABLE IF NOT EXISTS discussion_participants (
     UNIQUE(translation_id, user_id)
 );
 
-CREATE INDEX idx_discussion_participants_translation ON discussion_participants(translation_id);
-CREATE INDEX idx_discussion_participants_user ON discussion_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_participants_translation ON discussion_participants(translation_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_participants_user ON discussion_participants(user_id);
