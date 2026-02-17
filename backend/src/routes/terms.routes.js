@@ -1150,32 +1150,32 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             existingTranslation.resubmission_motivation !== resubmission_motivation;
 
           if (needsUpdate) {
-            // Update with rejection_reason if status is rejected
+            // Build dynamic UPDATE statement based on what fields need to be updated
+            const updateFields = ['value = ?', 'status = ?', 'modified_at = CURRENT_TIMESTAMP', 'modified_by_id = ?', 'updated_at = CURRENT_TIMESTAMP'];
+            const updateValues = [value, status || "draft", currentUserId];
+            
+            // Handle rejection_reason: set if rejected, clear if not rejected anymore
             if (status === "rejected" && rejection_reason) {
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, rejection_reason = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status, rejection_reason, currentUserId, existingTranslation.id);
+              updateFields.push('rejection_reason = ?');
+              updateValues.push(rejection_reason);
             } else if (status !== "rejected" && existingTranslation.rejection_reason) {
-              // Clear rejection_reason if status is no longer rejected, but preserve resubmission_motivation if present
-              if (resubmission_motivation) {
-                db.prepare(
-                  "UPDATE translations SET value = ?, status = ?, rejection_reason = NULL, resubmission_motivation = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).run(value, status || "draft", resubmission_motivation, currentUserId, existingTranslation.id);
-              } else {
-                db.prepare(
-                  "UPDATE translations SET value = ?, status = ?, rejection_reason = NULL, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).run(value, status || "draft", currentUserId, existingTranslation.id);
-              }
-            } else if (resubmission_motivation) {
-              // Update with resubmission_motivation if provided
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, resubmission_motivation = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status || "draft", resubmission_motivation, currentUserId, existingTranslation.id);
-            } else {
-              db.prepare(
-                "UPDATE translations SET value = ?, status = ?, modified_at = CURRENT_TIMESTAMP, modified_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-              ).run(value, status || "draft", currentUserId, existingTranslation.id);
+              updateFields.push('rejection_reason = NULL');
             }
+            
+            // Handle resubmission_motivation: set if provided, otherwise leave unchanged
+            if (resubmission_motivation !== undefined && resubmission_motivation !== existingTranslation.resubmission_motivation) {
+              if (resubmission_motivation) {
+                updateFields.push('resubmission_motivation = ?');
+                updateValues.push(resubmission_motivation);
+              } else {
+                updateFields.push('resubmission_motivation = NULL');
+              }
+            }
+            
+            updateValues.push(existingTranslation.id);
+            const updateSql = `UPDATE translations SET ${updateFields.join(', ')} WHERE id = ?`;
+            db.prepare(updateSql).run(...updateValues);
+            
             console.log("Updated translation", {
               id: existingTranslation.id,
               fieldId,
@@ -1189,14 +1189,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
 
           // User activity logging for existing translation
           if (existingTranslation.value !== value) {
-            console.log("Logging translation_edited activity", {
-              userId: currentUserId,
-              field_uri,
-              language,
-              old_value: existingTranslation.value,
-              new_value: value,
-              resubmission_motivation,
-            });
             const activityExtra = {
               field_uri,
               language,
@@ -1207,6 +1199,10 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             if (resubmission_motivation) {
               activityExtra.resubmission_motivation = resubmission_motivation;
             }
+            console.log("Logging translation_edited activity", {
+              userId: currentUserId,
+              ...activityExtra,
+            });
             db.prepare(
               "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
             ).run(
@@ -1218,16 +1214,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               JSON.stringify(activityExtra)
             );
           } else if (existingTranslation.status !== (status || "draft")) {
-            console.log("Logging translation_status_changed activity", {
-              userId: currentUserId,
-              field_uri,
-              language,
-              old_status: existingTranslation.status,
-              new_status: status || "draft",
-              rejection_reason,
-              resubmission_motivation,
-            });
-            
             const activityExtra = {
               field_uri,
               language,
@@ -1244,6 +1230,11 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
             if (resubmission_motivation) {
               activityExtra.resubmission_motivation = resubmission_motivation;
             }
+            
+            console.log("Logging translation_status_changed activity", {
+              userId: currentUserId,
+              ...activityExtra,
+            });
             
             db.prepare(
               "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
