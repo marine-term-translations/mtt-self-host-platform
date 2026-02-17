@@ -403,20 +403,13 @@ router.post("/discussions/:id/messages", writeLimiter, (req, res) => {
     // Update discussion updated_at
     db.prepare("UPDATE term_discussions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(discussionId);
     
-    // Update or insert participant
-    const participantCheck = db.prepare(
-      "SELECT id FROM term_discussion_participants WHERE discussion_id = ? AND user_id = ?"
-    ).get(discussionId, currentUserId);
-    
-    if (participantCheck) {
-      db.prepare(
-        "UPDATE term_discussion_participants SET last_message_at = CURRENT_TIMESTAMP WHERE discussion_id = ? AND user_id = ?"
-      ).run(discussionId, currentUserId);
-    } else {
-      db.prepare(
-        "INSERT INTO term_discussion_participants (discussion_id, user_id) VALUES (?, ?)"
-      ).run(discussionId, currentUserId);
-    }
+    // Update or insert participant using UPSERT
+    db.prepare(`
+      INSERT INTO term_discussion_participants (discussion_id, user_id, last_message_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(discussion_id, user_id) 
+      DO UPDATE SET last_message_at = CURRENT_TIMESTAMP
+    `).run(discussionId, currentUserId);
     
     // Get the created message with author info
     const createdMessage = db.prepare(`
