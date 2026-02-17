@@ -108,7 +108,8 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const handleTranslationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (translationValue.trim()) {
-      onSubmitTranslation(selectedLanguage, translationValue.trim(), resubmissionMotivation.trim() || undefined);
+      const trimmedMotivation = resubmissionMotivation.trim();
+      onSubmitTranslation(selectedLanguage, translationValue.trim(), trimmedMotivation ? trimmedMotivation : undefined);
       setTranslationValue('');
       setResubmissionMotivation('');
     }
