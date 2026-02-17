@@ -469,8 +469,9 @@ function submitReview(params) {
     throw new Error('Translation not found');
   }
   
-  if (translation.status !== 'review') {
-    throw new Error('Translation is not in review status');
+  // Allow review actions on translations in 'review' or 'discussion' status
+  if (!['review', 'discussion'].includes(translation.status)) {
+    throw new Error('Translation is not in review or discussion status');
   }
   
   // Handle discussion action - change status to 'discussion' and track participants
