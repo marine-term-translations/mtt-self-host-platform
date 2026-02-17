@@ -207,6 +207,35 @@ async function getTranslationHistory(req, res) {
   }
 }
 
+/**
+ * Get a specific translation task by ID
+ */
+async function getTranslationTask(req, res) {
+  try {
+    if (!req.session || !req.session.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const userId = req.session.user.id || req.session.user.user_id;
+    const translationId = parseInt(req.params.translationId);
+    
+    if (!translationId) {
+      return res.status(400).json({ error: "Missing translationId" });
+    }
+    
+    const task = flowService.getTranslationTask(translationId, userId);
+    
+    if (!task) {
+      return res.status(404).json({ error: "Translation not found" });
+    }
+    
+    res.json(task);
+  } catch (error) {
+    console.error("[Flow] Get translation task error:", error);
+    res.status(500).json({ error: error.message || "Failed to get translation task" });
+  }
+}
+
 module.exports = {
   startFlow,
   getNextTask,
@@ -216,4 +245,5 @@ module.exports = {
   endSession,
   getLeaderboard,
   getTranslationHistory,
+  getTranslationTask
 };

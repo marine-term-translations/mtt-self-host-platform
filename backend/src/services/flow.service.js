@@ -394,7 +394,7 @@ function submitReview(params) {
     throw new Error('Translation is not in review status');
   }
   
-  // Handle discussion action (no status change, just log the discussion)
+  // Handle discussion action - change status to 'discussion' and track participants
   if (action === 'discuss') {
     // Add the user as a discussion participant
     const { addDiscussionParticipant, notifyDiscussionParticipants } = require("./notification.service");
@@ -403,6 +403,13 @@ function submitReview(params) {
     // Also add the translation creator as a participant if not already
     if (translation.created_by_id && translation.created_by_id !== resolvedUserId) {
       addDiscussionParticipant(translationId, translation.created_by_id);
+    }
+    
+    // Change translation status to 'discussion' if it's currently in 'review'
+    if (translation.status === 'review') {
+      db.prepare(
+        "UPDATE translations SET status = 'discussion', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(translationId);
     }
     
     // Log discussion activity
@@ -599,4 +606,71 @@ module.exports = {
   submitReview,
   getAvailableLanguages,
   getTranslationHistory,
+  getTranslationTask
 };
+
+/**
+ * Get a specific translation task by translation ID
+ * Used for navigation from notifications
+ * @param {number} translationId - The translation ID
+ * @param {number|string} userIdentifier - User ID or username
+ * @returns {object} Translation task object or null
+ */
+function getTranslationTask(translationId, userIdentifier) {
+  const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve user identifier to user_id
+  let userId = typeof userIdentifier === 'number' ? userIdentifier : parseInt(userIdentifier, 10);
+  if (isNaN(userId)) {
+    userId = resolveUsernameToId(userIdentifier);
+    if (!userId) {
+      return null;
+    }
+  }
+  
+  // Get the translation and related information
+  const translation = db.prepare(`
+    SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
+           t.created_by_id, t.created_at, t.rejection_reason, t.resubmission_motivation,
+           tf.field_uri, tf.original_value,
+           term.id as term_id, term.uri as term_uri, term.source_id,
+           creator.username as created_by
+    FROM translations t
+    JOIN term_fields tf ON t.term_field_id = tf.id
+    JOIN terms term ON tf.term_id = term.id
+    LEFT JOIN users creator ON t.created_by_id = creator.id
+    WHERE t.id = ?
+  `).get(translationId);
+  
+  if (!translation) {
+    return null;
+  }
+  
+  // Get all translatable fields for context
+  const allFields = db.prepare(
+    `SELECT tf.field_uri, tf.original_value 
+     FROM term_fields tf
+     WHERE tf.term_id = ?
+     AND ${TRANSLATABLE_FIELD_PATTERN}`
+  ).all(translation.term_id);
+  
+  // Determine task type based on status and user
+  let taskType;
+  if (translation.status === 'rejected' && translation.created_by_id === userId) {
+    taskType = 'rework';
+  } else if (translation.status === 'review' || translation.status === 'discussion') {
+    taskType = 'review';
+  } else {
+    // For other statuses, just show as review (read-only)
+    taskType = 'review';
+  }
+  
+  return {
+    taskType,
+    task: {
+      ...translation,
+      term_fields: allFields
+    }
+  };
+}

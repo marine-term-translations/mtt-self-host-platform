@@ -238,4 +238,26 @@ router.get("/flow/leaderboard", apiLimiter, flowController.getLeaderboard);
  */
 router.get("/flow/translation/:translationId/history", apiLimiter, flowController.getTranslationHistory);
 
+/**
+ * @openapi
+ * /api/flow/translation/{translationId}:
+ *   get:
+ *     summary: Get a specific translation task by ID
+ *     tags: [Flow]
+ *     security:
+ *       - sessionAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: translationId
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       200:
+ *         description: Translation task retrieved
+ *       404:
+ *         description: Translation not found
+ */
+router.get("/flow/translation/:translationId", apiLimiter, flowController.getTranslationTask);
+
 module.exports = router;

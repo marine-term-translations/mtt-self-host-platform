@@ -12,6 +12,7 @@ import {
   getAvailableLanguages,
   endFlowSession,
   getFlowStats,
+  getTranslationTask,
   FlowTask,
   UserStats,
   DailyChallenge,
@@ -24,7 +25,7 @@ import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const selectedLanguage = searchParams.get('language') || undefined;
   const selectedSource = searchParams.get('source') || undefined;
   const translationIdParam = searchParams.get('translation_id');
@@ -63,19 +64,41 @@ const TranslationFlow: React.FC = () => {
 
         // If translation_id is provided (from notification), load that specific translation
         if (translationIdParam) {
-          // TODO: Create an API to load a specific translation by ID
-          // For now, we'll get the next task normally
-          // In a future enhancement, we can add getTranslationById to load it directly
-          toast.info('Loading translation from notification...');
-        }
-
-        // Get first task
-        const task = await getNextTask(selectedLanguage, selectedSource);
-        setCurrentTask(task);
-        
-        // Fetch relevant community goal for the first task
-        if (task && task.task) {
-          await fetchRelevantGoal(task);
+          try {
+            const task = await getTranslationTask(parseInt(translationIdParam));
+            setCurrentTask(task);
+            
+            // Remove translation_id from URL after loading
+            setSearchParams({ 
+              ...(selectedLanguage && { language: selectedLanguage }),
+              ...(selectedSource && { source: selectedSource })
+            });
+            
+            // Fetch relevant community goal
+            if (task && task.task) {
+              await fetchRelevantGoal(task);
+            }
+          } catch (error) {
+            console.error('Failed to load translation from notification:', error);
+            toast.error('Translation not found. Loading next task...');
+            
+            // Fall back to getting next task
+            const task = await getNextTask(selectedLanguage, selectedSource);
+            setCurrentTask(task);
+            
+            if (task && task.task) {
+              await fetchRelevantGoal(task);
+            }
+          }
+        } else {
+          // Get first task normally
+          const task = await getNextTask(selectedLanguage, selectedSource);
+          setCurrentTask(task);
+          
+          // Fetch relevant community goal for the first task
+          if (task && task.task) {
+            await fetchRelevantGoal(task);
+          }
         }
       } catch (error) {
         console.error('Failed to initialize flow:', error);

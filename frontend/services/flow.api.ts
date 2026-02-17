@@ -207,3 +207,10 @@ export async function getLeaderboard(limit: number = 10): Promise<{
     }>;
   }>('/flow/leaderboard', { limit: limit.toString() });
 }
+
+/**
+ * Get a specific translation task by ID
+ */
+export async function getTranslationTask(translationId: number): Promise<FlowTask> {
+  return backendApi.get<FlowTask>(`/flow/translation/${translationId}`);
+}
