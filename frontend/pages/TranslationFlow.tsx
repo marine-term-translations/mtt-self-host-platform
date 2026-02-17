@@ -462,7 +462,7 @@ const TranslationFlow: React.FC = () => {
           <div className="lg:col-span-2">
             <FlowTermCard
               task={currentTask.task}
-              taskType={currentTask.type as 'review' | 'translate' | 'rework'}
+              taskType={currentTask.type as 'review' | 'translate' | 'rework' | 'discussion'}
               languages={
                 selectedLanguage && (currentTask.type === 'translate' || currentTask.type === 'rework')
                   ? languages.filter(lang => lang.code === selectedLanguage)

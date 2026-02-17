@@ -155,6 +155,75 @@ function getRejectedTranslations(userIdentifier, language = null, sourceId = nul
 }
 
 /**
+ * Get discussion translations that involve the user
+ * Returns translations that are in 'discussion' status where the user is a participant
+ * Only returns fields with field_role = 'translatable'
+ * @param {number|string} userIdentifier - User ID or username
+ * @param {string} language - Optional language filter
+ * @param {number} sourceId - Optional source filter
+ * @returns {object|null} Translation in discussion that involves this user
+ */
+function getDiscussionTranslations(userIdentifier, language = null, sourceId = null) {
+  const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve user identifier to user_id
+  let userId = typeof userIdentifier === 'number' ? userIdentifier : parseInt(userIdentifier, 10);
+  if (isNaN(userId)) {
+    userId = resolveUsernameToId(userIdentifier);
+    if (!userId) {
+      return null;
+    }
+  }
+  
+  // Build query to get translations in discussion where this user is a participant
+  let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
+            t.created_by_id, t.created_at, t.rejection_reason, t.resubmission_motivation,
+            tf.field_uri, tf.original_value,
+            term.id as term_id, term.uri as term_uri, term.source_id
+     FROM translations t
+     JOIN term_fields tf ON t.term_field_id = tf.id
+     JOIN terms term ON tf.term_id = term.id
+     JOIN discussion_participants dp ON t.id = dp.translation_id
+     WHERE t.status = 'discussion' 
+       AND dp.user_id = ?
+       AND ${TRANSLATABLE_FIELD_PATTERN}`;
+  
+  const params = [userId];
+  
+  if (language) {
+    query += ` AND t.language = ?`;
+    params.push(language);
+  }
+  
+  if (sourceId) {
+    query += ` AND term.source_id = ?`;
+    params.push(parseInt(sourceId, 10));
+  }
+  
+  query += ` ORDER BY t.updated_at DESC LIMIT 1`;
+  
+  const discussion = db.prepare(query).get(...params);
+  
+  if (!discussion) {
+    return null;
+  }
+  
+  // Enrich with translatable fields for context
+  const allFields = db.prepare(
+    `SELECT tf.field_uri, tf.original_value 
+     FROM term_fields tf
+     WHERE tf.term_id = ?
+     AND ${TRANSLATABLE_FIELD_PATTERN}`
+  ).all(discussion.term_id);
+  
+  return {
+    ...discussion,
+    term_fields: allFields,
+  };
+}
+
+/**
  * Get a random untranslated term field
  * Prioritizes terms with no translations at all
  * Only returns fields with 'translatable' in field_roles
@@ -309,7 +378,17 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
   
   // Try each language in priority order
   for (const lang of languagesToCheck) {
-    // Priority 1: Rejected translations by this user (needs re-work)
+    // Priority 1: Discussion translations where user is a participant
+    const discussion = getDiscussionTranslations(userIdentifier, lang, sourceId);
+    if (discussion) {
+      return {
+        type: 'discussion',
+        task: discussion,
+        language: lang,
+      };
+    }
+    
+    // Priority 2: Rejected translations by this user (needs re-work)
     const rejected = getRejectedTranslations(userIdentifier, lang, sourceId);
     if (rejected) {
       return {
@@ -319,7 +398,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
       };
     }
     
-    // Priority 2: Pending reviews for this language (and source if specified)
+    // Priority 3: Pending reviews for this language (and source if specified)
     const review = getPendingReviews(userIdentifier, lang, sourceId);
     if (review) {
       return {
@@ -329,7 +408,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
       };
     }
     
-    // Priority 3: Untranslated terms for this language (and source if specified)
+    // Priority 4: Untranslated terms for this language (and source if specified)
     const untranslated = getRandomUntranslated(userIdentifier, lang, sourceId);
     if (untranslated) {
       return {

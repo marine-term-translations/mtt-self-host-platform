@@ -184,19 +184,17 @@ const NotificationBell: React.FC = () => {
             )}
           </div>
 
-          {notifications.length > 0 && (
-            <div className="p-3 border-t border-slate-200 dark:border-slate-700 text-center">
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  navigate('/notifications');
-                }}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                View all notifications
-              </button>
-            </div>
-          )}
+          <div className="p-3 border-t border-slate-200 dark:border-slate-700 text-center">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                navigate('/notifications');
+              }}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              View all notifications
+            </button>
+          </div>
         </div>
       )}
     </div>
