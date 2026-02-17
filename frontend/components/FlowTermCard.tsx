@@ -345,7 +345,27 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                 </span>
             </div>
             <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-800 dark:text-white font-medium leading-relaxed shadow-inner overflow-wrap-anywhere">
-                {task.original_value || 'No content'}
+                {task.original_value && task.original_value.trim() ? (
+                    task.original_value
+                ) : (
+                    <div className="flex items-start gap-3 text-amber-600 dark:text-amber-400">
+                        <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                            <p className="font-semibold mb-1">No source content available</p>
+                            <p className="text-amber-700 dark:text-amber-300">
+                                The source vocabulary does not provide content for this field. 
+                                Please visit the <a 
+                                    href={task.term_uri} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="underline hover:text-amber-800 dark:hover:text-amber-200"
+                                >
+                                    original term
+                                </a> to understand the context before creating new content.
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
 

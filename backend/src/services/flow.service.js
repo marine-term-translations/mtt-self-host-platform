@@ -167,11 +167,14 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
   const db = getDatabase();
   
   // Build query with optional language and source filter and translatable fields filter
+  // Filter out empty or whitespace-only original_value to prevent offering empty content for translation
   let query = `SELECT tf.id as term_field_id, tf.field_uri, tf.original_value,
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM term_fields tf
      JOIN terms term ON tf.term_id = term.id
-     WHERE ${TRANSLATABLE_FIELD_PATTERN}`;
+     WHERE ${TRANSLATABLE_FIELD_PATTERN}
+       AND tf.original_value IS NOT NULL 
+       AND TRIM(tf.original_value) != ''`;
   
   const params = [];
   
@@ -211,6 +214,8 @@ function getRandomUntranslated(userIdentifier, language = null, sourceId = null)
        FROM term_fields tf
        JOIN terms term ON tf.term_id = term.id
        WHERE ${TRANSLATABLE_FIELD_PATTERN}
+         AND tf.original_value IS NOT NULL 
+         AND TRIM(tf.original_value) != ''
          AND (SELECT COUNT(*) FROM translations WHERE term_field_id = tf.id`;
     
     const partialParams = [];
