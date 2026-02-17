@@ -27,6 +27,7 @@ const TranslationFlow: React.FC = () => {
   const [searchParams] = useSearchParams();
   const selectedLanguage = searchParams.get('language') || undefined;
   const selectedSource = searchParams.get('source') || undefined;
+  const translationIdParam = searchParams.get('translation_id');
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [currentTask, setCurrentTask] = useState<FlowTask | null>(null);
@@ -60,6 +61,14 @@ const TranslationFlow: React.FC = () => {
         setDailyGoal(sessionData.dailyGoal);
         setLanguages(languagesData.languages);
 
+        // If translation_id is provided (from notification), load that specific translation
+        if (translationIdParam) {
+          // TODO: Create an API to load a specific translation by ID
+          // For now, we'll get the next task normally
+          // In a future enhancement, we can add getTranslationById to load it directly
+          toast.info('Loading translation from notification...');
+        }
+
         // Get first task
         const task = await getNextTask(selectedLanguage, selectedSource);
         setCurrentTask(task);
@@ -79,7 +88,7 @@ const TranslationFlow: React.FC = () => {
     if (user) {
       initFlow();
     }
-  }, [user, selectedLanguage, selectedSource]);
+  }, [user, selectedLanguage, selectedSource, translationIdParam]);
 
   // Load next task
   const loadNextTask = async () => {
