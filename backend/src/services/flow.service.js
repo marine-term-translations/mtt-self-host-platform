@@ -396,6 +396,15 @@ function submitReview(params) {
   
   // Handle discussion action (no status change, just log the discussion)
   if (action === 'discuss') {
+    // Add the user as a discussion participant
+    const { addDiscussionParticipant, notifyDiscussionParticipants } = require("./notification.service");
+    addDiscussionParticipant(translationId, resolvedUserId);
+    
+    // Also add the translation creator as a participant if not already
+    if (translation.created_by_id && translation.created_by_id !== resolvedUserId) {
+      addDiscussionParticipant(translationId, translation.created_by_id);
+    }
+    
     // Log discussion activity
     const activityExtra = {
       sessionId,
@@ -413,6 +422,9 @@ function submitReview(params) {
       translationId,
       JSON.stringify(activityExtra)
     );
+    
+    // Notify all other participants about this discussion message
+    notifyDiscussionParticipants(translationId, translation.term_id, resolvedUserId, discussionMessage.trim());
     
     return {
       success: true,
