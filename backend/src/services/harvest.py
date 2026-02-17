@@ -287,7 +287,8 @@ def insert_results(conn, collection_uri, results):
             value = prop_data["value"]
             language = prop_data["language"]
             
-            if not value:
+            # Skip empty or whitespace-only values to prevent offering empty content for translation
+            if not value or not value.strip():
                 continue
             
             # Map property URI to field_uri
