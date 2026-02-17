@@ -353,7 +353,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
  * @returns {object} Result of review
  */
 function submitReview(params) {
-  const { userId, translationId, action, sessionId, rejectionReason } = params;
+  const { userId, translationId, action, sessionId, rejectionReason, discussionMessage } = params;
   const db = getDatabase();
   const { resolveUsernameToId } = require("../db/database");
   
@@ -367,13 +367,18 @@ function submitReview(params) {
   }
   
   // Validate action
-  if (!['approve', 'reject'].includes(action)) {
-    throw new Error('Invalid action. Must be "approve" or "reject"');
+  if (!['approve', 'reject', 'discuss'].includes(action)) {
+    throw new Error('Invalid action. Must be "approve", "reject", or "discuss"');
   }
   
   // Validate rejection reason if action is reject
   if (action === 'reject' && (!rejectionReason || !rejectionReason.trim())) {
     throw new Error('Rejection reason is required when rejecting a translation');
+  }
+  
+  // Validate discussion message if action is discuss
+  if (action === 'discuss' && (!discussionMessage || !discussionMessage.trim())) {
+    throw new Error('Discussion message is required when opening a discussion');
   }
   
   // Get the translation
@@ -387,6 +392,34 @@ function submitReview(params) {
   
   if (translation.status !== 'review') {
     throw new Error('Translation is not in review status');
+  }
+  
+  // Handle discussion action (no status change, just log the discussion)
+  if (action === 'discuss') {
+    // Log discussion activity
+    const activityExtra = {
+      sessionId,
+      language: translation.language,
+      discussion_message: discussionMessage.trim()
+    };
+    
+    db.prepare(
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      resolvedUserId,
+      'translation_discussion',
+      translation.term_id,
+      translation.term_field_id,
+      translationId,
+      JSON.stringify(activityExtra)
+    );
+    
+    return {
+      success: true,
+      action: 'discuss',
+      points: 0,
+      streakInfo: { current: 0, longest: 0 }
+    };
   }
   
   // Store old status for logging

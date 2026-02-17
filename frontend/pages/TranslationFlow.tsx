@@ -159,7 +159,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle review submission
-  const handleSubmitReview = async (action: 'approve' | 'reject', rejectionReason?: string) => {
+  const handleSubmitReview = async (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string) => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
 
     try {
@@ -168,41 +168,53 @@ const TranslationFlow: React.FC = () => {
         currentTask.task.translation_id,
         action,
         sessionId,
-        rejectionReason
+        rejectionReason,
+        discussionMessage
       );
 
-      // Update session stats
-      setSessionPoints((prev) => prev + result.points);
-      setSessionReviews((prev) => prev + 1);
+      // For discussion, don't update stats but reload history
+      if (action === 'discuss') {
+        toast.success('Discussion message posted successfully');
+        // Don't load next task, stay on current one to continue discussion
+        // Reload the current task to get updated history
+        const task = await getNextTask(selectedLanguage, selectedSource);
+        if (task && task.task && task.task.translation_id === currentTask.task.translation_id) {
+          setCurrentTask(task);
+        }
+      } else {
+        // Update session stats for approve/reject
+        setSessionPoints((prev) => prev + result.points);
+        setSessionReviews((prev) => prev + 1);
 
-      // Show celebration for new streak
-      if (result.streakInfo.isNewStreak && result.streakInfo.streak > 1) {
-        setShowCelebration(true);
-        setTimeout(() => setShowCelebration(false), 3000);
+        // Show celebration for new streak
+        if (result.streakInfo.isNewStreak && result.streakInfo.streak > 1) {
+          setShowCelebration(true);
+          setTimeout(() => setShowCelebration(false), 3000);
+        }
+
+        // Update stats
+        if (stats) {
+          setStats({
+            ...stats,
+            points: stats.points + result.points,
+            daily_streak: result.streakInfo.streak,
+            longest_streak: result.streakInfo.longestStreak,
+            reviews_count: stats.reviews_count + 1,
+          });
+        }
+
+        toast.success(
+          action === 'approve'
+            ? `Translation approved! +${result.points} reputation`
+            : `Translation rejected. +${result.points} reputation`
+        );
+
+        // Refresh daily goal
+        await refreshDailyGoal();
+
+        // Load next task
+        await loadNextTask();
       }
-
-      // Update stats
-      if (stats) {
-        setStats({
-          ...stats,
-          points: stats.points + result.points,
-          daily_streak: result.streakInfo.streak,
-          longest_streak: result.streakInfo.longestStreak,
-          reviews_count: stats.reviews_count + 1,
-        });
-      }
-
-      toast.success(
-        action === 'approve'
-          ? `Translation approved! +${result.points} reputation`
-          : `Translation rejected. +${result.points} reputation`
-      );
-
-      // Refresh daily goal
-      await refreshDailyGoal();
-
-      // Load next task
-      await loadNextTask();
     } catch (error) {
       console.error('Failed to submit review:', error);
       toast.error('Failed to submit review');

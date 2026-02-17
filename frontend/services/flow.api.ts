@@ -111,19 +111,21 @@ export async function getNextTask(language?: string, source?: string): Promise<F
 }
 
 /**
- * Submit a review (approve or reject)
+ * Submit a review (approve, reject, or discuss)
  */
 export async function submitReview(
   translationId: number,
-  action: 'approve' | 'reject',
+  action: 'approve' | 'reject' | 'discuss',
   sessionId?: number,
-  rejectionReason?: string
+  rejectionReason?: string,
+  discussionMessage?: string
 ): Promise<ReviewResult> {
   return backendApi.post<ReviewResult>('/flow/review', {
     translationId,
     action,
     sessionId,
     rejectionReason,
+    discussionMessage,
   });
 }
 

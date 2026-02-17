@@ -60,7 +60,7 @@ async function getNextTask(req, res) {
 }
 
 /**
- * Submit a review (approve or reject)
+ * Submit a review (approve, reject, or discuss)
  */
 async function submitReview(req, res) {
   try {
@@ -69,7 +69,7 @@ async function submitReview(req, res) {
     }
     
     const userId = req.session.user.id || req.session.user.user_id;
-    const { translationId, action, sessionId, rejectionReason } = req.body;
+    const { translationId, action, sessionId, rejectionReason, discussionMessage } = req.body;
     
     if (!translationId || !action) {
       return res.status(400).json({ error: "Missing required fields: translationId, action" });
@@ -79,16 +79,21 @@ async function submitReview(req, res) {
       return res.status(400).json({ error: "Rejection reason is required when rejecting a translation" });
     }
     
+    if (action === 'discuss' && (!discussionMessage || !discussionMessage.trim())) {
+      return res.status(400).json({ error: "Discussion message is required when opening a discussion" });
+    }
+    
     const result = flowService.submitReview({
       userId,
       translationId,
       action,
       sessionId,
       rejectionReason,
+      discussionMessage,
     });
     
-    // Update session stats if provided
-    if (sessionId) {
+    // Update session stats if provided (only for approve/reject, not discuss)
+    if (sessionId && action !== 'discuss') {
       gamificationService.updateFlowSession(sessionId, {
         reviews_completed: 1,
         points_earned: result.points,
