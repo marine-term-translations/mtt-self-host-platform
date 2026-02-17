@@ -45,9 +45,9 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
     }
   }, [languages, selectedLanguage]);
 
-  // Pre-fill translation value for rework tasks
+  // Pre-fill translation value for rework and discussion tasks
   useEffect(() => {
-    if (taskType === 'rework' && task?.value) {
+    if ((taskType === 'rework' || taskType === 'discussion') && task?.value) {
       setTranslationValue(task.value);
       // Pre-fill resubmission motivation if it was previously provided
       setResubmissionMotivation(task.resubmission_motivation || '');
@@ -575,148 +575,225 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
         {taskType === 'discussion' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                 <div className="flex items-start gap-4">
-                     <div className="flex-grow">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                             Proposed Translation ({task.language?.toUpperCase()})
-                        </label>
-                        <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-lg text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-900/5 overflow-wrap-anywhere">
-                             {task.value}
-                        </div>
-                        {task.created_by && (
-                           <div className="mt-2 text-xs text-slate-400 flex items-center gap-1">
-                              <span>Submitted by</span>
-                              <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{task.created_by}</span>
-                           </div>
-                        )}
-                        {task.resubmission_motivation && (
-                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <div className="flex items-start gap-2">
-                              <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                              <div>
-                                <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Translator's Response/Motivation:</h4>
-                                <p className="text-sm text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">{task.resubmission_motivation}</p>
+                {/* Current Translation Display */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                  <div className="flex items-start gap-2 mb-2">
+                    <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                      Translation in Discussion
+                    </h3>
+                  </div>
+                  <div className="ml-7 space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                        Current Translation ({task.language?.toUpperCase()}):
+                      </label>
+                      <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-blue-700 text-sm text-slate-900 dark:text-white">
+                        {task.value}
+                      </div>
+                    </div>
+                    {task.created_by && (
+                      <div className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span>Originally submitted by</span>
+                        <span className="font-medium truncate">{task.created_by}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Translation History - Shows the discussion thread */}
+                {history.length > 0 && (
+                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <button
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock size={18} className="text-marine-500" />
+                        <span>Discussion History</span>
+                        <span className="ml-1 px-2 py-0.5 bg-marine-100 dark:bg-marine-900/40 text-marine-700 dark:text-marine-300 rounded-full text-xs font-bold">
+                          {history.length}
+                        </span>
+                      </div>
+                      <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M4 6l4 4 4-4z"/>
+                        </svg>
+                      </span>
+                    </button>
+                    
+                    {showHistory && (
+                      <div className="mt-4 space-y-3">
+                        {history.map((entry, idx) => {
+                          let extra = {};
+                          try {
+                            extra = entry.extra ? JSON.parse(entry.extra) : {};
+                          } catch (e) {
+                            console.error('Failed to parse history extra:', e);
+                          }
+                          return (
+                            <div 
+                              key={entry.id} 
+                              className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
+                                  {getActionIcon(entry.action)}
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                                      {formatHistoryAction(entry.action)}
+                                    </span>
+                                    {(entry.display_name || entry.username) && (
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        by <a 
+                                          href={`#/user/${entry.user_id}`}
+                                          className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            window.location.href = `#/user/${entry.user_id}`;
+                                          }}
+                                        >
+                                          {entry.display_name || entry.username}
+                                        </a>
+                                      </span>
+                                    )}
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
+                                      {formatDate(entry.created_at)}
+                                    </span>
+                                  </div>
+                                  
+                                  {extra.old_status && extra.new_status && (
+                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
+                                        {extra.old_status}
+                                      </span>
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
+                                        <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
+                                      </svg>
+                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
+                                        {extra.new_status}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {extra.rejection_reason && (
+                                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
+                                      <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
+                                      <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
+                                        {extra.rejection_reason}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {extra.discussion_message && (
+                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
+                                      <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
+                                      <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
+                                        {extra.discussion_message}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {extra.resubmission_motivation && (
+                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
+                                      <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
+                                      <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
+                                        {extra.resubmission_motivation}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Update Translation Form */}
+                <form onSubmit={handleTranslationSubmit} className="space-y-4">
+                  <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <div className="flex items-start gap-2 mb-3">
+                      <Edit3 className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                        Update Translation & Continue Discussion
+                      </h3>
+                    </div>
+                    <div className="ml-7 space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Updated Translation ({task.language?.toUpperCase()})
+                        </label>
+                        <textarea
+                          value={translationValue}
+                          onChange={(e) => setTranslationValue(e.target.value)}
+                          placeholder={`Update your translation here...`}
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:border-marine-500 focus:ring-2 focus:ring-marine-500/20 transition-all resize-none"
+                          rows={3}
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4" />
+                          Explanation of Changes (Optional)
+                        </label>
+                        <textarea
+                          value={resubmissionMotivation}
+                          onChange={(e) => setResubmissionMotivation(e.target.value)}
+                          placeholder="Explain why you updated the translation..."
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:border-marine-500 focus:ring-2 focus:ring-marine-500/20 transition-all resize-none"
+                          rows={3}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !translationValue.trim()}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-marine-500 to-teal-500 hover:from-marine-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-marine-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-5 h-5" />
+                            Update Translation
+                          </>
                         )}
-                     </div>
-                 </div>
+                      </button>
+                    </div>
+                  </div>
+                </form>
 
-                 {/* Translation History */}
-                 {history.length > 0 && (
-                   <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
-                     <button
-                       onClick={() => setShowHistory(!showHistory)}
-                       className="w-full flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200 hover:text-marine-600 dark:hover:text-marine-400 transition-colors"
-                     >
-                       <div className="flex items-center gap-2">
-                         <Clock size={18} className="text-marine-500" />
-                         <span>Translation History</span>
-                         <span className="ml-1 px-2 py-0.5 bg-marine-100 dark:bg-marine-900/40 text-marine-700 dark:text-marine-300 rounded-full text-xs font-bold">
-                           {history.length}
-                         </span>
-                       </div>
-                       <span className={`transform transition-transform ${showHistory ? 'rotate-180' : ''}`}>
-                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                           <path d="M4 6l4 4 4-4z"/>
-                         </svg>
-                       </span>
-                     </button>
-                     
-                     {showHistory && (
-                       <div className="mt-4 space-y-3">
-                         {history.map((entry, idx) => {
-                           let extra = {};
-                           try {
-                             extra = entry.extra ? JSON.parse(entry.extra) : {};
-                           } catch (e) {
-                             console.error('Failed to parse history extra:', e);
-                           }
-                           return (
-                             <div 
-                               key={entry.id} 
-                               className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
-                             >
-                               <div className="flex items-start gap-3">
-                                 <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
-                                   {getActionIcon(entry.action)}
-                                 </div>
-                                 <div className="flex-grow min-w-0">
-                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                     <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
-                                       {formatHistoryAction(entry.action)}
-                                     </span>
-                                     {(entry.display_name || entry.username) && (
-                                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                                         by <a 
-                                           href={`#/user/${entry.user_id}`}
-                                           className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
-                                           onClick={(e) => {
-                                             e.preventDefault();
-                                             window.location.href = `#/user/${entry.user_id}`;
-                                           }}
-                                         >
-                                           {entry.display_name || entry.username}
-                                         </a>
-                                       </span>
-                                     )}
-                                     <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
-                                       {formatDate(entry.created_at)}
-                                     </span>
-                                   </div>
-                                   
-                                   {extra.old_status && extra.new_status && (
-                                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
-                                         {extra.old_status}
-                                       </span>
-                                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
-                                         <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
-                                       </svg>
-                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
-                                         {extra.new_status}
-                                       </span>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.rejection_reason && (
-                                     <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
-                                       <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
-                                       <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
-                                         {extra.rejection_reason}
-                                       </div>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.discussion_message && (
-                                     <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                       <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
-                                       <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                         {extra.discussion_message}
-                                       </div>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.resubmission_motivation && (
-                                     <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                       <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
-                                       <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                         {extra.resubmission_motivation}
-                                       </div>
-                                     </div>
-                                   )}
-                                 </div>
-                               </div>
-                             </div>
-                           );
-                         })}
-                       </div>
-                     )}
-                   </div>
-                 )}
-
-                 <div className="flex gap-4 pt-4">
+                {/* Action Buttons - Reply to Discussion or Make Decision */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Or add a comment without updating the translation:</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                        onClick={handleDiscuss}
+                        disabled={isSubmitting}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
+                    >
+                        <MessageSquare className="w-5 h-5" />
+                        Add Comment
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 pt-2">
+                    <span>Or make a final decision on this translation:</span>
+                  </div>
+                  <div className="flex gap-4">
                     <button
                         onClick={handleReject}
                         disabled={isSubmitting}
@@ -726,14 +803,6 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         Reject
                     </button>
                     <button
-                        onClick={handleDiscuss}
-                        disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-blue-100 dark:border-blue-900/30 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
-                    >
-                        <MessageSquare className="w-5 h-5" />
-                        Discuss
-                    </button>
-                    <button
                         onClick={() => onSubmitReview('approve')}
                         disabled={isSubmitting}
                         className="flex-[2] flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
@@ -741,6 +810,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         <CheckCircle className="w-5 h-5" />
                         Approve Translation
                     </button>
+                  </div>
                 </div>
             </div>
         )}
