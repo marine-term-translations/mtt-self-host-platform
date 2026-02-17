@@ -418,7 +418,7 @@ function submitReview(params) {
       success: true,
       action: 'discuss',
       points: 0,
-      streakInfo: { current: 0, longest: 0 }
+      streakInfo: { streak: 0, longestStreak: 0, isNewStreak: false }
     };
   }
   

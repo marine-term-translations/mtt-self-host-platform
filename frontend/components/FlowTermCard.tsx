@@ -104,6 +104,8 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
     setShowDiscussModal(false);
     onSubmitReview('discuss', undefined, discussionMessage.trim());
     setDiscussionMessage('');
+    // Reload history after a brief delay to ensure the backend has saved the discussion
+    setTimeout(() => loadHistory(), 500);
   };
 
   const formatHistoryAction = (action: string) => {
@@ -889,7 +891,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
             <textarea
               value={discussionMessage}
               onChange={(e) => setDiscussionMessage(e.target.value)}
-              placeholder="e.g., Have you considered using... ?, What does this term mean in this context?, This looks good but..."
+              placeholder="e.g., Have you considered using...? What does this term mean in this context? This looks good but..."
               rows={4}
               className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
               autoFocus

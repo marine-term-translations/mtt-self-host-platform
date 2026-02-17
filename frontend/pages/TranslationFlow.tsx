@@ -172,15 +172,11 @@ const TranslationFlow: React.FC = () => {
         discussionMessage
       );
 
-      // For discussion, don't update stats but reload history
+      // For discussion, don't update stats but show success message
       if (action === 'discuss') {
         toast.success('Discussion message posted successfully');
-        // Don't load next task, stay on current one to continue discussion
-        // Reload the current task to get updated history
-        const task = await getNextTask(selectedLanguage, selectedSource);
-        if (task && task.task && task.task.translation_id === currentTask.task.translation_id) {
-          setCurrentTask(task);
-        }
+        // Stay on current translation - the FlowTermCard will reload history automatically
+        // when it detects a change (we don't need to manually reload here)
       } else {
         // Update session stats for approve/reject
         setSessionPoints((prev) => prev + result.points);
