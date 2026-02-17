@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser } from '../types';
+import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser, ApiTermDiscussion, ApiTermDiscussionMessage } from '../types';
 import { backendApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -68,6 +68,14 @@ const TermDetail: React.FC = () => {
     messageId: null,
     reason: ''
   });
+
+  // Term Discussion State
+  const [discussions, setDiscussions] = useState<ApiTermDiscussion[]>([]);
+  const [showDiscussions, setShowDiscussions] = useState(false);
+  const [newDiscussionTitle, setNewDiscussionTitle] = useState('');
+  const [newDiscussionMessage, setNewDiscussionMessage] = useState('');
+  const [discussionReply, setDiscussionReply] = useState<Record<number, string>>({});
+  const [isCreatingDiscussion, setIsCreatingDiscussion] = useState(false);
 
   // Derived display values
   const [displayLabel, setDisplayLabel] = useState('Loading...');
@@ -150,6 +158,23 @@ const TermDetail: React.FC = () => {
         setAppeals(appealsMap);
       } catch (err) {
         console.warn("Could not fetch appeals", err);
+      }
+
+      // Fetch Discussions for this term
+      try {
+        const termDiscussions = await backendApi.getTermDiscussions(foundApiTerm.id);
+        // Fetch messages for each discussion
+        for (const discussion of termDiscussions) {
+          try {
+            const messages = await backendApi.getDiscussionMessages(discussion.id);
+            discussion.messages = messages;
+          } catch (e) {
+            discussion.messages = [];
+          }
+        }
+        setDiscussions(termDiscussions);
+      } catch (err) {
+        console.warn("Could not fetch discussions", err);
       }
 
       // 5. Extract Meta Info
@@ -574,6 +599,69 @@ Original Text (${fieldName}): "${field.original_value}"`;
       await fetchTermData();
     } catch (error) {
       toast.error("Failed to close appeal");
+    }
+  };
+
+  // Discussion handlers
+  const handleCreateDiscussion = async () => {
+    if (!user || !term || !newDiscussionTitle.trim() || !newDiscussionMessage.trim()) {
+      toast.error("Please provide both title and message");
+      return;
+    }
+    setIsCreatingDiscussion(true);
+    try {
+      await backendApi.createTermDiscussion(term.id, {
+        title: newDiscussionTitle,
+        message: newDiscussionMessage
+      });
+      setNewDiscussionTitle('');
+      setNewDiscussionMessage('');
+      toast.success("Discussion created");
+      await fetchTermData();
+    } catch (error) {
+      toast.error("Failed to create discussion");
+    } finally {
+      setIsCreatingDiscussion(false);
+    }
+  };
+
+  const handleReplyDiscussion = async (discussionId: number) => {
+    if (!user || !discussionReply[discussionId]?.trim()) return;
+    try {
+      await backendApi.createDiscussionMessage(discussionId, {
+        message: discussionReply[discussionId]
+      });
+      setDiscussionReply({ ...discussionReply, [discussionId]: '' });
+      toast.success("Reply sent");
+      await fetchTermData();
+    } catch (error) {
+      toast.error("Failed to send reply");
+    }
+  };
+
+  const handleCloseDiscussion = async (discussionId: number) => {
+    if (!user) return;
+    try {
+      await backendApi.updateDiscussion(discussionId, {
+        status: 'closed'
+      });
+      toast.success("Discussion closed");
+      await fetchTermData();
+    } catch (error) {
+      toast.error("Failed to close discussion");
+    }
+  };
+
+  const handleReopenDiscussion = async (discussionId: number) => {
+    if (!user) return;
+    try {
+      await backendApi.updateDiscussion(discussionId, {
+        status: 'open'
+      });
+      toast.success("Discussion reopened");
+      await fetchTermData();
+    } catch (error) {
+      toast.error("Failed to reopen discussion");
     }
   };
 
@@ -1333,6 +1421,161 @@ Original Text (${fieldName}): "${field.original_value}"`;
               </div>
             );
           })}
+        </div>
+
+        {/* Term-Level Discussions Section */}
+        <div className="lg:col-span-3">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <MessageCircle size={20} className="text-marine-500" />
+                Discussions ({discussions.length})
+              </h3>
+              <button
+                onClick={() => setShowDiscussions(!showDiscussions)}
+                className="text-sm text-marine-600 hover:text-marine-700 font-medium"
+              >
+                {showDiscussions ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            {showDiscussions && (
+              <div className="space-y-4">
+                {/* Create New Discussion */}
+                {user && (
+                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
+                      Start a New Discussion
+                    </h4>
+                    <input
+                      type="text"
+                      placeholder="Discussion title..."
+                      value={newDiscussionTitle}
+                      onChange={(e) => setNewDiscussionTitle(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg mb-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                    <textarea
+                      placeholder="What would you like to discuss about this term?"
+                      value={newDiscussionMessage}
+                      onChange={(e) => setNewDiscussionMessage(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg mb-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                      rows={3}
+                    />
+                    <button
+                      onClick={handleCreateDiscussion}
+                      disabled={isCreatingDiscussion || !newDiscussionTitle.trim() || !newDiscussionMessage.trim()}
+                      className="px-4 py-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <PlusCircle size={16} />
+                      {isCreatingDiscussion ? 'Creating...' : 'Create Discussion'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Discussion List */}
+                {discussions.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <MessageCircle size={48} className="mx-auto mb-2 opacity-20" />
+                    <p>No discussions yet. Be the first to start one!</p>
+                  </div>
+                ) : (
+                  discussions.map((discussion) => (
+                    <div
+                      key={discussion.id}
+                      className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h4 className="text-md font-bold text-slate-900 dark:text-white mb-1">
+                            {discussion.title}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>Started by {discussion.started_by}</span>
+                            <span>•</span>
+                            <span>{format(parse(discussion.created_at), 'YYYY-MM-DD')}</span>
+                            {discussion.message_count && discussion.message_count > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{discussion.message_count} message{discussion.message_count !== 1 ? 's' : ''}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              discussion.status === 'open'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-slate-100 text-slate-800'
+                            }`}
+                          >
+                            {discussion.status}
+                          </span>
+                          {user && discussion.started_by === user.username && (
+                            <button
+                              onClick={() =>
+                                discussion.status === 'open'
+                                  ? handleCloseDiscussion(discussion.id)
+                                  : handleReopenDiscussion(discussion.id)
+                              }
+                              className="text-xs text-slate-500 hover:text-marine-600"
+                            >
+                              {discussion.status === 'open' ? 'Close' : 'Reopen'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Discussion Messages */}
+                      <div className="space-y-2 ml-3 pl-3 border-l-2 border-slate-200 dark:border-slate-700">
+                        {discussion.messages?.map((msg) => (
+                          <div key={msg.id} className="text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {msg.author}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {format(parse(msg.created_at), 'YYYY-MM-DD HH:mm')}
+                              </span>
+                            </div>
+                            <p className="text-slate-600 dark:text-slate-400">{msg.message}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Reply Input */}
+                      {user && discussion.status === 'open' && (
+                        <div className="mt-3 flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Reply to this discussion..."
+                            value={discussionReply[discussion.id] || ''}
+                            onChange={(e) =>
+                              setDiscussionReply({
+                                ...discussionReply,
+                                [discussion.id]: e.target.value,
+                              })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleReplyDiscussion(discussion.id);
+                            }}
+                            className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900"
+                          />
+                          <button
+                            onClick={() => handleReplyDiscussion(discussion.id)}
+                            disabled={!discussionReply[discussion.id]?.trim()}
+                            className="p-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
