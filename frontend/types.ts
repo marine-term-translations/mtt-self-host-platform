@@ -146,6 +146,28 @@ export interface ApiAppeal {
   messages?: ApiAppealMessage[]; // Optional: populated via join or separate call
 }
 
+export interface ApiTermDiscussionMessage {
+  id: number;
+  discussion_id: number;
+  author_id: number;
+  author: string;
+  message: string;
+  created_at: string;
+}
+
+export interface ApiTermDiscussion {
+  id: number;
+  term_id: number;
+  started_by_id: number;
+  started_by: string;
+  title: string;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  message_count?: number;
+  messages?: ApiTermDiscussionMessage[];
+}
+
 export interface ApiLanguage {
   code: string;
   name: string;
