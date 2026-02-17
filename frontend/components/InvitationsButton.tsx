@@ -33,19 +33,39 @@ const InvitationsButton: React.FC = () => {
 
   return (
     <>
-      {/* Floating button - hidden on mobile */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="hidden md:flex fixed bottom-6 right-6 z-40 w-14 h-14 bg-marine-600 hover:bg-marine-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all items-center justify-center group"
-        aria-label="View community invitations"
-      >
-        <Mail size={24} className="group-hover:scale-110 transition-transform" />
-        {invitationCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
-            {invitationCount > 9 ? '9+' : invitationCount}
-          </span>
-        )}
-      </button>
+      {/* Invitations box widget - top right, hidden on mobile */}
+      <div className="hidden md:block fixed top-20 right-6 z-40">
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg hover:shadow-xl transition-all hover:border-marine-400 dark:hover:border-marine-600 group"
+          aria-label="View community invitations"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-marine-100 dark:bg-marine-900/30 flex items-center justify-center">
+              <Mail className="text-marine-600 dark:text-marine-400" size={20} />
+            </div>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                Invitations
+              </div>
+              {invitationCount > 0 ? (
+                <div className="text-xs text-marine-600 dark:text-marine-400 font-medium">
+                  {invitationCount} pending
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  No pending
+                </div>
+              )}
+            </div>
+          </div>
+          {invitationCount > 0 && (
+            <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+              {invitationCount > 9 ? '9+' : invitationCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       <InvitationsModal
         isOpen={isModalOpen}
