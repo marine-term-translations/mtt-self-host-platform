@@ -71,7 +71,7 @@ const TermDetail: React.FC = () => {
 
   // Term Discussion State
   const [discussions, setDiscussions] = useState<ApiTermDiscussion[]>([]);
-  const [showDiscussions, setShowDiscussions] = useState(false);
+  const [showDiscussions, setShowDiscussions] = useState(true);
   const [newDiscussionTitle, setNewDiscussionTitle] = useState('');
   const [newDiscussionMessage, setNewDiscussionMessage] = useState('');
   const [discussionReply, setDiscussionReply] = useState<Record<number, string>>({});
