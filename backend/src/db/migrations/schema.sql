@@ -36,6 +36,7 @@ CREATE TABLE translations (
     modified_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     rejection_reason TEXT,  -- Reason for rejection when status is 'rejected'
+    resubmission_motivation TEXT,  -- User's motivation/argument when resubmitting after rejection
     UNIQUE(term_field_id, language, status)
 );
 

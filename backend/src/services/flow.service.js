@@ -110,7 +110,7 @@ function getRejectedTranslations(userIdentifier, language = null, sourceId = nul
   
   // Build query to get rejected translations created by this user
   let query = `SELECT t.id as translation_id, t.term_field_id, t.language, t.value, t.status,
-            t.created_by_id, t.created_at, t.rejection_reason,
+            t.created_by_id, t.created_at, t.rejection_reason, t.resubmission_motivation,
             tf.field_uri, tf.original_value,
             term.id as term_id, term.uri as term_uri, term.source_id
      FROM translations t

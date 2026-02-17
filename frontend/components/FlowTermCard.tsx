@@ -11,7 +11,7 @@ interface FlowTermCardProps {
   taskType: 'review' | 'translate' | 'rework';
   languages: Array<{ code: string; name: string }>;
   onSubmitReview: (action: 'approve' | 'reject', rejectionReason?: string) => void;
-  onSubmitTranslation: (language: string, value: string) => void;
+  onSubmitTranslation: (language: string, value: string, resubmissionMotivation?: string) => void;
   isSubmitting: boolean;
   relevantGoal?: { goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null;
 }
@@ -27,6 +27,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
 }) => {
   const [selectedLanguage, setSelectedLanguage] = useState(languages[0]?.code || 'nl');
   const [translationValue, setTranslationValue] = useState('');
+  const [resubmissionMotivation, setResubmissionMotivation] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const { apiKey, hasApiKey, isLoading: isLoadingApiKey } = useOpenRouterApiKey();
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -46,8 +47,11 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   useEffect(() => {
     if (taskType === 'rework' && task?.value) {
       setTranslationValue(task.value);
+      // Pre-fill resubmission motivation if it was previously provided
+      setResubmissionMotivation(task.resubmission_motivation || '');
     } else {
       setTranslationValue('');
+      setResubmissionMotivation('');
     }
   }, [taskType, task]);
 
@@ -104,8 +108,9 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const handleTranslationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (translationValue.trim()) {
-      onSubmitTranslation(selectedLanguage, translationValue.trim());
+      onSubmitTranslation(selectedLanguage, translationValue.trim(), resubmissionMotivation.trim() || undefined);
       setTranslationValue('');
+      setResubmissionMotivation('');
     }
   };
 
@@ -388,6 +393,17 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                               <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{task.created_by}</span>
                            </div>
                         )}
+                        {task.resubmission_motivation && (
+                          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Translator's Response/Motivation:</h4>
+                                <p className="text-sm text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">{task.resubmission_motivation}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                      </div>
                  </div>
 
@@ -473,6 +489,15 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                                        <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
                                        <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
                                          {extra.rejection_reason}
+                                       </div>
+                                     </div>
+                                   )}
+                                   
+                                   {extra.resubmission_motivation && (
+                                     <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
+                                       <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
+                                       <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
+                                         {extra.resubmission_motivation}
                                        </div>
                                      </div>
                                    )}
@@ -730,6 +755,24 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                             required
                         />
                     </div>
+                </div>
+
+                {/* Resubmission Motivation */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Your Response/Motivation (Optional)
+                    </label>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                        Explain why you disagree with the rejection or describe your improvements
+                    </p>
+                    <textarea
+                        value={resubmissionMotivation}
+                        onChange={(e) => setResubmissionMotivation(e.target.value)}
+                        placeholder="e.g., I believe this term is more accurate because..., The rejection was based on..., I have corrected the grammar issue by..."
+                        rows={3}
+                        className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 focus:border-marine-500 outline-none resize-none shadow-sm transition-shadow"
+                        disabled={isSubmitting}
+                    />
                 </div>
 
                 <button

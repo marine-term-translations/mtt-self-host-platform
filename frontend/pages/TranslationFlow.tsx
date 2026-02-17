@@ -212,7 +212,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle translation submission
-  const handleSubmitTranslation = async (language: string, value: string) => {
+  const handleSubmitTranslation = async (language: string, value: string, resubmissionMotivation?: string) => {
     if (!currentTask?.task || !sessionId || !user) return;
 
     const task = currentTask.task;
@@ -251,6 +251,7 @@ const TranslationFlow: React.FC = () => {
                 value,
                 status: 'review',
                 created_by: translationsPayload[existingIndex].created_by,
+                ...(resubmissionMotivation ? { resubmission_motivation: resubmissionMotivation } : {}),
               };
             } else {
               // Add new translation
@@ -259,6 +260,7 @@ const TranslationFlow: React.FC = () => {
                 value,
                 status: 'review',
                 created_by: user.username,
+                ...(resubmissionMotivation ? { resubmission_motivation: resubmissionMotivation } : {}),
               });
             }
           }
