@@ -203,6 +203,11 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isMobile = false })
   };
 
   const totalCount = unreadCount + invitationCount;
+  
+  // Dropdown positioning classes
+  const dropdownClasses = isMobile 
+    ? 'absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50'
+    : 'absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50';
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -215,7 +220,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isMobile = false })
             <Bell size={24} strokeWidth={2} />
             {totalCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                {totalCount > 9 ? '9+' : totalCount}
+                {totalCount > 99 ? '99+' : totalCount}
               </span>
             )}
           </div>
@@ -237,7 +242,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isMobile = false })
       )}
 
       {isOpen && (
-        <div className={`absolute ${isMobile ? 'bottom-full right-1/2 translate-x-1/2 mb-2' : 'right-0 mt-2'} w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50`}>
+        <div className={dropdownClasses}>
           <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
             <h3 className="font-semibold text-slate-900 dark:text-white">Notifications & Invitations</h3>
             {unreadCount > 0 && (
