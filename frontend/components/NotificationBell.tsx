@@ -215,6 +215,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isMobile = false })
         <button
           onClick={handleBellClick}
           className="relative flex flex-col items-center justify-center gap-1 transition-colors text-slate-500 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-400"
+          aria-label="Alerts - Notifications and Invitations"
         >
           <div className="relative">
             <Bell size={24} strokeWidth={2} />
@@ -230,7 +231,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ isMobile = false })
         <button
           onClick={handleBellClick}
           className="relative p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          aria-label="Notifications and Invitations"
+          aria-label="Alerts - Notifications and Invitations"
         >
           <Bell size={20} />
           {totalCount > 0 && (
