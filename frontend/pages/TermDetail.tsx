@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ApiTerm, ApiField, ApiUserActivity, ApiAppeal, ApiAppealMessage, ApiPublicUser, ApiTermDiscussion, ApiTermDiscussionMessage } from '../types';
 import { backendApi } from '../services/api';
+import * as flowApi from '../services/flow.api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, ExternalLink, Send, Lock, Globe, Info, AlignLeft, Tag, BookOpen,
@@ -678,6 +679,32 @@ Original Text (${fieldName}): "${field.original_value}"`;
       await fetchTermData();
     } catch (error) {
       toast.error("Failed to reopen discussion");
+    }
+  };
+
+  // Handler for joining translation discussions (from flow system)
+  const handleJoinTranslationDiscussion = async (translationId: number) => {
+    if (!user || !discussionReply[translationId]?.trim()) return;
+    
+    try {
+      // Use the flow review endpoint with 'discuss' action
+      await flowApi.submitReview(
+        translationId,
+        'discuss',
+        undefined, // sessionId not needed
+        undefined, // rejectionReason not needed
+        discussionReply[translationId].trim()
+      );
+      
+      // Clear the input
+      setDiscussionReply({ ...discussionReply, [translationId]: '' });
+      toast.success("Message added to discussion");
+      
+      // Refresh the term data to show the new message
+      await fetchTermData();
+    } catch (error) {
+      console.error("Failed to join translation discussion:", error);
+      toast.error("Failed to add message to discussion");
     }
   };
 
@@ -1512,6 +1539,11 @@ Original Text (${fieldName}): "${field.original_value}"`;
                             
                             if (!translation) return null;
                             
+                            // Hide discussions for approved or merged translations
+                            if (translation.status === 'approved' || translation.status === 'merged') {
+                              return null;
+                            }
+                            
                             // Find the field this translation belongs to
                             const field = term?.fields.find(f => 
                               f.translations?.some(t => t.id === parseInt(translationId))
@@ -1519,6 +1551,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
                             
                             const fieldLabel = field?.original_value || 'Unknown field';
                             const language = translation.language.toUpperCase();
+                            const translationIdNum = parseInt(translationId);
                             
                             return (
                               <div
@@ -1533,6 +1566,13 @@ Original Text (${fieldName}): "${field.original_value}"`;
                                       </span>
                                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                         Translation: {fieldLabel}
+                                      </span>
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                        translation.status === 'discussion' 
+                                          ? 'bg-orange-100 text-orange-800' 
+                                          : 'bg-slate-100 text-slate-800'
+                                      }`}>
+                                        {translation.status}
                                       </span>
                                     </div>
                                     <div className="text-xs text-slate-500 mt-1">
@@ -1567,6 +1607,37 @@ Original Text (${fieldName}): "${field.original_value}"`;
                                     );
                                   })}
                                 </div>
+
+                                {/* Join Discussion Input */}
+                                {user && translation.status === 'discussion' && (
+                                  <div className="mt-3 flex gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Add your message to this discussion..."
+                                      value={discussionReply[translationIdNum] || ''}
+                                      onChange={(e) =>
+                                        setDiscussionReply({
+                                          ...discussionReply,
+                                          [translationIdNum]: e.target.value,
+                                        })
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && discussionReply[translationIdNum]?.trim()) {
+                                          handleJoinTranslationDiscussion(translationIdNum);
+                                        }
+                                      }}
+                                      className="flex-1 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900"
+                                    />
+                                    <button
+                                      onClick={() => handleJoinTranslationDiscussion(translationIdNum)}
+                                      disabled={!discussionReply[translationIdNum]?.trim()}
+                                      className="p-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Join discussion"
+                                    >
+                                      <Send size={16} />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
