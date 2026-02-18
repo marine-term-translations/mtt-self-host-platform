@@ -544,30 +544,33 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                    </div>
                  )}
 
-                 <div className="flex gap-4 pt-4">
+                 <div className="flex gap-2 md:gap-4 pt-4">
                     <button
                         onClick={handleReject}
                         disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
+                        aria-label="Reject translation"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
                         <XCircle className="w-5 h-5" />
-                        Reject
+                        <span className="hidden md:inline">Reject</span>
                     </button>
                     <button
                         onClick={handleDiscuss}
                         disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-blue-100 dark:border-blue-900/30 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
+                        aria-label="Discuss translation"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-white dark:bg-slate-800 border-2 border-blue-100 dark:border-blue-900/30 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
                         <MessageSquare className="w-5 h-5" />
-                        Discuss
+                        <span className="hidden md:inline">Discuss</span>
                     </button>
                     <button
                         onClick={() => onSubmitReview('approve')}
                         disabled={isSubmitting}
-                        className="flex-[2] flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
+                        aria-label="Approve translation"
+                        className="flex-[2] flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
                     >
                         <CheckCircle className="w-5 h-5" />
-                        Approve Translation
+                        <span className="hidden md:inline">Approve Translation</span>
                     </button>
                 </div>
             </div>
@@ -793,22 +796,24 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                   <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 pt-2">
                     <span>Or make a final decision on this translation:</span>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex gap-2 md:gap-4">
                     <button
                         onClick={handleReject}
                         disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
+                        aria-label="Reject translation"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
                         <XCircle className="w-5 h-5" />
-                        Reject
+                        <span className="hidden md:inline">Reject</span>
                     </button>
                     <button
                         onClick={() => onSubmitReview('approve')}
                         disabled={isSubmitting}
-                        className="flex-[2] flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
+                        aria-label="Approve translation"
+                        className="flex-[2] flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
                     >
                         <CheckCircle className="w-5 h-5" />
-                        Approve Translation
+                        <span className="hidden md:inline">Approve Translation</span>
                     </button>
                   </div>
                 </div>
@@ -1092,14 +1097,14 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRejectModal(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Rejection Reason Required</h3>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Flag Translation</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Please provide a clear reason for rejecting this translation. This helps the translator improve.
+              Please provide a reason for flagging this translation (e.g., spam, severely lacking quality, inappropriate content, or incorrect terminology).
             </p>
             <textarea
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g., Incorrect terminology, grammar issues, missing context..."
+              placeholder="e.g., Spam content, severely lacking quality, inappropriate, incorrect terminology..."
               rows={4}
               className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
               autoFocus
@@ -1119,7 +1124,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                 disabled={!rejectionReason.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Reject Translation
+                Flag Translation
               </button>
             </div>
           </div>
