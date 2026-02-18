@@ -236,6 +236,37 @@ async function getTranslationTask(req, res) {
   }
 }
 
+/**
+ * Skip current task and get next one
+ */
+async function skipTask(req, res) {
+  try {
+    if (!req.session || !req.session.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const userId = req.session.user.id || req.session.user.user_id;
+    const { taskType, termId, fieldUri, language } = req.body;
+    
+    // Log the skip action (optional - for analytics)
+    flowService.logSkipAction({
+      userId,
+      taskType,
+      termId,
+      fieldUri,
+      language,
+    });
+    
+    res.json({
+      success: true,
+      message: "Task skipped successfully",
+    });
+  } catch (error) {
+    console.error("[Flow] Skip task error:", error);
+    res.status(500).json({ error: error.message || "Failed to skip task" });
+  }
+}
+
 module.exports = {
   startFlow,
   getNextTask,
@@ -245,5 +276,6 @@ module.exports = {
   endSession,
   getLeaderboard,
   getTranslationHistory,
-  getTranslationTask
+  getTranslationTask,
+  skipTask
 };

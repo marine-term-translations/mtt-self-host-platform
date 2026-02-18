@@ -678,6 +678,52 @@ function getTranslationHistory(translationId) {
   });
 }
 
+/**
+ * Log a skip action for analytics
+ * @param {object} params - Skip action parameters
+ * @param {number|string} params.userId - User ID or username
+ * @param {string} params.taskType - Type of task skipped
+ * @param {number} params.termId - Term ID (optional)
+ * @param {string} params.fieldUri - Field URI (optional)
+ * @param {string} params.language - Language (optional)
+ */
+function logSkipAction({ userId, taskType, termId, fieldUri, language }) {
+  const db = getDatabase();
+  const { resolveUsernameToId } = require("../db/database");
+  
+  // Resolve user identifier to user_id
+  let resolvedUserId = typeof userId === 'number' ? userId : parseInt(userId, 10);
+  if (isNaN(resolvedUserId)) {
+    resolvedUserId = resolveUsernameToId(userId);
+    if (!resolvedUserId) {
+      console.warn("[Flow] Could not resolve user ID for skip action logging");
+      return;
+    }
+  }
+  
+  try {
+    // Log as activity for analytics
+    const extra = {
+      task_type: taskType,
+      language: language || null,
+      field_uri: fieldUri || null,
+    };
+    
+    db.prepare(
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      resolvedUserId,
+      'task_skipped',
+      termId || null,
+      null, // term_field_id
+      null, // translation_id
+      JSON.stringify(extra)
+    );
+  } catch (err) {
+    console.warn("[Flow] Could not log skip action:", err.message);
+  }
+}
+
 module.exports = {
   getPendingReviews,
   getRejectedTranslations,
@@ -686,7 +732,8 @@ module.exports = {
   submitReview,
   getAvailableLanguages,
   getTranslationHistory,
-  getTranslationTask
+  getTranslationTask,
+  logSkipAction
 };
 
 /**

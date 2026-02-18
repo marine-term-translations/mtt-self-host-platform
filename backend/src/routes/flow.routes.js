@@ -260,4 +260,35 @@ router.get("/flow/translation/:translationId/history", apiLimiter, flowControlle
  */
 router.get("/flow/translation/:translationId", apiLimiter, flowController.getTranslationTask);
 
+/**
+ * @openapi
+ * /api/flow/skip:
+ *   post:
+ *     summary: Skip current translation task
+ *     tags: [Flow]
+ *     security:
+ *       - sessionAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               taskType:
+ *                 type: string
+ *               termId:
+ *                 type: number
+ *               fieldUri:
+ *                 type: string
+ *               language:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Task skipped successfully
+ *       401:
+ *         description: Not authenticated
+ */
+router.post("/flow/skip", writeLimiter, flowController.skipTask);
+
 module.exports = router;

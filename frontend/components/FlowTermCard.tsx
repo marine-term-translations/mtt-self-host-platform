@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle, PlusCircle, Edit3 } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle, PlusCircle, Edit3, SkipForward } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
@@ -12,6 +12,7 @@ interface FlowTermCardProps {
   languages: Array<{ code: string; name: string }>;
   onSubmitReview: (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string) => void;
   onSubmitTranslation: (language: string, value: string, resubmissionMotivation?: string) => void;
+  onSkipTask: () => void;
   isSubmitting: boolean;
   relevantGoal?: { goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null;
 }
@@ -22,6 +23,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   languages,
   onSubmitReview,
   onSubmitTranslation,
+  onSkipTask,
   isSubmitting,
   relevantGoal,
 }) => {
@@ -874,23 +876,35 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     </div>
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={isSubmitting || !translationValue.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-marine-600 to-marine-500 hover:from-marine-700 hover:to-marine-600 text-white rounded-xl font-bold shadow-lg shadow-marine-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 disabled:transform-none disabled:shadow-none"
-                >
-                    {isSubmitting ? (
-                        <>
-                           <Loader2 className="w-5 h-5 animate-spin" />
-                           Submitting...
-                        </>
-                    ) : (
-                        <>
-                           <Send className="w-5 h-5" />
-                           Submit Translation
-                        </>
-                    )}
-                </button>
+                <div className="space-y-3">
+                  <button
+                      type="submit"
+                      disabled={isSubmitting || !translationValue.trim()}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-marine-600 to-marine-500 hover:from-marine-700 hover:to-marine-600 text-white rounded-xl font-bold shadow-lg shadow-marine-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 disabled:transform-none disabled:shadow-none"
+                  >
+                      {isSubmitting ? (
+                          <>
+                             <Loader2 className="w-5 h-5 animate-spin" />
+                             Submitting...
+                          </>
+                      ) : (
+                          <>
+                             <Send className="w-5 h-5" />
+                             Submit Translation
+                          </>
+                      )}
+                  </button>
+                  
+                  <button
+                      type="button"
+                      onClick={onSkipTask}
+                      disabled={isSubmitting}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl font-medium transition-all disabled:opacity-50"
+                  >
+                      <SkipForward className="w-5 h-5" />
+                      Skip Task
+                  </button>
+                </div>
             </form>
         )}
 
@@ -1072,23 +1086,35 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     />
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={isSubmitting || !translationValue.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 disabled:transform-none disabled:shadow-none"
-                >
-                    {isSubmitting ? (
-                        <>
-                           <Loader2 className="w-5 h-5 animate-spin" />
-                           Resubmitting...
-                        </>
-                    ) : (
-                        <>
-                           <Send className="w-5 h-5" />
-                           Resubmit Translation
-                        </>
-                    )}
-                </button>
+                <div className="space-y-3">
+                  <button
+                      type="submit"
+                      disabled={isSubmitting || !translationValue.trim()}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.01] disabled:opacity-50 disabled:transform-none disabled:shadow-none"
+                  >
+                      {isSubmitting ? (
+                          <>
+                             <Loader2 className="w-5 h-5 animate-spin" />
+                             Resubmitting...
+                          </>
+                      ) : (
+                          <>
+                             <Send className="w-5 h-5" />
+                             Resubmit Translation
+                          </>
+                      )}
+                  </button>
+                  
+                  <button
+                      type="button"
+                      onClick={onSkipTask}
+                      disabled={isSubmitting}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl font-medium transition-all disabled:opacity-50"
+                  >
+                      <SkipForward className="w-5 h-5" />
+                      Skip Task
+                  </button>
+                </div>
             </form>
         )}
       </div>
