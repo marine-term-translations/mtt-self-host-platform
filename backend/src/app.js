@@ -94,7 +94,7 @@ app.use("/", userRoutes);
 app.use("/", termsRoutes);
 app.use("/", teamsRoutes);
 app.use("/", appealsRoutes);
-app.use("/api", termDiscussionsRoutes);
+app.use("/", termDiscussionsRoutes);
 app.use("/", flowRoutes);
 app.use("/", browseRoutes);
 app.use("/", sourcesRoutes);
@@ -112,6 +112,6 @@ app.use("/", communityGoalsRoutes);
 app.use("/", communitiesRoutes);
 app.use("/", communityInvitationsRoutes);
 app.use("/", communityStatsRoutes);
-app.use("/api", notificationRoutes);
+app.use("/", notificationRoutes);
 
 module.exports = app;
