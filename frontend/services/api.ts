@@ -2,7 +2,7 @@
 
 
 import { CONFIG } from '../config';
-import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage, ApiAdminActivity } from '../types';
+import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiAppeal, ApiLanguage, ApiAdminActivity, ApiTermDiscussion, ApiTermDiscussionMessage } from '../types';
 
 interface RequestOptions extends RequestInit {
   token?: string;
@@ -207,6 +207,28 @@ class ApiService {
 
   public async getAppealMessages(appealId: number): Promise<any[]> {
     return this.get<any[]>(`/appeals/${appealId}/messages`);
+  }
+
+  // --- Term Discussions ---
+
+  public async getTermDiscussions(termId: number): Promise<ApiTermDiscussion[]> {
+    return this.get<ApiTermDiscussion[]>(`/terms/${termId}/discussions`);
+  }
+
+  public async createTermDiscussion(termId: number, data: { title: string; message: string }): Promise<ApiTermDiscussion> {
+    return this.post<ApiTermDiscussion>(`/terms/${termId}/discussions`, data);
+  }
+
+  public async updateDiscussion(discussionId: number, data: { status: string }): Promise<ApiTermDiscussion> {
+    return this.patch<ApiTermDiscussion>(`/discussions/${discussionId}`, data);
+  }
+
+  public async getDiscussionMessages(discussionId: number): Promise<ApiTermDiscussionMessage[]> {
+    return this.get<ApiTermDiscussionMessage[]>(`/discussions/${discussionId}/messages`);
+  }
+
+  public async createDiscussionMessage(discussionId: number, data: { message: string }): Promise<ApiTermDiscussionMessage> {
+    return this.post<ApiTermDiscussionMessage>(`/discussions/${discussionId}/messages`, data);
   }
 
   // --- Stats ---
