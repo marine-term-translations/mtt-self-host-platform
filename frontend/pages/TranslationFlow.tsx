@@ -13,6 +13,7 @@ import {
   endFlowSession,
   getFlowStats,
   getTranslationTask,
+  skipTask,
   FlowTask,
   UserStats,
   DailyChallenge,
@@ -360,6 +361,33 @@ const TranslationFlow: React.FC = () => {
     }
   };
 
+  // Handle skip task
+  const handleSkipTask = async () => {
+    if (!currentTask?.task) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // Log the skip action
+      await skipTask({
+        taskType: currentTask.type,
+        termId: currentTask.task.term_id,
+        fieldUri: currentTask.task.field_uri,
+        language: currentTask.task.language,
+      });
+
+      toast.success('Task skipped');
+
+      // Load next task
+      await loadNextTask();
+    } catch (error) {
+      console.error('Failed to skip task:', error);
+      toast.error('Failed to skip task');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
@@ -470,6 +498,7 @@ const TranslationFlow: React.FC = () => {
               }
               onSubmitReview={handleSubmitReview}
               onSubmitTranslation={handleSubmitTranslation}
+              onSkipTask={handleSkipTask}
               isSubmitting={isSubmitting}
               relevantGoal={relevantGoal}
             />

@@ -214,3 +214,15 @@ export async function getLeaderboard(limit: number = 10): Promise<{
 export async function getTranslationTask(translationId: number): Promise<FlowTask> {
   return backendApi.get<FlowTask>(`/flow/translation/${translationId}`);
 }
+
+/**
+ * Skip current task
+ */
+export async function skipTask(taskData?: {
+  taskType?: string;
+  termId?: number;
+  fieldUri?: string;
+  language?: string;
+}): Promise<{ success: boolean; message: string }> {
+  return backendApi.post<{ success: boolean; message: string }>('/flow/skip', taskData || {});
+}
