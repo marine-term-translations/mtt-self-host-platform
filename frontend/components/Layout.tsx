@@ -7,7 +7,6 @@ import { parse, format, now } from '@/src/utils/datetime';
 import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
-import InvitationsButton from './InvitationsButton';
 import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
@@ -101,7 +100,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               
               {isAuthenticated ? (
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
-                   <InvitationsButton />
                    <NotificationBell />
                    <div className="relative group">
                      <Link to={`/user/${user?.id || user?.user_id}`} className="flex items-center gap-2 hover:opacity-80">
@@ -204,9 +202,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Community Goals Widget - hidden on mobile */}
       {isAuthenticated && <CommunityGoalWidget className="hidden md:block" />}
-      
-      {/* Invitations Button - hidden on mobile */}
-      {isAuthenticated && <InvitationsButton />}
       
       {/* Bottom Navigation - only on phone when authenticated */}
       {isAuthenticated && <BottomNav />}

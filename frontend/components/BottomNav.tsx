@@ -1,25 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, TrendingUp, Target, Mail } from 'lucide-react';
+import { Home, TrendingUp, Target } from 'lucide-react';
 import { backendApi } from '../services/api';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
-import InvitationsModal from './InvitationsModal';
+import NotificationBell from './NotificationBell';
 
 const BottomNav: React.FC = () => {
   const location = useLocation();
   const [pendingGoalsCount, setPendingGoalsCount] = useState<number>(0);
-  const [invitationCount, setInvitationCount] = useState<number>(0);
-  const [isInvitationsModalOpen, setIsInvitationsModalOpen] = useState(false);
-
-  const fetchInvitationCount = async () => {
-    try {
-      const invitations = await backendApi.get<any[]>('/invitations');
-      setInvitationCount(invitations.length);
-    } catch (error) {
-      console.error('Failed to fetch invitations count:', error);
-      setInvitationCount(0);
-    }
-  };
 
   useEffect(() => {
     const fetchPendingGoalsCount = async () => {
@@ -49,17 +37,7 @@ const BottomNav: React.FC = () => {
     };
 
     fetchPendingGoalsCount();
-    fetchInvitationCount();
-    
-    // Poll for new invitations every 30 seconds
-    const interval = setInterval(fetchInvitationCount, 30000);
-    
-    return () => clearInterval(interval);
   }, []);
-
-  const handleInvitationUpdate = () => {
-    fetchInvitationCount();
-  };
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -115,29 +93,12 @@ const BottomNav: React.FC = () => {
             );
           })}
           
-          {/* Invitations button */}
-          <button
-            onClick={() => setIsInvitationsModalOpen(true)}
-            className="relative flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors text-slate-500 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-400"
-          >
-            <div className="relative">
-              <Mail size={24} strokeWidth={2} />
-              {invitationCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                  {invitationCount > 9 ? '9+' : invitationCount}
-                </span>
-              )}
-            </div>
-            <span className="text-xs font-medium">Invites</span>
-          </button>
+          {/* Notifications & Invitations Bell - Mobile optimized */}
+          <div className="relative flex flex-col items-center justify-center flex-1 h-full">
+            <NotificationBell isMobile={true} />
+          </div>
         </div>
       </nav>
-
-      <InvitationsModal
-        isOpen={isInvitationsModalOpen}
-        onClose={() => setIsInvitationsModalOpen(false)}
-        onInvitationUpdate={handleInvitationUpdate}
-      />
     </>
   );
 };
