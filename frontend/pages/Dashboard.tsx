@@ -142,7 +142,7 @@ const Dashboard: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header with Settings Button */}
       <div className="mb-8 relative">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Welcome back, {user?.name.split(' ')[0]}!</h1>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white pr-12 md:pr-0">Welcome back, {user?.name.split(' ')[0]}!</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">Here's what's happening with your contributions.</p>
         
         {/* Settings Button - Mobile Only */}
