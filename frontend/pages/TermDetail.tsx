@@ -77,6 +77,10 @@ const TermDetail: React.FC = () => {
   const [discussionReply, setDiscussionReply] = useState<Record<number, string>>({});
   const [isCreatingDiscussion, setIsCreatingDiscussion] = useState(false);
 
+  // Translation Discussion State (from flow system)
+  // Maps translation_id to array of discussion messages
+  const [translationDiscussions, setTranslationDiscussions] = useState<Record<number, ApiUserActivity[]>>({});
+
   // Derived display values
   const [displayLabel, setDisplayLabel] = useState('Loading...');
   const [displayDef, setDisplayDef] = useState('Loading...');
@@ -132,6 +136,18 @@ const TermDetail: React.FC = () => {
       try {
         const termHistory = await backendApi.getTermHistory(foundApiTerm.id);
         setHistory(termHistory);
+        
+        // Process translation discussions from history
+        const discussionsMap: Record<number, ApiUserActivity[]> = {};
+        termHistory.forEach((activity) => {
+          if (activity.action === 'translation_discussion' && activity.translation_id) {
+            if (!discussionsMap[activity.translation_id]) {
+              discussionsMap[activity.translation_id] = [];
+            }
+            discussionsMap[activity.translation_id].push(activity);
+          }
+        });
+        setTranslationDiscussions(discussionsMap);
       } catch (err) {
         console.warn("Could not fetch term history", err);
       }
@@ -1429,7 +1445,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <MessageCircle size={20} className="text-marine-500" />
-                Discussions ({discussions.length})
+                Discussions ({discussions.length + Object.keys(translationDiscussions).length})
               </h3>
               <button
                 onClick={() => setShowDiscussions(!showDiscussions)}
@@ -1472,14 +1488,101 @@ Original Text (${fieldName}): "${field.original_value}"`;
                   </div>
                 )}
 
-                {/* Discussion List */}
-                {discussions.length === 0 ? (
+                {/* Discussion Lists */}
+                {discussions.length === 0 && Object.keys(translationDiscussions).length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <MessageCircle size={48} className="mx-auto mb-2 opacity-20" />
                     <p>No discussions yet. Be the first to start one!</p>
                   </div>
                 ) : (
-                  discussions.map((discussion) => (
+                  <div className="space-y-6">
+                    {/* Translation-Level Discussions (from Flow) */}
+                    {Object.keys(translationDiscussions).length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+                          <MessageSquare size={14} />
+                          Translation Discussions ({Object.keys(translationDiscussions).length})
+                        </h4>
+                        <div className="space-y-3">
+                          {Object.entries(translationDiscussions).map(([translationId, messages]) => {
+                            // Find the translation to get field and language info
+                            const translation = term?.fields
+                              .flatMap(f => f.translations || [])
+                              .find(t => t.id === parseInt(translationId));
+                            
+                            if (!translation) return null;
+                            
+                            // Find the field this translation belongs to
+                            const field = term?.fields.find(f => 
+                              f.translations?.some(t => t.id === parseInt(translationId))
+                            );
+                            
+                            const fieldLabel = field?.original_value || 'Unknown field';
+                            const language = translation.language.toUpperCase();
+                            
+                            return (
+                              <div
+                                key={translationId}
+                                className="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 p-4"
+                              >
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-xs font-semibold rounded">
+                                        {language}
+                                      </span>
+                                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        Translation: {fieldLabel}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      {messages.length} message{messages.length !== 1 ? 's' : ''} in discussion
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Discussion Messages */}
+                                <div className="space-y-2 ml-3 pl-3 border-l-2 border-amber-300 dark:border-amber-700">
+                                  {messages.map((msg) => {
+                                    let discussionMessage = '';
+                                    try {
+                                      const extra = JSON.parse(msg.extra || '{}');
+                                      discussionMessage = extra.discussion_message || '';
+                                    } catch (e) {
+                                      discussionMessage = '';
+                                    }
+                                    
+                                    return (
+                                      <div key={msg.id} className="text-sm">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                            {msg.user || `User ${msg.user_id}`}
+                                          </span>
+                                          <span className="text-xs text-slate-400">
+                                            {format(parse(msg.created_at), 'YYYY-MM-DD HH:mm')}
+                                          </span>
+                                        </div>
+                                        <p className="text-slate-600 dark:text-slate-400">{discussionMessage}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Term-Level Discussions */}
+                    {discussions.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+                          <MessageCircle size={14} />
+                          General Term Discussions ({discussions.length})
+                        </h4>
+                        <div className="space-y-3">
+                          {discussions.map((discussion) => (
                     <div
                       key={discussion.id}
                       className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4"
@@ -1571,7 +1674,11 @@ Original Text (${fieldName}): "${field.original_value}"`;
                         </div>
                       )}
                     </div>
-                  ))
+                  ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
