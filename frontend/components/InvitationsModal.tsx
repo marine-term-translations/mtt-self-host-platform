@@ -47,7 +47,7 @@ const InvitationsModal: React.FC<InvitationsModalProps> = ({ isOpen, onClose, on
   const handleAccept = async (invitationId: number) => {
     try {
       setProcessingIds(prev => new Set(prev).add(invitationId));
-      await backendApi.post(`/invitations/${invitationId}/accept`);
+      await backendApi.post(`/invitations/${invitationId}/accept`, {});
       toast.success('Invitation accepted!');
       
       // Remove the accepted invitation from the list
@@ -72,7 +72,7 @@ const InvitationsModal: React.FC<InvitationsModalProps> = ({ isOpen, onClose, on
   const handleDecline = async (invitationId: number) => {
     try {
       setProcessingIds(prev => new Set(prev).add(invitationId));
-      await backendApi.post(`/invitations/${invitationId}/decline`);
+      await backendApi.post(`/invitations/${invitationId}/decline`, {});
       toast.success('Invitation declined');
       
       // Remove the declined invitation from the list
