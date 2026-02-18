@@ -217,6 +217,7 @@ export async function getTranslationTask(translationId: number): Promise<FlowTas
 
 /**
  * Skip current task
+ * @param taskData - Optional task metadata for analytics logging (not required for skip functionality)
  */
 export async function skipTask(taskData?: {
   taskType?: string;

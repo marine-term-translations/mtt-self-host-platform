@@ -689,7 +689,7 @@ function getTranslationHistory(translationId) {
  */
 function logSkipAction({ userId, taskType, termId, fieldUri, language }) {
   const db = getDatabase();
-  const { resolveUsernameToId, logActivity } = require("../db/database");
+  const { resolveUsernameToId } = require("../db/database");
   
   // Resolve user identifier to user_id
   let resolvedUserId = typeof userId === 'number' ? userId : parseInt(userId, 10);
@@ -709,7 +709,9 @@ function logSkipAction({ userId, taskType, termId, fieldUri, language }) {
       field_uri: fieldUri || null,
     };
     
-    logActivity(
+    db.prepare(
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
       resolvedUserId,
       'task_skipped',
       termId || null,
