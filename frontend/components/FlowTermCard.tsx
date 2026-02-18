@@ -548,7 +548,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     <button
                         onClick={handleReject}
                         disabled={isSubmitting}
-                        aria-label="Flag as spam or reject"
+                        aria-label="Reject translation"
                         className="flex-1 flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
                         <XCircle className="w-5 h-5" />
@@ -800,7 +800,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     <button
                         onClick={handleReject}
                         disabled={isSubmitting}
-                        aria-label="Flag as spam or reject"
+                        aria-label="Reject translation"
                         className="flex-1 flex items-center justify-center gap-2 px-3 md:px-6 py-4 bg-white dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold transition-all disabled:opacity-50"
                     >
                         <XCircle className="w-5 h-5" />
