@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database } from 'lucide-react';
 import TermCard from '../components/TermCard';
+import SplineScene from '../components/SplineScene';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, ApiPublicUser } from '../types';
 import { parse } from '@/src/utils/datetime';
@@ -176,25 +177,38 @@ const Landing: React.FC = () => {
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-marine-900 via-marine-800 to-slate-900 text-white overflow-hidden pb-12 md:pb-0">
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-32 md:pt-32 md:pb-48 relative z-10 text-center md:text-left">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-32 md:pt-32 md:pb-48 relative z-10 text-center md:text-left pointer-events-none">
           <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="inline-block px-4 py-1.5 rounded-full bg-marine-700/50 border border-marine-500/30 text-marine-100 text-sm font-medium mb-6 backdrop-blur-sm">
+            {/* The pointer-events-none wrapper prevents the absolute container bounding box from blocking other elements. Events are re-enabled on children below. */}
+            <div className="relative z-0 pointer-events-none">
+              <div className="relative inline-block mt-4 md:mt-0 z-10 pointer-events-none">
+              <div className="inline-block px-4 py-1.5 rounded-full bg-marine-700/50 border border-marine-500/30 text-marine-100 text-sm font-medium mb-6 backdrop-blur-sm pointer-events-auto">
                 Open Science Initiative
               </div>
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-tight">
-                <span className="text-marine-300">Marine Term Translations</span> Project
+              <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-tight relative text-slate-100 z-20 pointer-events-none">
+                <span className="text-marine-300 pointer-events-auto relative z-30">Marine Term</span>
+                <span className="relative inline-block w-0 h-0 whitespace-nowrap align-top z-0 sm:z-10">
+                  <div className="absolute left-[-80px] top-[-100px] md:left-[-120px] md:top-[-150px] w-[250px] h-[250px] md:w-[450px] md:h-[450px] opacity-100 z-[-10] md:z-10 pointer-events-auto mix-blend-screen md:mix-blend-normal">
+                     <SplineScene 
+                      scene="https://prod.spline.design/wwCXhQqYsmd8fJZw/scene.splinecode" 
+                     />
+                  </div>
+                </span> 
+                {' '}Translations
+                <br className="hidden md:block"/> <span className="pointer-events-auto relative z-30">Project</span>
               </h1>
-              <p className="text-lg md:text-xl text-slate-200 mb-8 max-w-lg leading-relaxed">
+              
+              <p className="text-lg md:text-xl text-slate-200 mb-8 max-w-lg leading-relaxed relative z-20 pointer-events-auto">
                 Making marine data FAIR by crowdsourcing technical translations for global interoperability.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start relative z-30 pointer-events-auto">
                   <Link to="/login" className="px-8 py-4 bg-white text-marine-900 rounded-xl font-bold hover:bg-slate-100 transition-colors shadow-lg flex items-center justify-center gap-2">
                     Sign in <ArrowRight size={20} />
                   </Link>
                 <Link to="/about" className="px-8 py-4 bg-marine-800/50 border border-marine-600/50 text-white rounded-xl font-semibold hover:bg-marine-800 transition-colors backdrop-blur-sm">
                   What and Why
                 </Link>
+              </div>
               </div>
             </div>
             
