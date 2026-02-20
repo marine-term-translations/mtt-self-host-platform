@@ -222,6 +222,7 @@ export async function getTranslationTask(translationId: number): Promise<FlowTas
 export async function skipTask(taskData?: {
   taskType?: string;
   termId?: number;
+  translationId?: number;
   fieldUri?: string;
   language?: string;
 }): Promise<{ success: boolean; message: string }> {

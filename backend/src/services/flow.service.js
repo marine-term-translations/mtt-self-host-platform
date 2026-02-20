@@ -47,12 +47,15 @@ function getPendingReviews(userIdentifier, language = null, sourceId = null) {
      FROM translations t
      JOIN term_fields tf ON t.term_field_id = tf.id
      JOIN terms term ON tf.term_id = term.id
+     LEFT JOIN user_activity ua_skip ON t.id = ua_skip.translation_id
+       AND ua_skip.user_id = ? AND ua_skip.action = 'task_skipped'
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
        AND (t.reviewed_by_id IS NULL)
+       AND ua_skip.translation_id IS NULL
        AND ${TRANSLATABLE_FIELD_PATTERN}`;
   
-  const params = [userId];
+  const params = [userId, userId];
   
   if (language) {
     query += ` AND t.language = ?`;
@@ -684,10 +687,11 @@ function getTranslationHistory(translationId) {
  * @param {number|string} params.userId - User ID or username
  * @param {string} params.taskType - Type of task skipped
  * @param {number} params.termId - Term ID (optional)
+ * @param {number} params.translationId - Translation ID (optional)
  * @param {string} params.fieldUri - Field URI (optional)
  * @param {string} params.language - Language (optional)
  */
-function logSkipAction({ userId, taskType, termId, fieldUri, language }) {
+function logSkipAction({ userId, taskType, termId, translationId, fieldUri, language }) {
   const db = getDatabase();
   const { resolveUsernameToId } = require("../db/database");
   
@@ -716,7 +720,7 @@ function logSkipAction({ userId, taskType, termId, fieldUri, language }) {
       'task_skipped',
       termId || null,
       null, // term_field_id
-      null, // translation_id
+      translationId || null,
       JSON.stringify(extra)
     );
   } catch (err) {
