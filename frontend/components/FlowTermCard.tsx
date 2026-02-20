@@ -827,6 +827,15 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                         <span className="hidden md:inline">Approve Translation</span>
                     </button>
                   </div>
+                  <button
+                      type="button"
+                      onClick={onSkipTask}
+                      disabled={isSubmitting}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-xl font-medium transition-all disabled:opacity-50"
+                  >
+                      <SkipForward className="w-5 h-5" />
+                      Skip Task
+                  </button>
                 </div>
             </div>
         )}
