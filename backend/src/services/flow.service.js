@@ -188,11 +188,14 @@ function getDiscussionTranslations(userIdentifier, language = null, sourceId = n
      JOIN term_fields tf ON t.term_field_id = tf.id
      JOIN terms term ON tf.term_id = term.id
      JOIN discussion_participants dp ON t.id = dp.translation_id
+     LEFT JOIN user_activity ua_skip ON t.id = ua_skip.translation_id
+       AND ua_skip.user_id = ? AND ua_skip.action = 'task_skipped'
      WHERE t.status = 'discussion' 
        AND dp.user_id = ?
+       AND ua_skip.translation_id IS NULL
        AND ${TRANSLATABLE_FIELD_PATTERN}`;
   
-  const params = [userId];
+  const params = [userId, userId];
   
   if (language) {
     query += ` AND t.language = ?`;
