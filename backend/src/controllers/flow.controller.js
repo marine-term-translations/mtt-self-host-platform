@@ -246,13 +246,14 @@ async function skipTask(req, res) {
     }
     
     const userId = req.session.user.id || req.session.user.user_id;
-    const { taskType, termId, fieldUri, language } = req.body;
+    const { taskType, termId, translationId, fieldUri, language } = req.body;
     
     // Log the skip action (optional - for analytics)
     flowService.logSkipAction({
       userId,
       taskType,
       termId,
+      translationId,
       fieldUri,
       language,
     });

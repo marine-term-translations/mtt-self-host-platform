@@ -372,6 +372,7 @@ const TranslationFlow: React.FC = () => {
       await skipTask({
         taskType: currentTask.type,
         termId: currentTask.task.term_id,
+        translationId: currentTask.task.translation_id,
         fieldUri: currentTask.task.field_uri,
         language: currentTask.task.language,
       });
