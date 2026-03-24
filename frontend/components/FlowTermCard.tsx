@@ -122,6 +122,148 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
     }
   };
 
+  const renderHistoryEntry = (entry: any) => {
+    let extra: any = {};
+    try {
+      extra = entry.extra ? JSON.parse(entry.extra) : {};
+    } catch (e) {
+      console.error('Failed to parse history extra:', e);
+    }
+
+    // Determine the translation value to display for this entry.
+    // For create/edit we use the value stored in extra at the time of the action.
+    // For status changes / discussion we stored translation_value in extra (new entries)
+    // and fall back to current_translation_value for older entries.
+    const displayValue: string | undefined =
+      extra.value ||                      // translation_created
+      extra.translation_value ||          // status_changed, approved, rejected, discussion (new)
+      entry.current_translation_value;    // fallback: current value from backend
+
+    return (
+      <div
+        key={entry.id}
+        className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
+            {getActionIcon(entry.action)}
+          </div>
+          <div className="flex-grow min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                {formatHistoryAction(entry.action)}
+              </span>
+              {(entry.display_name || entry.username) && (
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  by <a
+                    href={`#/user/${entry.user_id}`}
+                    className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.location.href = `#/user/${entry.user_id}`;
+                    }}
+                  >
+                    {entry.display_name || entry.username}
+                  </a>
+                </span>
+              )}
+              <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
+                {formatDate(entry.created_at)}
+              </span>
+            </div>
+
+            {/* Status transition badges */}
+            {extra.old_status && extra.new_status && (
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
+                  {extra.old_status}
+                </span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
+                  <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
+                </svg>
+                <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
+                  {extra.new_status}
+                </span>
+              </div>
+            )}
+
+            {/* Translation value at time of creation */}
+            {entry.action === 'translation_created' && extra.value && (
+              <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900/50 border-l-2 border-slate-300 dark:border-slate-600 rounded">
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-0.5">Initial Translation:</div>
+                <div className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-pre-wrap font-medium">
+                  {extra.value}
+                </div>
+              </div>
+            )}
+
+            {/* Before/after diff for edits */}
+            {entry.action === 'translation_edited' && (extra.old_value || extra.new_value) && (
+              <div className="mt-2 space-y-1">
+                {extra.old_value && (
+                  <div className="p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-300 dark:border-red-700 rounded">
+                    <div className="text-xs font-medium text-red-700 dark:text-red-400 mb-0.5">Before:</div>
+                    <div className="text-xs text-red-600 dark:text-red-400 break-words whitespace-pre-wrap line-through opacity-75">
+                      {extra.old_value}
+                    </div>
+                  </div>
+                )}
+                {extra.new_value && (
+                  <div className="p-2 bg-emerald-50 dark:bg-emerald-900/10 border-l-2 border-emerald-400 dark:border-emerald-600 rounded">
+                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-0.5">After:</div>
+                    <div className="text-xs text-emerald-700 dark:text-emerald-300 break-words whitespace-pre-wrap font-medium">
+                      {extra.new_value}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Translation value for status changes, approvals, rejections, and discussions */}
+            {entry.action !== 'translation_created' && entry.action !== 'translation_edited' && displayValue && (
+              <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900/50 border-l-2 border-slate-300 dark:border-slate-600 rounded">
+                <div className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-0.5">Translation:</div>
+                <div className="text-xs text-slate-700 dark:text-slate-300 break-words whitespace-pre-wrap font-medium">
+                  {displayValue}
+                </div>
+              </div>
+            )}
+
+            {/* Rejection reason */}
+            {extra.rejection_reason && (
+              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
+                <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
+                <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
+                  {extra.rejection_reason}
+                </div>
+              </div>
+            )}
+
+            {/* Discussion message */}
+            {extra.discussion_message && (
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
+                <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
+                <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
+                  {extra.discussion_message}
+                </div>
+              </div>
+            )}
+
+            {/* Resubmission motivation / user's response */}
+            {extra.resubmission_motivation && (
+              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
+                <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
+                <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
+                  {extra.resubmission_motivation}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!task) {
     return null;
   }
@@ -456,91 +598,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                      
                      {showHistory && (
                        <div className="mt-4 space-y-3">
-                         {history.map((entry, idx) => {
-                           let extra = {};
-                           try {
-                             extra = entry.extra ? JSON.parse(entry.extra) : {};
-                           } catch (e) {
-                             console.error('Failed to parse history extra:', e);
-                           }
-                           return (
-                             <div 
-                               key={entry.id} 
-                               className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
-                             >
-                               <div className="flex items-start gap-3">
-                                 <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
-                                   {getActionIcon(entry.action)}
-                                 </div>
-                                 <div className="flex-grow min-w-0">
-                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                     <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
-                                       {formatHistoryAction(entry.action)}
-                                     </span>
-                                     {(entry.display_name || entry.username) && (
-                                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                                         by <a 
-                                           href={`#/user/${entry.user_id}`}
-                                           className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
-                                           onClick={(e) => {
-                                             e.preventDefault();
-                                             window.location.href = `#/user/${entry.user_id}`;
-                                           }}
-                                         >
-                                           {entry.display_name || entry.username}
-                                         </a>
-                                       </span>
-                                     )}
-                                     <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
-                                       {formatDate(entry.created_at)}
-                                     </span>
-                                   </div>
-                                   
-                                   {extra.old_status && extra.new_status && (
-                                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
-                                         {extra.old_status}
-                                       </span>
-                                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
-                                         <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
-                                       </svg>
-                                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
-                                         {extra.new_status}
-                                       </span>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.rejection_reason && (
-                                     <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
-                                       <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
-                                       <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
-                                         {extra.rejection_reason}
-                                       </div>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.discussion_message && (
-                                     <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                       <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
-                                       <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                         {extra.discussion_message}
-                                       </div>
-                                     </div>
-                                   )}
-                                   
-                                   {extra.resubmission_motivation && (
-                                     <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                       <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
-                                       <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                         {extra.resubmission_motivation}
-                                       </div>
-                                     </div>
-                                   )}
-                                 </div>
-                               </div>
-                             </div>
-                           );
-                         })}
+                         {history.map((entry) => renderHistoryEntry(entry))}
                        </div>
                      )}
                    </div>
@@ -638,91 +696,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     
                     {showHistory && (
                       <div className="mt-4 space-y-3">
-                        {history.map((entry, idx) => {
-                          let extra = {};
-                          try {
-                            extra = entry.extra ? JSON.parse(entry.extra) : {};
-                          } catch (e) {
-                            console.error('Failed to parse history extra:', e);
-                          }
-                          return (
-                            <div 
-                              key={entry.id} 
-                              className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
-                                  {getActionIcon(entry.action)}
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
-                                      {formatHistoryAction(entry.action)}
-                                    </span>
-                                    {(entry.display_name || entry.username) && (
-                                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        by <a 
-                                          href={`#/user/${entry.user_id}`}
-                                          className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            window.location.href = `#/user/${entry.user_id}`;
-                                          }}
-                                        >
-                                          {entry.display_name || entry.username}
-                                        </a>
-                                      </span>
-                                    )}
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
-                                      {formatDate(entry.created_at)}
-                                    </span>
-                                  </div>
-                                  
-                                  {extra.old_status && extra.new_status && (
-                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
-                                        {extra.old_status}
-                                      </span>
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
-                                        <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
-                                      </svg>
-                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
-                                        {extra.new_status}
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  {extra.rejection_reason && (
-                                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
-                                      <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
-                                      <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
-                                        {extra.rejection_reason}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {extra.discussion_message && (
-                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                      <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
-                                      <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                        {extra.discussion_message}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {extra.resubmission_motivation && (
-                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                      <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">User's Response:</div>
-                                      <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                        {extra.resubmission_motivation}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {history.map((entry) => renderHistoryEntry(entry))}
                       </div>
                     )}
                   </div>
@@ -975,82 +949,7 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
                     
                     {showHistory && (
                       <div className="mt-4 space-y-3">
-                        {history.map((entry) => {
-                          let extra = {};
-                          try {
-                            extra = entry.extra ? JSON.parse(entry.extra) : {};
-                          } catch (e) {
-                            console.error('Failed to parse history extra:', e);
-                          }
-                          return (
-                            <div 
-                              key={entry.id} 
-                              className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="flex-shrink-0 mt-0.5 text-slate-600 dark:text-slate-400">
-                                  {getActionIcon(entry.action)}
-                                </div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
-                                      {formatHistoryAction(entry.action)}
-                                    </span>
-                                    {(entry.display_name || entry.username) && (
-                                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        by <a 
-                                          href={`#/user/${entry.user_id}`}
-                                          className="font-medium text-marine-600 dark:text-marine-400 hover:text-marine-700 dark:hover:text-marine-300 hover:underline"
-                                          onClick={(e) => {
-                                            e.preventDefault();
-                                            window.location.href = `#/user/${entry.user_id}`;
-                                          }}
-                                        >
-                                          {entry.display_name || entry.username}
-                                        </a>
-                                      </span>
-                                    )}
-                                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">
-                                      {formatDate(entry.created_at)}
-                                    </span>
-                                  </div>
-                                  
-                                  {extra.old_status && extra.new_status && (
-                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.old_status)}`}>
-                                        {extra.old_status}
-                                      </span>
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-slate-400 flex-shrink-0">
-                                        <path d="M10 3l5 5-5 5V9H1V7h9V3z"/>
-                                      </svg>
-                                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${getStatusBadgeClass(extra.new_status)}`}>
-                                        {extra.new_status}
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  {extra.rejection_reason && (
-                                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/10 border-l-2 border-red-400 dark:border-red-600 rounded">
-                                      <div className="text-xs font-medium text-red-800 dark:text-red-300 mb-0.5">Rejection Reason:</div>
-                                      <div className="text-xs text-red-700 dark:text-red-400 break-words whitespace-pre-wrap">
-                                        {extra.rejection_reason}
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {extra.discussion_message && (
-                                    <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/10 border-l-2 border-blue-400 dark:border-blue-600 rounded">
-                                      <div className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">Discussion:</div>
-                                      <div className="text-xs text-blue-700 dark:text-blue-400 break-words whitespace-pre-wrap">
-                                        {extra.discussion_message}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {history.map((entry) => renderHistoryEntry(entry))}
                       </div>
                     )}
                   </div>
