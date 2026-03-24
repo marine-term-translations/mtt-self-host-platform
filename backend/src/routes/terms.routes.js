@@ -1241,6 +1241,7 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
               language,
               old_status: existingTranslation.status,
               new_status: status || "draft",
+              translation_value: value,
             };
             
             // Include rejection reason if status is being changed to rejected

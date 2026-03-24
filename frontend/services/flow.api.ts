@@ -137,6 +137,7 @@ export interface TranslationHistoryEntry {
   action: string;
   created_at: string;
   extra: string | null;
+  current_translation_value?: string;
 }
 
 /**

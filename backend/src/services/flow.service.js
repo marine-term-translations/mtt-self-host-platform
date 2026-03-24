@@ -502,6 +502,7 @@ function submitReview(params) {
     const activityExtra = {
       sessionId,
       language: translation.language,
+      translation_value: translation.value,
       discussion_message: discussionMessage.trim()
     };
     
@@ -581,7 +582,8 @@ function submitReview(params) {
       sessionId,
       old_status: oldStatus,
       new_status: newStatus,
-      language: translation.language
+      language: translation.language,
+      translation_value: translation.value
     };
     if (action === 'reject' && rejectionReason) {
       activityExtra.rejection_reason = rejectionReason.trim();
@@ -679,7 +681,8 @@ function getTranslationHistory(translationId) {
     }
     return {
       ...entry,
-      display_name: displayName
+      display_name: displayName,
+      current_translation_value: translation.value
     };
   });
 }
