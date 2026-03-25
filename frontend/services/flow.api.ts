@@ -118,7 +118,8 @@ export async function submitReview(
   action: 'approve' | 'reject' | 'discuss',
   sessionId?: number,
   rejectionReason?: string,
-  discussionMessage?: string
+  discussionMessage?: string,
+  discussionTranslation?: string
 ): Promise<ReviewResult> {
   return backendApi.post<ReviewResult>('/flow/review', {
     translationId,
@@ -126,6 +127,7 @@ export async function submitReview(
     sessionId,
     rejectionReason,
     discussionMessage,
+    discussionTranslation,
   });
 }
 

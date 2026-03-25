@@ -192,7 +192,7 @@ const TranslationFlow: React.FC = () => {
   };
 
   // Handle review submission
-  const handleSubmitReview = async (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string) => {
+  const handleSubmitReview = async (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string, discussionTranslation?: string) => {
     if (!currentTask?.task?.translation_id || !sessionId) return;
 
     try {
@@ -202,7 +202,8 @@ const TranslationFlow: React.FC = () => {
         action,
         sessionId,
         rejectionReason,
-        discussionMessage
+        discussionMessage,
+        discussionTranslation
       );
 
       // For discussion, don't update stats but show success message
