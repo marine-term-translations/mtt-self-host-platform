@@ -64,9 +64,9 @@ function getUserStats(userIdentifier) {
 }
 
 /**
- * Award reputation points to a user (unified system - no separate points tracking)
+ * Award points to a user (updates both users.reputation and user_stats.points)
  * @param {number|string} userIdentifier - User ID or username
- * @param {number} points - Reputation points to award
+ * @param {number} points - Points to award
  * @param {string} reason - Reason for points
  */
 function awardPoints(userIdentifier, points, reason = "general") {
@@ -84,13 +84,18 @@ function awardPoints(userIdentifier, points, reason = "general") {
     return;
   }
   
-  // Only update users.reputation (no separate points tracking)
+  // Update users.reputation and user_stats.points atomically
   try {
-    db.prepare(
-      "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-    ).run(points, userId);
+    db.transaction(() => {
+      db.prepare(
+        "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(points, userId);
+      db.prepare(
+        "UPDATE user_stats SET points = points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
+      ).run(points, userId);
+    })();
   } catch (err) {
-    console.log("Could not update user reputation:", err.message);
+    console.log("Could not update user reputation and stats points:", err.message);
   }
   
   // Log in reputation_events

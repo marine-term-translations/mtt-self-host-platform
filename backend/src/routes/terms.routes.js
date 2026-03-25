@@ -13,6 +13,12 @@ const {
   applyMergeReward,
   applyCreationReward,
 } = require("../services/reputation.service");
+const {
+  updateDailyGoalProgress,
+  updateStreak,
+  incrementTranslationCount,
+  updateChallengeProgress,
+} = require("../services/gamification.service");
 const { harvestCollection, harvestCollectionWithProgress } = require("../services/harvest.service");
 const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/languagePreferences");
 
@@ -1425,8 +1431,10 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           });
           
           // Update daily goal progress (5 translations or reviews)
-          const { updateDailyGoalProgress } = require("../services/gamification.service");
           updateDailyGoalProgress(createdByUserId, 1);
+          updateStreak(createdByUserId);
+          incrementTranslationCount(createdByUserId);
+          updateChallengeProgress(createdByUserId, 'translate_5', 1);
         }
       }
     }
