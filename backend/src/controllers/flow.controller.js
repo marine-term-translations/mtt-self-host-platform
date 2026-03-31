@@ -69,7 +69,7 @@ async function submitReview(req, res) {
     }
     
     const userId = req.session.user.id || req.session.user.user_id;
-    const { translationId, action, sessionId, rejectionReason, discussionMessage } = req.body;
+    const { translationId, action, sessionId, rejectionReason, discussionMessage, discussionTranslation } = req.body;
     
     if (!translationId || !action) {
       return res.status(400).json({ error: "Missing required fields: translationId, action" });
@@ -79,8 +79,8 @@ async function submitReview(req, res) {
       return res.status(400).json({ error: "Rejection reason is required when rejecting a translation" });
     }
     
-    if (action === 'discuss' && (!discussionMessage || !discussionMessage.trim())) {
-      return res.status(400).json({ error: "Discussion message is required when opening a discussion" });
+    if (action === 'discuss' && (!discussionTranslation || !discussionTranslation.trim())) {
+      return res.status(400).json({ error: "A proposed translation is required when opening a discussion" });
     }
     
     const result = flowService.submitReview({
@@ -90,6 +90,7 @@ async function submitReview(req, res) {
       sessionId,
       rejectionReason,
       discussionMessage,
+      discussionTranslation,
     });
     
     // Update session stats if provided (only for approve/reject, not discuss)

@@ -10,7 +10,7 @@ interface FlowTermCardProps {
   task: any;
   taskType: 'review' | 'translate' | 'rework' | 'discussion';
   languages: Array<{ code: string; name: string }>;
-  onSubmitReview: (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string) => void;
+  onSubmitReview: (action: 'approve' | 'reject' | 'discuss', rejectionReason?: string, discussionMessage?: string, discussionTranslation?: string) => void;
   onSubmitTranslation: (language: string, value: string, resubmissionMotivation?: string) => void;
   onSkipTask: () => void;
   isSubmitting: boolean;
@@ -35,6 +35,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showDiscussModal, setShowDiscussModal] = useState(false);
+  const [discussionTranslation, setDiscussionTranslation] = useState('');
   const [discussionMessage, setDiscussionMessage] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
@@ -95,16 +96,19 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   };
 
   const handleDiscuss = () => {
+    setDiscussionTranslation(task?.value || '');
+    setDiscussionMessage('');
     setShowDiscussModal(true);
   };
 
   const handleDiscussSubmit = () => {
-    if (!discussionMessage.trim()) {
-      toast.error('Please provide a discussion message');
+    if (!discussionTranslation.trim()) {
+      toast.error('Please provide a proposed translation');
       return;
     }
     setShowDiscussModal(false);
-    onSubmitReview('discuss', undefined, discussionMessage.trim());
+    onSubmitReview('discuss', undefined, discussionMessage.trim() || undefined, discussionTranslation.trim());
+    setDiscussionTranslation('');
     setDiscussionMessage('');
     // Reload history after a brief delay to ensure the backend has saved the discussion
     setTimeout(() => loadHistory(), 500);
@@ -1078,22 +1082,42 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
       {showDiscussModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDiscussModal(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Start a Discussion</h3>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Propose a Translation</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Share your thoughts, ask questions, or provide suggestions about this translation. The translator will see your message in the history.
+              Propose your own translation for this term. When accepted, all contributors will earn points.
             </p>
-            <textarea
-              value={discussionMessage}
-              onChange={(e) => setDiscussionMessage(e.target.value)}
-              placeholder="e.g., Have you considered using...? What does this term mean in this context? This looks good but..."
-              rows={4}
-              className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-              autoFocus
-            />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Proposed Translation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={discussionTranslation}
+                  onChange={(e) => setDiscussionTranslation(e.target.value)}
+                  placeholder="Enter your proposed translation..."
+                  rows={3}
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Explanation <span className="text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  value={discussionMessage}
+                  onChange={(e) => setDiscussionMessage(e.target.value)}
+                  placeholder="e.g., I chose this term because... Have you considered...?"
+                  rows={3}
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                />
+              </div>
+            </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowDiscussModal(false);
+                  setDiscussionTranslation('');
                   setDiscussionMessage('');
                 }}
                 className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -1102,10 +1126,10 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
               </button>
               <button
                 onClick={handleDiscussSubmit}
-                disabled={!discussionMessage.trim()}
+                disabled={!discussionTranslation.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Post Discussion
+                Submit Proposal
               </button>
             </div>
           </div>

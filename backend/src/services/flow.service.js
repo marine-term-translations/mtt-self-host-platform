@@ -438,7 +438,7 @@ function getNextTask(userIdentifier, language = null, sourceId = null) {
  * @returns {object} Result of review
  */
 function submitReview(params) {
-  const { userId, translationId, action, sessionId, rejectionReason, discussionMessage } = params;
+  const { userId, translationId, action, sessionId, rejectionReason, discussionMessage, discussionTranslation } = params;
   const db = getDatabase();
   const { resolveUsernameToId } = require("../db/database");
   
@@ -461,9 +461,10 @@ function submitReview(params) {
     throw new Error('Rejection reason is required when rejecting a translation');
   }
   
-  // Validate discussion message if action is discuss
-  if (action === 'discuss' && (!discussionMessage || !discussionMessage.trim())) {
-    throw new Error('Discussion message is required when opening a discussion');
+  // Validate discussion fields if action is discuss
+  // A proposed translation is required; an explanation message is optional
+  if (action === 'discuss' && (!discussionTranslation || !discussionTranslation.trim())) {
+    throw new Error('A proposed translation is required when opening a discussion');
   }
   
   // Get the translation
@@ -490,20 +491,20 @@ function submitReview(params) {
     if (translation.created_by_id && translation.created_by_id !== resolvedUserId) {
       addDiscussionParticipant(translationId, translation.created_by_id);
     }
+
+    // Update the translation value with the proposed translation and track the modifier
+    const proposedTranslation = discussionTranslation.trim();
+    const trimmedMessage = discussionMessage ? discussionMessage.trim() : null;
+    db.prepare(
+      "UPDATE translations SET value = ?, modified_by_id = ?, status = 'discussion', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(proposedTranslation, resolvedUserId, translationId);
     
-    // Change translation status to 'discussion' if it's currently in 'review'
-    if (translation.status === 'review') {
-      db.prepare(
-        "UPDATE translations SET status = 'discussion', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-      ).run(translationId);
-    }
-    
-    // Log discussion activity
+    // Log discussion activity with both the proposed translation and optional explanation
     const activityExtra = {
       sessionId,
       language: translation.language,
-      translation_value: translation.value,
-      discussion_message: discussionMessage.trim()
+      translation_value: proposedTranslation,
+      discussion_message: trimmedMessage
     };
     
     db.prepare(
@@ -517,8 +518,9 @@ function submitReview(params) {
       JSON.stringify(activityExtra)
     );
     
-    // Notify all other participants about this discussion message
-    notifyDiscussionParticipants(translationId, translation.term_id, resolvedUserId, discussionMessage.trim());
+    // Notify all other participants about this discussion
+    const notificationMessage = trimmedMessage || `Proposed translation: "${proposedTranslation}"`;
+    notifyDiscussionParticipants(translationId, translation.term_id, resolvedUserId, notificationMessage);
     
     return {
       success: true,
@@ -546,10 +548,24 @@ function submitReview(params) {
   
   // Apply reputation changes based on action using existing reputation system
   if (action === 'approve') {
-    // Get the translator and apply approval reward
+    // Award approval reward to the most recent modifier (or original creator)
     const translatorUserId = translation.modified_by_id || translation.created_by_id;
     if (translatorUserId) {
       applyApprovalReward(translatorUserId, translationId);
+    }
+
+    // Also award approval reward to all other discussion participants who contributed
+    try {
+      const participants = db.prepare(
+        "SELECT DISTINCT user_id FROM discussion_participants WHERE translation_id = ?"
+      ).all(translationId);
+      for (const participant of participants) {
+        if (participant.user_id !== translatorUserId) {
+          applyApprovalReward(participant.user_id, translationId);
+        }
+      }
+    } catch (participantErr) {
+      console.log(`Could not award points to discussion participants for translation ${translationId}:`, participantErr.message);
     }
   } else if (action === 'reject') {
     // Apply rejection penalty to translator
