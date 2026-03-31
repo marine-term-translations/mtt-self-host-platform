@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle, PlusCircle, Edit3, SkipForward } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Globe, ExternalLink, Sparkles, Loader2, Quote, MessageSquare, Target, TrendingUp, Calendar, Clock, AlertCircle, PlusCircle, Edit3, SkipForward, GripHorizontal } from 'lucide-react';
 import { CONFIG } from '../config';
 import toast from 'react-hot-toast';
 import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
 import { useOpenRouterApiKey } from '../hooks/useOpenRouterApiKey';
 import { getTranslationHistory } from '../services/flow.api';
+import { useDraggable } from '../hooks/useDraggable';
 
 interface FlowTermCardProps {
   task: any;
@@ -37,6 +38,8 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   const [showDiscussModal, setShowDiscussModal] = useState(false);
   const [discussionTranslation, setDiscussionTranslation] = useState('');
   const [discussionMessage, setDiscussionMessage] = useState('');
+  const rejectDraggable = useDraggable();
+  const discussDraggable = useDraggable();
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -82,6 +85,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   };
 
   const handleReject = () => {
+    rejectDraggable.resetPosition();
     setShowRejectModal(true);
   };
 
@@ -96,6 +100,7 @@ const FlowTermCard: React.FC<FlowTermCardProps> = ({
   };
 
   const handleDiscuss = () => {
+    discussDraggable.resetPosition();
     setDiscussionTranslation(task?.value || '');
     setDiscussionMessage('');
     setShowDiscussModal(true);
@@ -1042,37 +1047,55 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
       {/* Rejection Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowRejectModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Flag Translation</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Please provide a reason for flagging this translation (e.g., spam, severely lacking quality, inappropriate content, or incorrect terminology).
-            </p>
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g., Spam content, severely lacking quality, inappropriate, incorrect terminology..."
-              rows={4}
-              className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
-              autoFocus
-            />
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
-                }}
-                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRejectSubmit}
-                disabled={!rejectionReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Flag Translation
-              </button>
+        <div className="fixed inset-0 bg-black/50 z-50" onClick={() => { if (!rejectDraggable.wasDragging) setShowRejectModal(false); }}>
+          <div
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full fixed"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: `translate(calc(-50% + ${rejectDraggable.position.x}px), calc(-50% + ${rejectDraggable.position.y}px))`,
+              cursor: rejectDraggable.isDragging ? 'grabbing' : 'default',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center gap-2 px-6 pt-6 pb-3 cursor-grab select-none"
+              onMouseDown={rejectDraggable.handleDragStart}
+              title="Drag to move"
+            >
+              <GripHorizontal className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Flag Translation</h3>
+            </div>
+            <div className="px-6 pb-6">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                Please provide a reason for flagging this translation (e.g., spam, severely lacking quality, inappropriate content, or incorrect terminology).
+              </p>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g., Spam content, severely lacking quality, inappropriate, incorrect terminology..."
+                rows={4}
+                className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
+                autoFocus
+              />
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowRejectModal(false);
+                    setRejectionReason('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRejectSubmit}
+                  disabled={!rejectionReason.trim()}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Flag Translation
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1080,57 +1103,75 @@ Original Text (${task.field_uri || 'field'}): "${task.original_value}"`;
 
       {/* Discussion Modal */}
       {showDiscussModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDiscussModal(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Propose a Translation</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Propose your own translation for this term. When accepted, all contributors will earn points.
-            </p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Proposed Translation <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={discussionTranslation}
-                  onChange={(e) => setDiscussionTranslation(e.target.value)}
-                  placeholder="Enter your proposed translation..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Explanation <span className="text-slate-400">(optional)</span>
-                </label>
-                <textarea
-                  value={discussionMessage}
-                  onChange={(e) => setDiscussionMessage(e.target.value)}
-                  placeholder="e.g., I chose this term because... Have you considered...?"
-                  rows={3}
-                  className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-                />
-              </div>
+        <div className="fixed inset-0 bg-black/50 z-50" onClick={() => { if (!discussDraggable.wasDragging) setShowDiscussModal(false); }}>
+          <div
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full fixed"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: `translate(calc(-50% + ${discussDraggable.position.x}px), calc(-50% + ${discussDraggable.position.y}px))`,
+              cursor: discussDraggable.isDragging ? 'grabbing' : 'default',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center gap-2 px-6 pt-6 pb-2 cursor-grab select-none"
+              onMouseDown={discussDraggable.handleDragStart}
+              title="Drag to move"
+            >
+              <GripHorizontal className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Propose a Translation</h3>
             </div>
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowDiscussModal(false);
-                  setDiscussionTranslation('');
-                  setDiscussionMessage('');
-                }}
-                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDiscussSubmit}
-                disabled={!discussionTranslation.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Submit Proposal
-              </button>
+            <div className="px-6 pb-6">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                Propose your own translation for this term. When accepted, all contributors will earn points.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Proposed Translation <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={discussionTranslation}
+                    onChange={(e) => setDiscussionTranslation(e.target.value)}
+                    placeholder="Enter your proposed translation..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Explanation <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={discussionMessage}
+                    onChange={(e) => setDiscussionMessage(e.target.value)}
+                    placeholder="e.g., I chose this term because... Have you considered...?"
+                    rows={3}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowDiscussModal(false);
+                    setDiscussionTranslation('');
+                    setDiscussionMessage('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDiscussSubmit}
+                  disabled={!discussionTranslation.trim()}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Submit Proposal
+                </button>
+              </div>
             </div>
           </div>
         </div>
