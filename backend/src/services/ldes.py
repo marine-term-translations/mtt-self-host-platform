@@ -29,7 +29,15 @@ SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 
 
 def parse_datetime(value):
-    """Parse database/LDES datetime values into Python datetime."""
+    """
+    Parse database/LDES datetime values into a Python datetime.
+
+    Args:
+        value: Datetime value as datetime, string, or None.
+
+    Returns:
+        datetime | None: Parsed datetime value or None when input is None.
+    """
     if isinstance(value, datetime):
         return value
     if value is None:
@@ -192,7 +200,11 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
         end_date: Optional end date (datetime)
         
     Returns:
-        List of translation records as dictionaries
+        List of translation records as dictionaries.
+        Each record includes:
+        - modified_at: original translation modified/created timestamp
+        - event_at: effective event timestamp used for LDES incremental logic
+          (COALESCE(updated_at, modified_at, created_at))
     """
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
