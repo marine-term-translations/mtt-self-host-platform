@@ -28,6 +28,18 @@ TREE = Namespace("https://w3id.org/tree#")
 SKOS = Namespace("http://www.w3.org/2004/02/skos/core#")
 
 
+def parse_datetime(value):
+    """Parse database/LDES datetime values into Python datetime."""
+    if isinstance(value, datetime):
+        return value
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    return datetime.fromisoformat(normalized)
+
+
 def get_ldes_directory(source_id):
     """
     Get the LDES directory path for a given source.
@@ -170,6 +182,8 @@ def get_previous_fragment(source_id):
 def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=None):
     """
     Query the database for translations with status='approved' for LDES generation.
+    Date filtering uses the translation event timestamp:
+    COALESCE(updated_at, modified_at, created_at).
     
     Args:
         db_path: Path to the SQLite database
@@ -193,6 +207,7 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
             t.status,
             t.modified_at,
             t.created_at,
+            t.updated_at,
             tf.id as term_field_id,
             tf.field_uri,
             tf.original_value,
@@ -209,14 +224,14 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
     
     # Add date filters if provided
     if start_date:
-        query += " AND (datetime(t.modified_at) >= datetime(?) OR (t.modified_at IS NULL AND datetime(t.created_at) >= datetime(?)))"
-        params.extend([start_date.isoformat(), start_date.isoformat()])
+        query += " AND datetime(COALESCE(t.updated_at, t.modified_at, t.created_at)) >= datetime(?)"
+        params.append(start_date.isoformat())
     
     if end_date:
-        query += " AND (datetime(t.modified_at) <= datetime(?) OR (t.modified_at IS NULL AND datetime(t.created_at) <= datetime(?)))"
-        params.extend([end_date.isoformat(), end_date.isoformat()])
+        query += " AND datetime(COALESCE(t.updated_at, t.modified_at, t.created_at)) <= datetime(?)"
+        params.append(end_date.isoformat())
     
-    query += " ORDER BY datetime(COALESCE(t.modified_at, t.created_at)) ASC"
+    query += " ORDER BY datetime(COALESCE(t.updated_at, t.modified_at, t.created_at)) ASC"
     
     print(f"Executing translation query with params: {params}")
     print(f"Query: {query}")
@@ -233,6 +248,7 @@ def query_translations_for_ldes(db_path, source_id, start_date=None, end_date=No
             'language': row['language'],
             'status': row['status'],
             'modified_at': row['modified_at'] or row['created_at'],
+            'event_at': row['updated_at'] or row['modified_at'] or row['created_at'],
             'term_field_id': row['term_field_id'],
             'field_uri': row['field_uri'],
             'original_value': row['original_value'],
@@ -414,7 +430,7 @@ def prepare_ldes_data(translations):
         
         if term_uri not in terms_data:
             # Format datetime as xsd:dateTime compliant string
-            modified_dt = datetime.fromisoformat(trans['modified_at'])
+            modified_dt = parse_datetime(trans['event_at'])
             modified_str = modified_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
             
             terms_data[term_uri] = {
@@ -424,7 +440,7 @@ def prepare_ldes_data(translations):
             }
         
         # Update the latest modified date
-        trans_dt = datetime.fromisoformat(trans['modified_at'])
+        trans_dt = parse_datetime(trans['event_at'])
         current_dt = datetime.strptime(terms_data[term_uri]['modified'], "%Y-%m-%dT%H:%M:%SZ")
         
         if trans_dt > current_dt:
@@ -626,7 +642,7 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be
             
             new_translations = [
                 t for t in translations 
-                if datetime.fromisoformat(t['modified_at']) > latest_modified_naive
+                if parse_datetime(t['event_at']) > latest_modified_naive
             ]
             
             if not new_translations:
@@ -664,7 +680,7 @@ def create_or_update_ldes(source_id, db_path, prefix_uri="https://this_should_be
     # Use epoch timestamp for fragment naming
     if translations:
         latest_trans_date = max(
-            datetime.fromisoformat(t['modified_at']) for t in translations
+            parse_datetime(t['event_at']) for t in translations
         )
         # Convert to epoch timestamp (seconds since 1970-01-01)
         epoch_timestamp = int(latest_trans_date.timestamp())
