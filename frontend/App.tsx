@@ -42,6 +42,9 @@ import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { useAuth } from './context/AuthContext';
+import BlogIndex from './pages/blog/BlogIndex';
+import LostInTranslation from './pages/blog/LostInTranslation';
+import MttTechnicalDeepdive from './pages/blog/MttTechnicalDeepdive';
 
 const App: React.FC = () => {
   const { user } = useAuth();
@@ -77,6 +80,11 @@ const App: React.FC = () => {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/ldes" element={<LdesFeeds />} />
         <Route path="/banned" element={<Banned />} />
+        
+        {/* Blog Routes */}
+        <Route path="/blog" element={<BlogIndex />} />
+        <Route path="/blog/lost-in-translation-not-your-marine-data" element={<LostInTranslation />} />
+        <Route path="/blog/mtt-technical-deepdive" element={<MttTechnicalDeepdive />} />
         
         {/* Protected Routes */}
         <Route path="/community-goals" element={

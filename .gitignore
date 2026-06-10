@@ -48,3 +48,10 @@ runner/.runner
 backend/gitea_token.secret
 
 data/
+
+#venv
+
+/scratch
+
+/.agent
+/.agents
