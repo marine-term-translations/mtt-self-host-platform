@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database } from 'lucide-react';
+import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database, BookOpen, Calendar, Clock } from 'lucide-react';
 import TermCard from '../components/TermCard';
 import SplineScene from '../components/SplineScene';
 import { backendApi } from '../services/api';
 import { Term, ApiTerm, ApiPublicUser } from '../types';
 import { parse } from '@/src/utils/datetime';
+import { blogRegistry } from '../src/blogRegistry';
 
 const Landing: React.FC = () => {
   const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
@@ -263,8 +264,71 @@ const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* Preview Section */}
+      {/* Blog Section */}
       <section className="py-20 bg-slate-50 dark:bg-slate-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Latest Insights & News</h2>
+              <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
+                Stay updated with technical announcements, publications, and tutorials directly from the EMODnet community.
+              </p>
+            </div>
+            <Link to="/blog" className="mt-4 md:mt-0 inline-flex items-center text-marine-600 dark:text-marine-400 font-semibold hover:underline">
+              View all articles <ArrowRight size={16} className="ml-1" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-8">
+            {blogRegistry.slice(0, 1).map((post) => (
+              <Link
+                key={post.slug}
+                to={`/blog/${post.slug}`}
+                className="group flex flex-col md:flex-row bg-white dark:bg-slate-955 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-xl hover:border-marine-500 dark:hover:border-marine-500 transition-all duration-300 cursor-pointer"
+              >
+                <div className="md:w-2/5 bg-gradient-to-br from-marine-900 to-slate-900 p-8 flex flex-col justify-between relative overflow-hidden min-h-[240px]">
+                  <div className="absolute -bottom-8 -right-8 w-48 h-48 rounded-full bg-marine-500/10 blur-2xl pointer-events-none" />
+                  <span className="self-start px-3 py-1 text-xs font-semibold uppercase tracking-wider text-teal-300 bg-teal-955/40 border border-teal-500/30 rounded-lg">
+                    {post.category}
+                  </span>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-4 leading-tight group-hover:text-teal-200 transition-colors font-sans">
+                      {post.title}
+                    </h3>
+                    <div className="flex items-center gap-4 text-slate-300 text-xs font-mono">
+                      <span className="flex items-center gap-1"><Calendar size={12} /> {post.date}</span>
+                      <span className="flex items-center gap-1"><Clock size={12} /> {post.readTime}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="md:w-3/5 p-8 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-marine-600 dark:text-marine-400 uppercase tracking-widest block mb-2">Featured Article</span>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed mb-6">
+                      {post.summary}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <img src={post.authorAvatar} alt={post.author} className="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-700" />
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">{post.author}</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{post.authorRole}</p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-marine-50 dark:bg-marine-950 text-marine-700 dark:text-marine-300 font-bold rounded-xl group-hover:bg-marine-600 group-hover:text-white transition-all text-sm">
+                      Read Article <ArrowRight size={16} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Preview Section */}
+      <section className="py-20 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Recent Contributions</h2>
@@ -298,7 +362,7 @@ const Landing: React.FC = () => {
       </section>
 
       {/* Contributors Section */}
-      <section className="py-20 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
+      <section className="py-20 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-marine-100 dark:bg-marine-900 text-marine-600 dark:text-marine-400 mb-4">

@@ -101,6 +101,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAuthenticated ? (
                 <>
                   <Link to="/browse" className={isActive('/browse')}>Browse</Link>
+                  <Link to="/blog" className={isActive('/blog')}>Blog</Link>
                   {user?.isAdmin && (
                     <Link to="/admin" className={`${isActive('/admin')} flex items-center gap-1`}>
                        <ShieldCheck size={16} /> Admin
@@ -111,6 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <>
                   <Link to="/about" className={isActive('/about')}>About</Link>
                   <Link to="/communities" className={isActive('/communities')}>Communities</Link>
+                  <Link to="/blog" className={isActive('/blog')}>Blog</Link>
                   <Link to="/documentation" className={isActive('/documentation')}>Documentation</Link>
                 </>
               )}
@@ -166,6 +168,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                         >
                           Communities
+                        </Link>
+                        <Link 
+                          to="/blog" 
+                          className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          Blog
                         </Link>
                         <Link 
                           to="/about" 
@@ -260,9 +268,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <span>Report Issue</span>
               </button>
               <Link to="/about" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>About</Link>
+              <Link to="/blog" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Blog</Link>
               <Link to="/leaderboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Community</Link>
               <Link to="/documentation" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Documentation</Link>
-              {isAuthenticated && (
+               {isAuthenticated && (
                 <>
                   <Link to="/browse" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Browse Terms</Link>
                   <Link to="/dashboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Dashboard</Link>

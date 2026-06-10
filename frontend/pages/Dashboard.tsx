@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap, Settings } from 'lucide-react';
+import { BookOpen, Award, TrendingUp, Clock, ChevronRight, Activity, Zap, Settings, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { ApiTerm, ApiUserActivity, ApiPublicUser, ApiLanguage } from '../types';
@@ -210,6 +210,30 @@ const Dashboard: React.FC = () => {
              )}
           </div>
            <ChevronRight className="text-slate-300 group-hover:text-indigo-500 transition-colors" size={20} />
+        </Link>
+      </div>
+
+      {/* Blog Teaser Banner */}
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-8 flex flex-col md:flex-row items-center justify-between gap-6 hover:border-marine-400 transition-colors">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-marine-50 dark:bg-marine-950 text-marine-600 dark:text-marine-400 rounded-xl">
+             <BookOpen size={24} />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-marine-600 dark:text-marine-400 uppercase tracking-widest">Platform News</span>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+              Lost in Translation? Not Your Marine Data - EMODnet Launches self-hosted platform!
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
+              Read Conor Delaney's announcement of our ready-to-use self-hosted translation infrastructure.
+            </p>
+          </div>
+        </div>
+        <Link 
+          to="/blog/lost-in-translation-not-your-marine-data" 
+          className="flex-shrink-0 px-5 py-2.5 bg-marine-600 hover:bg-marine-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+        >
+          Read Blogpost & Watch Video <ArrowRight size={16} />
         </Link>
       </div>
 
