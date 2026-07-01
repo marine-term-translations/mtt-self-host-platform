@@ -1,0 +1,52 @@
+{{#if tone_professional}}
+<h2>New Publication: {{title}}</h2>
+<p>Dear {{displayName}},</p>
+<p>We are pleased to announce that a new article has been published on the Marine Term Translations platform: <strong>"{{title}}"</strong> by {{author}} ({{authorRole}}).</p>
+<div style="background-color: #f8fafc; border-left: 4px solid #0891b2; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <p style="margin: 0; font-size: 15px; font-weight: bold; color: #0f172a;">{{title}}</p>
+  <p style="margin: 8px 0 0 0; color: #475569; font-size: 14px;">{{summary}}</p>
+  <p style="margin: 12px 0 0 0; color: #64748b; font-size: 12px; font-style: italic;">By {{author}} &bull; {{date}} &bull; {{readTime}}</p>
+</div>
+<p>To read the full article, please click the button below:</p>
+{{/if}}
+
+{{#if tone_casual}}
+<h2>New on the blog: {{title}} 📝</h2>
+<p>Hey {{displayName}}! We just published a new blog post that we think you'll love: <strong>"{{title}}"</strong> by our colleague {{author}}.</p>
+<div style="background-color: #f8fafc; border-left: 4px solid #0891b2; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <p style="margin: 0; font-size: 15px; font-weight: bold; color: #0f172a;">{{title}}</p>
+  <p style="margin: 8px 0 0 0; color: #475569; font-size: 14px;">{{summary}}</p>
+  <p style="margin: 12px 0 0 0; color: #64748b; font-size: 12px; font-style: italic;">By {{author}} &bull; {{readTime}}</p>
+</div>
+<p>Check out the full post here:</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<h2>Freshly Published! 🚀 Check out our latest deep dive!</h2>
+<p style="text-align: center;">
+  <img src="{{frontendUrl}}/puffer_happy.png" alt="Happy Pufferfish" style="max-width: 130px; height: auto; border-radius: 8px;" />
+</p>
+<p>Hey {{displayName}}! We are super excited to share a brand new blog post with you: <strong>"{{title}}"</strong> written by the brilliant {{author}}!</p>
+<div style="background-color: #ecfdf5; border: 1px dashed #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center;">
+  <p style="margin: 0; font-size: 18px; font-weight: bold; color: #065f46;">{{title}}</p>
+  <p style="margin: 12px 0 0 0; color: #047857; font-size: 15px; font-style: italic;">"{{summary}}"</p>
+  <p style="margin: 16px 0 0 0; color: #065f46; font-size: 13px; font-weight: 600;">{{readTime}} of pure knowledge!</p>
+</div>
+<p>Don't miss out! Click below to read it right now:</p>
+{{/if}}
+
+<p style="text-align: center; margin: 24px 0;">
+  <a href="{{link}}" class="btn">Read the Blog Post</a>
+</p>
+
+{{#if tone_professional}}
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_casual}}
+<p>Enjoy the read!<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<p>Happy translating and happy reading! 🐙🐠<br>Your MTT Team</p>
+{{/if}}

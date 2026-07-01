@@ -35,6 +35,7 @@ export interface User {
   isSuperAdmin?: boolean;
   orcid?: string;       // ORCID iD (still supported)
   reputation?: number;  // User reputation score
+  email?: string | null; // User email address (if configured)
   languagePreferences?: {
     nativeLanguage?: string;
     translationLanguages?: string[];

@@ -8,6 +8,7 @@ import CommunityGoalWidget from './CommunityGoalWidget';
 import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
 import NotificationBell from './NotificationBell';
+import EmailUrgencyModal from './EmailUrgencyModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -19,8 +20,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isBurgerOpen, setIsBurgerOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isReportIssueModalOpen, setIsReportIssueModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Only open if user is authenticated, has no email, and hasn't dismissed it in the current session
+    if (isAuthenticated && user && !user.email) {
+      const dismissed = sessionStorage.getItem('mtt_email_prompt_dismissed');
+      if (dismissed !== 'true') {
+        const timer = setTimeout(() => {
+          setIsEmailModalOpen(true);
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAuthenticated, user]);
+
+  const handleCloseEmailModal = () => {
+    setIsEmailModalOpen(false);
+    sessionStorage.setItem('mtt_email_prompt_dismissed', 'true');
+  };
   
   const burgerRef = React.useRef<HTMLDivElement>(null);
 
@@ -321,6 +341,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <ReportIssueModal 
         isOpen={isReportIssueModalOpen} 
         onClose={() => setIsReportIssueModalOpen(false)} 
+      />
+
+      {/* Email Urgency Modal */}
+      <EmailUrgencyModal
+        isOpen={isEmailModalOpen}
+        onClose={handleCloseEmailModal}
       />
     </div>
   );

@@ -1,0 +1,51 @@
+{{#if tone_professional}}
+<h2>Marine Term Translations - Periodic Activity Digest</h2>
+<p>Dear {{displayName}},</p>
+<p>Please find below the periodic summary of translation activities and active discussions on the Marine Term Translations platform.</p>
+{{/if}}
+
+{{#if tone_casual}}
+<h2>Hey {{displayName}}! Here's your MTT digest! 👋</h2>
+<p>Hope you're having a great day! Here is a quick update on what's been happening in the marine translation communities recently.</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<h2>MTT Community Update! 🌊🐠 Let's check out the action!</h2>
+<p style="text-align: center;">
+  <img src="{{frontendUrl}}/puffer_happy.png" alt="Happy Pufferfish" style="max-width: 140px; height: auto; border-radius: 8px;" />
+</p>
+<p>Hello {{displayName}}! The community is on fire! 🔥 Check out these awesome translations and discussions that happened while you were away:</p>
+{{/if}}
+
+{{#if hasApproved}}
+<h3 style="color: #0891b2; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">Approved Translations</h3>
+<ul style="padding-left: 20px;">
+  {{approvedTranslationsHtml}}
+</ul>
+{{/if}}
+
+{{#if hasDiscussions}}
+<h3 style="color: #0891b2; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-top: 24px;">Active Discussions</h3>
+<ul style="padding-left: 20px;">
+  {{activeDiscussionsHtml}}
+</ul>
+{{/if}}
+
+<p style="margin-top: 32px; text-align: center;">
+  <a href="{{frontendUrl}}/dashboard" class="btn">Go to Dashboard</a>
+</p>
+
+{{#if tone_professional}}
+<p>Thank you for your continued support and collaboration.</p>
+<p>Sincerely,<br>The MTT Platform Administration</p>
+{{/if}}
+
+{{#if tone_casual}}
+<p>Catch you later!</p>
+<p>Cheers,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<p>You rock! Let's keep making marine science fully multilingual! 🚀</p>
+<p>Warmest regards,<br>Your MTT Pals</p>
+{{/if}}

@@ -1,0 +1,62 @@
+{{#if tone_professional}}
+<h2>Translation Suggestion Update</h2>
+<p>Dear Contributor,</p>
+<p>We are writing to inform you that your suggested translation for the term <strong>"{{termLabel}}"</strong> has been reviewed. Regrettably, it was not approved for inclusion at this time.</p>
+<div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <strong>Suggested Translation:</strong> {{value}}<br><br>
+  <strong>Reason for non-approval:</strong><br>
+  <span style="color: #9f1239; font-style: italic;">{{reason}}</span>
+</div>
+<div style="text-align: center; margin: 16px 0;">
+  <img src="{{frontendUrl}}/puffer_sad.jpg" alt="Sad Pufferfish" style="max-width: 120px; height: auto; border-radius: 8px;" />
+</div>
+<p>You can view the details and resubmit or adjust your translation suggestion via the link below:</p>
+{{/if}}
+
+{{#if tone_casual}}
+<h2>Translation Suggestion Update 💡</h2>
+<p>Hey there,</p>
+<p>Your translation suggestion for the term <strong>"{{termLabel}}"</strong> has been reviewed, but it wasn't approved for inclusion this time around.</p>
+<div style="background-color: #fff1f2; border-left: 4px solid #f43f5e; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <strong>Your translation:</strong> {{value}}<br><br>
+  <strong>Feedback:</strong><br>
+  <span style="color: #9f1239; font-style: italic;">{{reason}}</span>
+</div>
+<div style="text-align: center; margin: 16px 0;">
+  <img src="{{frontendUrl}}/puffer_sad.jpg" alt="Sad Pufferfish" style="max-width: 120px; height: auto; border-radius: 8px;" />
+</div>
+<p>You can check the term and easily resubmit or adjust your suggestion using the link below:</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<h2>Oh no! A bump in the road... 😢🌾</h2>
+<p style="text-align: center;">
+  <img src="{{frontendUrl}}/puffer_sad.jpg" alt="Sad Pufferfish" style="max-width: 140px; height: auto; border-radius: 8px;" />
+</p>
+<p>Hey! Don't be discouraged! Even though your translation suggestion for <strong>"{{termLabel}}"</strong> wasn't approved this time, we really value your effort! Let's take a look at the moderator's feedback and refine it together!</p>
+<div style="background-color: #fff1f2; border: 1px dashed #f43f5e; padding: 16px; margin: 16px 0; border-radius: 8px;">
+  <strong>Your suggested translation:</strong> <span style="font-weight: 600; text-decoration: line-through; color: #9f1239;">{{value}}</span><br><br>
+  <strong>Moderator Feedback:</strong><br>
+  <span style="color: #9f1239; font-weight: bold;">"{{reason}}"</span>
+</div>
+<p>Click below to adjust your translation and give it another try! We believe in you! 🌟</p>
+{{/if}}
+
+<p style="text-align: center; margin: 24px 0;">
+  <a href="{{link}}" class="btn">View Term and Resubmit</a>
+</p>
+
+{{#if tone_professional}}
+<p>Thank you for your efforts and collaboration.</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_casual}}
+<p>Thanks for your help, and we hope to see another suggestion from you soon!</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<p>Dust yourself off, adjust the term, and let's go! You've got this! 💪🐡</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}

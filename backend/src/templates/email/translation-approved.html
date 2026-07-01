@@ -1,0 +1,62 @@
+{{#if tone_professional}}
+<h2>Translation Approved</h2>
+<p>Dear Contributor,</p>
+<p>We are pleased to inform you that your suggested translation for the term <strong>"{{termLabel}}"</strong> has been successfully reviewed and approved by our moderation team.</p>
+<div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <strong>Approved Translation:</strong><br>
+  <span style="font-size: 16px; color: #065f46;">{{value}}</span>
+</div>
+{{#if reputationChange}}
+<p>Your reputation score has increased by <strong>+{{reputationChange}}</strong> points.</p>
+{{/if}}
+<p>You can view the translation details on the platform via the link below:</p>
+{{/if}}
+
+{{#if tone_casual}}
+<h2>Translation Approved! 🎉</h2>
+<p>Hey there,</p>
+<p>Great news! Your translation suggestion for <strong>"{{termLabel}}"</strong> was reviewed and approved by our team.</p>
+<div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 16px 0; border-radius: 4px;">
+  <strong>Your translation:</strong><br>
+  <span style="font-size: 16px; color: #065f46;">{{value}}</span>
+</div>
+{{#if reputationChange}}
+<p>You've earned <strong>+{{reputationChange}} reputation points</strong> for this contribution.</p>
+{{/if}}
+<p>Click below to view the term details on the platform:</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<h2>Amazing Work! Suggestion Approved! 🥳🚀</h2>
+<p style="text-align: center;">
+  <img src="{{frontendUrl}}/puffer_happy.png" alt="Happy Pufferfish" style="max-width: 130px; height: auto; border-radius: 8px;" />
+</p>
+<p>Wow, brilliant job! Your translation suggestion for <strong>"{{termLabel}}"</strong> has been approved! You are making a huge difference in helping marine scientists communicate globally.</p>
+<div style="background-color: #ecfdf5; border: 1px dashed #10b981; padding: 16px; margin: 16px 0; border-radius: 8px;">
+  <strong>Your Awesome Translation:</strong><br>
+  <span style="font-size: 18px; font-weight: bold; color: #047857;">{{value}}</span>
+</div>
+{{#if reputationChange}}
+<p>You just received a massive boost of <strong>+{{reputationChange}} reputation points</strong>! Double high five! 🙌</p>
+{{/if}}
+<p>Click the link below to check out your approved work:</p>
+{{/if}}
+
+<p style="text-align: center; margin: 24px 0;">
+  <a href="{{link}}" class="btn">View Term Details</a>
+</p>
+
+{{#if tone_professional}}
+<p>Thank you for your valuable contribution to marine terminology translations.</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_casual}}
+<p>Thanks for helping out!</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
+
+{{#if tone_enthusiastic}}
+<p>Keep the suggestions rolling! You're a rockstar! 🌟🐠</p>
+<p>Best regards,<br>The MTT Team</p>
+{{/if}}
