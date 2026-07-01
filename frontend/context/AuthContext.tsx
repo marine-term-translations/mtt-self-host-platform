@@ -11,6 +11,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   checkBanStatus: () => Promise<void>;
+  updateUserEmail: (email: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,6 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               isSuperAdmin: data.is_superadmin || false, // Use is_superadmin from backend session
               orcid: data.orcid, // Keep ORCID for reference
               reputation: data.reputation, // Include reputation if available
+              email: data.email || null, // Capture email address
               languagePreferences: {
                 nativeLanguage: 'en',
                 translationLanguages: ['en'],
@@ -156,8 +158,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUserEmail = (email: string | null) => {
+    setUser(prev => prev ? { ...prev, email } : null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading, checkBanStatus }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading, checkBanStatus, updateUserEmail }}>
       {children}
     </AuthContext.Provider>
   );

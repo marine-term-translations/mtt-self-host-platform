@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, RefreshCw, Play, AlertCircle, CheckCircle2, Clock, Send, Info, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Mail, RefreshCw, Play, AlertCircle, CheckCircle2, Clock, Send, Info, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { backendApi } from '../../services/api';
 import { CONFIG } from '../../config';
 import toast from 'react-hot-toast';
+import { blogRegistry } from '../../src/blogRegistry';
 
 interface MailItem {
   id: number;
@@ -28,6 +29,19 @@ const AdminMailSettings: React.FC = () => {
   const [broadcastBody, setBroadcastBody] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
 
+  // Global settings & SMTP test states
+  const [disableAllEmails, setDisableAllEmails] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+
+  // Specific template test states
+  const [testTemplateName, setTestTemplateName] = useState('inactive-7day');
+  const [testTone, setTestTone] = useState('casual');
+  const [isTestingSpecific, setIsTestingSpecific] = useState(false);
+
+  // Blogpost broadcast state
+  const [isSendingBlogpost, setIsSendingBlogpost] = useState<string | null>(null);
+
   const fetchMailQueue = async (page = 1) => {
     setIsLoading(true);
     try {
@@ -51,8 +65,152 @@ const AdminMailSettings: React.FC = () => {
     }
   };
 
+  const fetchGlobalSettings = async () => {
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/admin/mail/settings`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDisableAllEmails(data.disableAllEmails);
+      }
+    } catch (error) {
+      console.error('Error fetching global email settings:', error);
+    }
+  };
+
+  const handleToggleGlobalEmails = async (checked: boolean) => {
+    setIsSavingSettings(true);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/admin/mail/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ disableAllEmails: checked }),
+      });
+      
+      if (response.ok) {
+        setDisableAllEmails(checked);
+        toast.success(checked ? 'All email notifications globally disabled.' : 'Email notifications globally enabled.');
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to update global email settings.');
+      }
+    } catch (error) {
+      console.error('Error updating global email settings:', error);
+      toast.error('Error updating global email settings.');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    setIsTestingSmtp(true);
+    const loadingToast = toast.loading('Sending test email via SMTP...');
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/admin/mail/test`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      toast.dismiss(loadingToast);
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message || 'Test email sent successfully!');
+        fetchMailQueue(currentPage);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'SMTP test connection failed.');
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      console.error('Error sending SMTP test:', error);
+      toast.error(error.message || 'Error sending SMTP test email.');
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
+
+  const handleSendTestSpecific = async () => {
+    setIsTestingSpecific(true);
+    const loadingToast = toast.loading(`Sending test specific email (${testTemplateName})...`);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/admin/mail/test-specific`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          templateName: testTemplateName,
+          tone: testTone
+        })
+      });
+      
+      toast.dismiss(loadingToast);
+      if (response.ok) {
+        toast.success(`Test email (${testTemplateName}) sent successfully!`);
+        fetchMailQueue(currentPage);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to send test email.');
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      console.error('Error sending specific test:', error);
+      toast.error(error.message || 'Error sending specific test email.');
+    } finally {
+      setIsTestingSpecific(false);
+    }
+  };
+
+  const handleSendBlogpostBroadcast = async (post: any) => {
+    if (!confirm(`Are you sure you want to broadcast the blogpost "${post.title}" to ALL active users?`)) {
+      return;
+    }
+
+    setIsSendingBlogpost(post.slug);
+    const loadingToast = toast.loading(`Queueing blogpost broadcast "${post.title}"...`);
+    try {
+      const response = await fetch(`${CONFIG.API_URL}/admin/mail/broadcast-blogpost`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: post.title,
+          summary: post.summary,
+          slug: post.slug,
+          author: post.author,
+          authorRole: post.authorRole,
+          date: post.date,
+          readTime: post.readTime
+        })
+      });
+
+      toast.dismiss(loadingToast);
+      if (response.ok) {
+        toast.success('Blogpost broadcast queued successfully!');
+        fetchMailQueue(1);
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to queue blogpost broadcast.');
+      }
+    } catch (error: any) {
+      toast.dismiss(loadingToast);
+      console.error('Error sending blogpost broadcast:', error);
+      toast.error(error.message || 'Error sending blogpost broadcast.');
+    } finally {
+      setIsSendingBlogpost(null);
+    }
+  };
+
   useEffect(() => {
     fetchMailQueue(currentPage);
+    fetchGlobalSettings();
   }, [currentPage]);
 
   const handleRetryMail = async (id: number) => {
@@ -290,9 +448,105 @@ const AdminMailSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Broadcast System Announcement Form */}
-        <div>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6 sticky top-8">
+        {/* Configuration & Announcement Forms */}
+        <div className="space-y-6 lg:sticky lg:top-8 self-start">
+          {/* Global Configuration Card */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg text-cyan-600 dark:text-cyan-400">
+                <Settings size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Global Configuration</h3>
+            </div>
+            
+            {/* Toggle Switch */}
+            <div className="flex items-start justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <div className="space-y-0.5">
+                <label className="text-sm font-semibold text-slate-900 dark:text-white block">Email Notifications</label>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {disableAllEmails 
+                    ? 'All user email notifications are globally disabled.' 
+                    : 'System emails are enabled and queueing normally.'}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingSettings}
+                onClick={() => handleToggleGlobalEmails(!disableAllEmails)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 ${
+                  disableAllEmails ? 'bg-red-500' : 'bg-emerald-500'
+                } ${isSavingSettings ? 'opacity-50 cursor-wait' : ''}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    disableAllEmails ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Test Connection Button */}
+            <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-750">
+              <h4 className="text-xs font-bold text-slate-450 uppercase tracking-wider">SMTP Testing</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Send an immediate test email to verify connection credentials and template styles.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Template</label>
+                  <select
+                    value={testTemplateName}
+                    onChange={(e) => setTestTemplateName(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-350 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="test-email">Default Connection Test</option>
+                    <option value="inactive-7day">7-Day Inactive (Sad)</option>
+                    <option value="inactive-14day">14-Day Inactive (Angry)</option>
+                    <option value="digest">Digest Summary</option>
+                    <option value="translation-approved">Translation Approved</option>
+                    <option value="translation-rejected">Translation Rejected</option>
+                    <option value="blogpost-notification">Blogpost Notification</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tone</label>
+                  <select
+                    value={testTone}
+                    disabled={testTemplateName === 'test-email' || testTemplateName === 'inactive-7day' || testTemplateName === 'inactive-14day'}
+                    onChange={(e) => setTestTone(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-350 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-white disabled:opacity-50"
+                  >
+                    <option value="casual">Casual / Friendly</option>
+                    <option value="professional">Professional / Formal</option>
+                    <option value="enthusiastic">Enthusiastic / Happy</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={testTemplateName === 'test-email' ? handleSendTestEmail : handleSendTestSpecific}
+                disabled={isTestingSmtp || isTestingSpecific}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-650 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-semibold transition-all active:scale-95"
+              >
+                {isTestingSmtp || isTestingSpecific ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    Sending Test...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    Send Selected Test
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Broadcast System Announcement Form */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg text-cyan-600 dark:text-cyan-400">
                 <Send size={20} />
@@ -351,6 +605,45 @@ const AdminMailSettings: React.FC = () => {
                 )}
               </button>
             </form>
+          </div>
+
+          {/* Broadcast Blogpost Notification Form */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg text-cyan-600 dark:text-cyan-400">
+                <Mail size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Broadcast Blogpost</h3>
+            </div>
+            
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Select one of the registered blog posts below to announce it to all registered users.
+            </p>
+
+            <div className="space-y-3">
+              {blogRegistry.map((post) => (
+                <div key={post.slug} className="p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-750 rounded-xl flex items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider block">{post.category}</span>
+                    <h4 className="text-sm font-semibold text-slate-950 dark:text-white truncate">{post.title}</h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{post.summary}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSendingBlogpost !== null}
+                    onClick={() => handleSendBlogpostBroadcast(post)}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-cyan-650 hover:bg-cyan-700 text-white rounded-lg text-xs font-semibold shadow-sm hover:shadow transition-colors"
+                  >
+                    {isSendingBlogpost === post.slug ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : (
+                      <Send size={12} />
+                    )}
+                    Send
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

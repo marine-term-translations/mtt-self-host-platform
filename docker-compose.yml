@@ -17,6 +17,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock # Required to spawn/restart docker containers
     ports:
       - "5000:5000"
+    depends_on:
+      - graphdb
 
   frontend:
     build: 
@@ -62,5 +64,4 @@ services:
       - DOCKER_NETWORK=${COMPOSE_PROJECT_NAME:-kgap}_default
       - HOST_PWD=${PWD}
     depends_on:
-      graphdb:
-        condition: service_healthy
+      - graphdb

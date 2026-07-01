@@ -41,6 +41,7 @@ const Settings: React.FC = () => {
   const [emailOnDiscussion, setEmailOnDiscussion] = useState(true);
   const [emailOnStatusChange, setEmailOnStatusChange] = useState(true);
   const [emailDigestFrequency, setEmailDigestFrequency] = useState('none');
+  const [emailTone, setEmailTone] = useState('casual');
   const [isLoadingEmailPrefs, setIsLoadingEmailPrefs] = useState(true);
   const [isSavingEmailPrefs, setIsSavingEmailPrefs] = useState(false);
   const [emailPrefsChanged, setEmailPrefsChanged] = useState(false);
@@ -58,6 +59,7 @@ const Settings: React.FC = () => {
           setEmailOnDiscussion(data.emailOnDiscussion);
           setEmailOnStatusChange(data.emailOnStatusChange);
           setEmailDigestFrequency(data.emailDigestFrequency);
+          setEmailTone(data.emailTone || 'casual');
         }
       } catch (error) {
         console.error('Failed to load email preferences:', error);
@@ -79,9 +81,11 @@ const Settings: React.FC = () => {
         },
         credentials: 'include',
         body: JSON.stringify({
+          email: userEmail,
           emailOnDiscussion,
           emailOnStatusChange,
-          emailDigestFrequency
+          emailDigestFrequency,
+          emailTone
         })
       });
 
@@ -480,24 +484,27 @@ const Settings: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Display user's email */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Notification Email</p>
-                  <p className="text-base font-semibold text-slate-900 dark:text-white mt-0.5 font-mono">
-                    {userEmail || 'No email associated with your ORCID account.'}
-                  </p>
-                </div>
-                {!userEmail && (
-                  <span className="text-xs px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 rounded-full font-semibold">
-                    No Email Found
-                  </span>
-                )}
+            {/* Notification Email Input */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 space-y-3">
+              <div>
+                <label htmlFor="email" className="block text-sm font-semibold text-slate-750 dark:text-slate-300">
+                  Notification Email
+                </label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Specify the email address where system updates and notifications will be sent.
+                </p>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                This email is retrieved automatically from your ORCID profile during authentication.
-              </p>
+              <input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={userEmail || ''}
+                onChange={(e) => {
+                  setUserEmail(e.target.value);
+                  setEmailPrefsChanged(true);
+                }}
+                className="w-full max-w-md px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-650 rounded-lg focus:ring-2 focus:ring-marine-500 focus:border-marine-500 text-slate-900 dark:text-white text-sm"
+              />
             </div>
 
             <div className="space-y-4">
@@ -562,6 +569,28 @@ const Settings: React.FC = () => {
                 </select>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Receive a summary of recent translation goals and activities at the selected frequency.
+                </p>
+              </div>
+
+              {/* Tone Select */}
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <label className="block text-sm font-semibold text-slate-900 dark:text-white">
+                  Preferred Email Tone
+                </label>
+                <select
+                  value={emailTone}
+                  onChange={(e) => {
+                    setEmailTone(e.target.value);
+                    setEmailPrefsChanged(true);
+                  }}
+                  className="max-w-xs w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-marine-500 focus:border-marine-500 text-slate-900 dark:text-white text-sm"
+                >
+                  <option value="professional">Professional / Formal</option>
+                  <option value="casual">Casual / Friendly</option>
+                  <option value="enthusiastic">Enthusiastic / Gamified</option>
+                </select>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Select the tone and style for system emails (digests, updates, and reminders).
                 </p>
               </div>
             </div>

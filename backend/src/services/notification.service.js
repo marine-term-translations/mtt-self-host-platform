@@ -16,6 +16,7 @@ function triggerEmailForNotification(notificationId) {
            u.username,
            up.email_on_discussion, 
            up.email_on_status_change,
+           up.email_tone,
            (SELECT original_value FROM term_fields WHERE term_id = n.term_id LIMIT 1) as term_label,
            (SELECT value FROM translations WHERE id = n.translation_id) as translation_value,
            (SELECT rejection_reason FROM translations WHERE id = n.translation_id) as rejection_reason
@@ -37,7 +38,8 @@ function triggerEmailForNotification(notificationId) {
     message,
     link,
     email_on_discussion: emailOnDiscussion,
-    email_on_status_change: emailOnStatusChange
+    email_on_status_change: emailOnStatusChange,
+    email_tone: emailTone
   } = notification;
 
   // Resolve absolute link for the email client
@@ -64,7 +66,8 @@ function triggerEmailForNotification(notificationId) {
           displayName,
           termLabel: termLabel || 'Concept',
           message,
-          link: absoluteLink
+          link: absoluteLink,
+          tone: emailTone || 'casual'
         }
       );
     }
@@ -78,7 +81,8 @@ function triggerEmailForNotification(notificationId) {
           termLabel: termLabel || 'Concept',
           value: translationValue || '',
           reputationChange: 5, // Default reputation bump
-          link: absoluteLink
+          link: absoluteLink,
+          tone: emailTone || 'casual'
         }
       );
     }
@@ -92,7 +96,8 @@ function triggerEmailForNotification(notificationId) {
           termLabel: termLabel || 'Concept',
           value: translationValue || '',
           reason: rejectionReason || 'Does not meet taxonomy requirements',
-          link: absoluteLink
+          link: absoluteLink,
+          tone: emailTone || 'casual'
         }
       );
     }

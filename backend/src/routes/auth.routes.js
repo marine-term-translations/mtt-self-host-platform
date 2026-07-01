@@ -94,10 +94,10 @@ router.get("/auth/orcid/callback", async (req, res) => {
     try {
       console.log('[ORCID Callback] Fetching email from ORCID for ORCID:', orcid);
       const emailResponse = await axios.get(
-        `https://pub.orcid.org/v3.0/${orcid}/emails`,
+        `https://pub.orcid.org/v3.0/${orcid}/email`,
         {
           headers: {
-            'Accept': 'application/json',
+            'Accept': 'application/vnd.orcid+json',
             'Authorization': `Bearer ${access_token}`
           }
         }
@@ -149,7 +149,7 @@ router.get("/auth/orcid/callback", async (req, res) => {
         });
         
         const userResult = db.prepare(
-          'INSERT INTO users (username, reputation, extra, email) VALUES (?, ?, ?, ?)'
+          'INSERT INTO users (username, reputation, extra, email, last_login_at, last_inactive_email_sent_type, last_inactive_email_sent_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, \'none\', NULL)'
         ).run(orcid, 0, extra, orcidEmail);
         
         userId = userResult.lastInsertRowid;
@@ -210,6 +210,15 @@ router.get("/auth/orcid/callback", async (req, res) => {
         if (orcidEmail && (!existingAuth.email || existingAuth.email !== orcidEmail)) {
           db.prepare('UPDATE users SET email = ? WHERE id = ?').run(orcidEmail, userId);
         }
+
+        // Update last login timestamp and reset inactive email flags
+        db.prepare(`
+          UPDATE users 
+          SET last_login_at = CURRENT_TIMESTAMP, 
+              last_inactive_email_sent_type = 'none', 
+              last_inactive_email_sent_at = NULL 
+          WHERE id = ?
+        `).run(userId);
       }
       
       // Store user info in session with both user_id and username for backward compatibility
