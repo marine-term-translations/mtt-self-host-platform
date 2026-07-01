@@ -832,7 +832,8 @@ module.exports = {
   getAvailableLanguages,
   getTranslationHistory,
   getTranslationTask,
-  logSkipAction
+  logSkipAction,
+  autoApproveExpiredTranslations
 };
 
 /**
@@ -900,4 +901,55 @@ function getTranslationTask(translationId, userIdentifier) {
       term_fields: allFields
     }
   };
+}
+
+function autoApproveExpiredTranslations() {
+  const db = getDatabase();
+  
+  // Find translations in review/discussion created >= 3 days ago
+  const expired = db.prepare(`
+    SELECT t.id, t.language, t.value, t.term_field_id, tf.term_id, t.created_by_id, t.modified_by_id
+    FROM translations t
+    JOIN term_fields tf ON t.term_field_id = tf.id
+    WHERE t.status IN ('review', 'discussion') 
+      AND t.created_at <= datetime('now', '-3 days')
+  `).all();
+
+  for (const t of expired) {
+    const votes = db.prepare(`
+      SELECT action FROM translation_reviews WHERE translation_id = ?
+    `).all(t.id);
+
+    const approvals = votes.filter(v => v.action === 'approve').length;
+    const rejections = votes.filter(v => v.action === 'reject').length;
+
+    if (approvals >= 1 && rejections === 0) {
+      db.prepare(
+        "UPDATE translations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(t.id);
+
+      const translatorUserId = t.modified_by_id || t.created_by_id;
+      if (translatorUserId) {
+        const { applyApprovalReward } = require("./reputation.service");
+        applyApprovalReward(translatorUserId, t.id);
+      }
+
+      const activityExtra = {
+        old_status: 'review',
+        new_status: 'approved',
+        language: t.language,
+        translation_value: t.value,
+        note: 'Auto-approved by system consensus timeout fallback'
+      };
+      // Log system auto-approval (associated with the translator)
+      if (translatorUserId) {
+        db.prepare(`
+          INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(translatorUserId, 'translation_status_changed', t.term_id, t.term_field_id, t.id, JSON.stringify(activityExtra));
+      }
+      
+      console.log(`Auto-approved translation ${t.id} due to 3-day timeout consensus`);
+    }
+  }
 }

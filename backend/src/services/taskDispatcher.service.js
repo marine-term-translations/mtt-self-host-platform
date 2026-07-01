@@ -587,19 +587,33 @@ async function executeHarvestTask(task, addLog) {
   addLog('Harvest task execution placeholder');
 }
 
-/**
- * Start the task dispatcher (runs periodically)
- */
 function startTaskDispatcher(intervalMs = 60000) {
   console.log(`Starting task dispatcher (interval: ${intervalMs}ms)`);
   
   // Run immediately
   checkAndDispatchScheduledTasks();
   
+  // Run auto-approval immediately and hourly
+  const { autoApproveExpiredTranslations } = require("./flow.service");
+  try {
+    autoApproveExpiredTranslations();
+  } catch (e) {
+    console.error("Failed to run autoApproveExpiredTranslations on startup:", e.message);
+  }
+  
   // Then run periodically
   setInterval(() => {
     checkAndDispatchScheduledTasks();
   }, intervalMs);
+
+  // Hourly interval (3600000 ms) for auto-approvals
+  setInterval(() => {
+    try {
+      autoApproveExpiredTranslations();
+    } catch (e) {
+      console.error("Failed to run autoApproveExpiredTranslations hourly:", e.message);
+    }
+  }, 3600000);
 }
 
 /**
