@@ -356,6 +356,10 @@ class ApiService {
     return this.get('/admin/translations', queryParams);
   }
 
+  public async getPendingConsensusReviews(): Promise<{ pending: any[] }> {
+    return this.get('/admin/translations/pending-consensus');
+  }
+
   public async updateTranslationStatus(translationId: number, status: string): Promise<any> {
     return this.put(`/admin/translations/${translationId}/status`, { status });
   }
