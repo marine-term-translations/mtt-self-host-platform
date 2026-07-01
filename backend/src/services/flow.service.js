@@ -480,6 +480,19 @@ function submitReview(params) {
   if (!['review', 'discussion'].includes(translation.status)) {
     throw new Error('Translation is not in review or discussion status');
   }
+
+  // Prevent self-reviews and duplicate reviews for approve/reject actions
+  if (action !== 'discuss') {
+    if (translation.created_by_id === resolvedUserId || translation.modified_by_id === resolvedUserId) {
+      throw new Error('You cannot review your own translation');
+    }
+    const existingVote = db.prepare(
+      "SELECT id FROM translation_reviews WHERE translation_id = ? AND user_id = ?"
+    ).get(translationId, resolvedUserId);
+    if (existingVote) {
+      throw new Error('You have already reviewed this translation');
+    }
+  }
   
   // Handle discussion action - change status to 'discussion' and track participants
   if (action === 'discuss') {
@@ -532,46 +545,144 @@ function submitReview(params) {
   
   // Store old status for logging
   const oldStatus = translation.status;
-  
-  // Update translation status
-  const newStatus = action === 'approve' ? 'approved' : 'rejected';
-  
-  if (action === 'reject') {
+
+  // Insert the review
+  db.prepare(
+    "INSERT INTO translation_reviews (translation_id, user_id, action, rejection_reason) VALUES (?, ?, ?, ?)"
+  ).run(
+    translationId,
+    resolvedUserId,
+    action,
+    action === 'reject' ? rejectionReason.trim() : null
+  );
+
+  // Log the review action as translation_reviewed
+  try {
+    const reviewExtra = {
+      sessionId,
+      action,
+      language: translation.language,
+      translation_value: translation.value
+    };
+    if (action === 'reject') {
+      reviewExtra.rejection_reason = rejectionReason.trim();
+    }
     db.prepare(
-      "UPDATE translations SET status = ?, reviewed_by_id = ?, rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-    ).run(newStatus, resolvedUserId, rejectionReason.trim(), translationId);
-  } else {
-    db.prepare(
-      "UPDATE translations SET status = ?, reviewed_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-    ).run(newStatus, resolvedUserId, translationId);
+      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(
+      resolvedUserId,
+      'translation_reviewed',
+      translation.term_id,
+      translation.term_field_id,
+      translationId,
+      JSON.stringify(reviewExtra)
+    );
+  } catch (err) {
+    console.log("Could not log translation_reviewed activity:", err.message);
   }
-  
-  // Apply reputation changes based on action using existing reputation system
-  if (action === 'approve') {
-    // Award approval reward to the most recent modifier (or original creator)
-    const translatorUserId = translation.modified_by_id || translation.created_by_id;
-    if (translatorUserId) {
-      applyApprovalReward(translatorUserId, translationId);
+
+  // Calculate active translators in past 30 days
+  const activeTranslators = db.prepare(`
+    SELECT COUNT(DISTINCT COALESCE(modified_by_id, created_by_id)) as count
+    FROM translations
+    WHERE language = ? 
+      AND (created_at >= datetime('now', '-30 days') OR updated_at >= datetime('now', '-30 days'))
+      AND COALESCE(modified_by_id, created_by_id) IS NOT NULL
+  `).get(translation.language).count;
+
+  // Set approval weight threshold
+  let threshold = 1;
+  if (activeTranslators > 2 && activeTranslators <= 5) {
+    threshold = 2;
+  } else if (activeTranslators > 5) {
+    threshold = 3;
+  }
+
+  // Gather all reviews to calculate net score
+  const reviews = db.prepare(`
+    SELECT tr.action, u.reputation 
+    FROM translation_reviews tr
+    JOIN users u ON tr.user_id = u.id
+    WHERE tr.translation_id = ?
+  `).all(translationId);
+
+  let netScore = 0;
+  for (const r of reviews) {
+    const weight = Math.min(4, 1 + Math.floor((r.reputation || 0) / 100));
+    if (r.action === 'approve') {
+      netScore += weight;
+    } else {
+      netScore -= weight;
+    }
+  }
+
+  // Determine status transition
+  let nextStatus = oldStatus;
+  if (netScore >= threshold) {
+    nextStatus = 'approved';
+  } else if (netScore <= -threshold) {
+    nextStatus = 'rejected';
+  }
+
+  if (nextStatus !== oldStatus) {
+    // Update translation status
+    if (nextStatus === 'rejected') {
+      db.prepare(
+        "UPDATE translations SET status = ?, reviewed_by_id = ?, rejection_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(nextStatus, resolvedUserId, rejectionReason.trim(), translationId);
+    } else {
+      db.prepare(
+        "UPDATE translations SET status = ?, reviewed_by_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(nextStatus, resolvedUserId, translationId);
     }
 
-    // Also award approval reward to all other discussion participants who contributed
-    try {
-      const participants = db.prepare(
-        "SELECT DISTINCT user_id FROM discussion_participants WHERE translation_id = ?"
-      ).all(translationId);
-      for (const participant of participants) {
-        if (participant.user_id !== translatorUserId) {
-          applyApprovalReward(participant.user_id, translationId);
-        }
-      }
-    } catch (participantErr) {
-      console.log(`Could not award points to discussion participants for translation ${translationId}:`, participantErr.message);
-    }
-  } else if (action === 'reject') {
-    // Apply rejection penalty to translator
+    // Apply reputation changes based on new status
     const translatorUserId = translation.modified_by_id || translation.created_by_id;
     if (translatorUserId) {
-      applyRejectionPenalty(translatorUserId, translationId);
+      if (nextStatus === 'approved') {
+        applyApprovalReward(translatorUserId, translationId);
+        // Also award approval reward to all other discussion participants who contributed
+        try {
+          const participants = db.prepare(
+            "SELECT DISTINCT user_id FROM discussion_participants WHERE translation_id = ?"
+          ).all(translationId);
+          for (const participant of participants) {
+            if (participant.user_id !== translatorUserId) {
+              applyApprovalReward(participant.user_id, translationId);
+            }
+          }
+        } catch (pe) {
+          console.log(`Could not award points to discussion participants for translation ${translationId}:`, pe.message);
+        }
+      } else if (nextStatus === 'rejected') {
+        applyRejectionPenalty(translatorUserId, translationId);
+      }
+    }
+
+    // Log translation_status_changed activity
+    try {
+      const activityExtra = { 
+        sessionId,
+        old_status: oldStatus,
+        new_status: nextStatus,
+        language: translation.language,
+        translation_value: translation.value
+      };
+      if (nextStatus === 'rejected' && action === 'reject' && rejectionReason) {
+        activityExtra.rejection_reason = rejectionReason.trim();
+      }
+      db.prepare(
+        "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(
+        resolvedUserId, 
+        'translation_status_changed', 
+        translation.term_id,
+        translation.term_field_id,
+        translationId, 
+        JSON.stringify(activityExtra)
+      );
+    } catch (err) {
+      console.log("Could not log status change activity:", err.message);
     }
   }
   
@@ -592,45 +703,7 @@ function submitReview(params) {
   const { updateDailyGoalProgress } = require("./gamification.service");
   updateDailyGoalProgress(resolvedUserId, 1);
   
-  // Log activity with rejection reason and status change
-  try {
-    const activityExtra = { 
-      sessionId,
-      old_status: oldStatus,
-      new_status: newStatus,
-      language: translation.language,
-      translation_value: translation.value
-    };
-    if (action === 'reject' && rejectionReason) {
-      activityExtra.rejection_reason = rejectionReason.trim();
-    }
-    
-    // Log status change action (consistent with term detail page)
-    db.prepare(
-      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(
-      resolvedUserId, 
-      'translation_status_changed', 
-      translation.term_id,
-      translation.term_field_id,
-      translationId, 
-      JSON.stringify(activityExtra)
-    );
-    
-    // Also log the specific approved/rejected action for backward compatibility
-    db.prepare(
-      "INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(
-      resolvedUserId, 
-      `translation_${action}d`, 
-      translation.term_id,
-      translation.term_field_id,
-      translationId, 
-      JSON.stringify(activityExtra)
-    );
-  } catch (err) {
-    console.log("Could not log activity:", err.message);
-  }
+
   
   return {
     success: true,
