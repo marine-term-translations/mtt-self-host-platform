@@ -425,6 +425,12 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
             role="button"
             aria-label="Show community goals"
           >
+            {/* Pulse glow background */}
+            <div className="absolute w-20 h-20 bg-gradient-to-tr from-cyan-400/25 to-blue-500/25 rounded-full blur-md animate-pulse z-0" />
+            
+            {/* Concentric ripple outer ring */}
+            <div className="absolute w-16 h-16 rounded-full border border-cyan-400/40 animate-ping opacity-75 z-0" style={{ animationDuration: '3s' }} />
+
             {/* 3D Spline Scene (Pufferfish) wrapped in a native resolution container to prevent scale-based blurriness */}
             <div 
               className="absolute w-[240px] h-[240px] pointer-events-auto"
