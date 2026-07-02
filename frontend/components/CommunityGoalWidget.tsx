@@ -189,30 +189,11 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
       const dx = targetX - posRef.current.x;
       const dy = targetY - posRef.current.y;
 
-      // Always follow when user is on the page for > 2s, and not hovered
-      if (!isHovered && pageDelayPassed) {
-        // Accelerating speed factor: starts slow, increases when mouse stops moving
-        const timeSinceLastMove = Date.now() - lastMovedRef.current;
-        const baseSpeed = 0.015;
-        const maxSpeed = 0.20;
-        const accelerationTime = 1500; // takes 1.5s to reach max speed
+      // Always follow physical position removed to make widget stationary
+      // posRef.current.x += dx * speedFactor;
+      // posRef.current.y += dy * speedFactor;
+      // setPosition({ x: clampedX, y: clampedY });
 
-        const speedFactor = Math.min(
-          maxSpeed,
-          baseSpeed + (maxSpeed - baseSpeed) * Math.min(1, timeSinceLastMove / accelerationTime)
-        );
-
-        posRef.current.x += dx * speedFactor;
-        posRef.current.y += dy * speedFactor;
-
-        // Keep fish fully on screen (prevent reaching the navbar at the top)
-        const padding = 50;
-        const navbarHeight = 80;
-        const clampedX = Math.max(padding, Math.min(window.innerWidth - padding, posRef.current.x));
-        const clampedY = Math.max(navbarHeight + padding, Math.min(window.innerHeight - padding, posRef.current.y));
-
-        setPosition({ x: clampedX, y: clampedY });
-      }
 
       // Check proximity (distance between actual cursor and pufferfish)
       const rawDx = rawMouseRef.current.x - posRef.current.x;
@@ -309,16 +290,18 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     return () => cancelAnimationFrame(animationFrameId);
   }, [isMinimized, isHovered, fishObject, location.pathname, pageDelayPassed]);
 
-  // Reset follower physical position to bottom-right when minimized again or when page changes
+  // Track window size to keep the stationary center correct for the eye tracking calculations
   useEffect(() => {
-    if (isMinimized) {
-      const defaultX = window.innerWidth - 100;
-      const defaultY = window.innerHeight - 100;
+    const updateFixedPosition = () => {
+      const defaultX = window.innerWidth - 80;
+      const defaultY = window.innerHeight - 80;
       posRef.current = { x: defaultX, y: defaultY };
       mouseRef.current = { x: defaultX, y: defaultY };
-      setPosition({ x: defaultX, y: defaultY });
-    }
-  }, [isMinimized, location.pathname]);
+    };
+    updateFixedPosition();
+    window.addEventListener('resize', updateFixedPosition);
+    return () => window.removeEventListener('resize', updateFixedPosition);
+  }, []);
 
   // Reset fish when expanded or on translation pages
   useEffect(() => {
@@ -407,6 +390,11 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     }
   };
 
+  const isAdminPage = location.pathname.startsWith('/admin');
+  if (isAdminPage) {
+    return null;
+  }
+
   if (loading || goals.length === 0) {
     return null;
   }
@@ -421,10 +409,8 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
 
     return (
       <div
-        className={`fixed z-50 ${className}`}
+        className={`fixed bottom-6 right-6 z-50 ${className}`}
         style={{
-          left: `${position.x - 56}px`,
-          top: `${position.y - 56}px`,
           pointerEvents: 'auto'
         }}
         onMouseEnter={() => setIsHovered(true)}
