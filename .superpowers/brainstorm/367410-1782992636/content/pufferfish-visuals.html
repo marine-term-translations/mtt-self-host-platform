@@ -1,0 +1,280 @@
+<h2>Pufferfish Visual & Behavioral Redesign</h2>
+<p class="subtitle">Select your preferred styling options for the marine halo and water bubble text bubble.</p>
+
+<style>
+  .comparison-container {
+    display: flex;
+    gap: 2rem;
+    margin: 2rem 0;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .design-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 1.5rem;
+    padding: 2rem;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .design-card:hover {
+    border-color: #06b6d4;
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.2);
+  }
+  
+  .design-card.selected {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 2px #06b6d4, 0 10px 25px -5px rgba(6, 182, 212, 0.3);
+  }
+  
+  .preview-area {
+    width: 280px;
+    height: 180px;
+    background: #0f172a;
+    border-radius: 1rem;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    border: 1px solid #1e293b;
+  }
+  
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-size: 20px 20px;
+    background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+  }
+
+  /* Pufferfish Image Mock */
+  .puffer-fish {
+    width: 70px;
+    height: 70px;
+    z-index: 10;
+    position: relative;
+  }
+  
+  /* OPTION 1: Subtle Halo Glow */
+  .halo-subtle {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: rgba(6, 182, 212, 0.25);
+    border-radius: 50%;
+    filter: blur(10px);
+    z-index: 5;
+    animation: subtle-pulse 3s ease-in-out infinite;
+  }
+  
+  @keyframes subtle-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+
+  /* OPTION 2: Dual Ring Ripple Halo */
+  .halo-ripple-glow {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.3) 0%, rgba(59, 130, 246, 0.1) 70%, transparent 100%);
+    border-radius: 50%;
+    filter: blur(8px);
+    z-index: 5;
+    animation: ripple-pulse 4s ease-in-out infinite;
+  }
+  
+  .halo-ripple-ring {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border: 1.5px solid rgba(6, 182, 212, 0.5);
+    border-radius: 50%;
+    z-index: 4;
+    animation: ripple-ring-expand 3s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+  }
+  
+  @keyframes ripple-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 0.95; }
+  }
+  
+  @keyframes ripple-ring-expand {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+
+  /* Water Bubble Style A: Glassmorphic Floating Ripple */
+  .bubble-glass {
+    position: absolute;
+    left: 20px;
+    top: 30px;
+    width: 150px;
+    padding: 0.6rem 0.8rem;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1.25rem;
+    border-bottom-right-radius: 0.2rem;
+    box-shadow: 0 8px 32px 0 rgba(14, 165, 233, 0.2), inset 0 2px 4px rgba(255,255,255,0.1);
+    color: #e0f2fe;
+    font-size: 0.65rem;
+    line-height: 1.3;
+    z-index: 15;
+    animation: bubble-float 4s ease-in-out infinite;
+  }
+  
+  /* Water Bubble Style B: Cyan Liquid Wobble */
+  .bubble-liquid {
+    position: absolute;
+    left: 20px;
+    top: 30px;
+    width: 150px;
+    padding: 0.6rem 0.8rem;
+    background: rgba(6, 182, 212, 0.15);
+    backdrop-filter: blur(4px);
+    border: 1.5px solid rgba(6, 182, 212, 0.4);
+    border-radius: 1.25rem;
+    border-bottom-right-radius: 0.2rem;
+    box-shadow: 0 4px 15px rgba(6, 182, 212, 0.25), inset -2px -2px 6px rgba(6, 182, 212, 0.2);
+    color: #cffafe;
+    font-size: 0.65rem;
+    line-height: 1.3;
+    z-index: 15;
+    animation: bubble-float 3.5s ease-in-out infinite, liquid-wobble 6s ease-in-out infinite;
+  }
+  
+  @keyframes bubble-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  
+  @keyframes liquid-wobble {
+    0%, 100% { border-radius: 1.25rem 1.25rem 1.25rem 0.2rem; }
+    33% { border-radius: 1.35rem 1.15rem 1.25rem 0.2rem; }
+    66% { border-radius: 1.15rem 1.35rem 1.20rem 0.2rem; }
+  }
+
+  .bubble-text {
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .badge-icon {
+    position: absolute;
+    right: 48px;
+    top: 48px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: bold;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 12;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  .card-body h3 {
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem 0;
+    color: #f1f5f9;
+  }
+  
+  .card-body p {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.4;
+  }
+  
+  .badge-label {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: #0ea5e9;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+  }
+</style>
+
+<div class="comparison-container options">
+  <!-- Option A -->
+  <div class="design-card option" data-choice="design-a" onclick="toggleSelect(this)">
+    <span class="badge-label">Subtle & Clean</span>
+    <div class="preview-area">
+      <div class="grid-bg"></div>
+      
+      <!-- Water Bubble A -->
+      <div class="bubble-glass">
+        <p class="bubble-text">Click the fish to see the goals you can complete!</p>
+      </div>
+      
+      <!-- Subtle Halo -->
+      <div class="halo-subtle" style="right: 50px; top: 50px;"></div>
+      
+      <!-- Puffer Fish -->
+      <img src="https://raw.githubusercontent.com/marine-term-translations/mtt-self-host-platform/refs/heads/main/frontend/public/puffer.png" class="puffer-fish" style="position: absolute; right: 55px; top: 55px;" alt="Pufferfish" />
+      <span class="badge-icon">2</span>
+    </div>
+    
+    <div class="card-body">
+      <h3>Option A: Subtle Glassmorphic</h3>
+      <p>A soft, single-layer cyan/teal glow behind a stationary fish. Displays a sleek glassmorphic bubble that floats gently up and down.</p>
+    </div>
+  </div>
+
+  <!-- Option B (Recommended) -->
+  <div class="design-card option" data-choice="design-b" onclick="toggleSelect(this)">
+    <span class="badge-label" style="background: #10b981;">Recommended</span>
+    <div class="preview-area">
+      <div class="grid-bg"></div>
+      
+      <!-- Water Bubble B -->
+      <div class="bubble-liquid">
+        <p class="bubble-text">Click the fish to see the goals you can complete!</p>
+      </div>
+      
+      <!-- Ripple Halo -->
+      <div class="halo-ripple-glow" style="right: 50px; top: 50px;"></div>
+      <div class="halo-ripple-ring" style="right: 60px; top: 60px;"></div>
+      
+      <!-- Puffer Fish -->
+      <img src="https://raw.githubusercontent.com/marine-term-translations/mtt-self-host-platform/refs/heads/main/frontend/public/puffer.png" class="puffer-fish" style="position: absolute; right: 55px; top: 55px;" alt="Pufferfish" />
+      <span class="badge-icon">2</span>
+    </div>
+    
+    <div class="card-body">
+      <h3>Option B: Dual-Ring Liquid</h3>
+      <p>An animated dual-ring marine halo: a slow-pulsing background gradient with expanding concentric ripples. Displays a liquid-shaped wobbly water bubble prompt.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Functional Specification Summary:</h3>
+  <ul style="color: #94a3b8; font-size: 0.9rem; line-height: 1.5; padding-left: 1.25rem;">
+    <li><strong>Stationary Placement:</strong> Removed cursor tracking. The minimized widget sits fixed at the bottom-right corner (using standard CSS, responsive for different viewports).</li>
+    <li><strong>3D Looking-At Interaction:</strong> Retained cursor look-at tilting so the 3D eyes and body orient slightly towards the user's cursor from its fixed position (feels alive and premium).</li>
+    <li><strong>Auto-dismissing/Storable bubble:</strong> The bubble will appear on a short delay (2s) on page load, and can be dismissed permanently by clicking the close button or clicking the fish (saved in <code>localStorage</code>).</li>
+    <li><strong>Admin Route Filter:</strong> Fully hides the fish widget whenever path starts with <code>/admin</code> (e.g. <code>/admin/users</code>, <code>/admin/harvest</code>).</li>
+  </ul>
+</div>
