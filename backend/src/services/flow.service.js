@@ -49,13 +49,15 @@ function getPendingReviews(userIdentifier, language = null, sourceId = null) {
      JOIN terms term ON tf.term_id = term.id
      LEFT JOIN user_activity ua_skip ON t.id = ua_skip.translation_id
        AND ua_skip.user_id = ? AND ua_skip.action = 'task_skipped'
+     LEFT JOIN translation_reviews tr ON t.id = tr.translation_id
+       AND tr.user_id = ?
      WHERE t.status = 'review' 
        AND t.created_by_id != ?
-       AND (t.reviewed_by_id IS NULL)
+       AND tr.id IS NULL
        AND ua_skip.translation_id IS NULL
        AND ${TRANSLATABLE_FIELD_PATTERN}`;
   
-  const params = [userId, userId];
+  const params = [userId, userId, userId];
   
   if (language) {
     query += ` AND t.language = ?`;
