@@ -23,6 +23,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     const saved = localStorage.getItem('communityGoalsMinimized');
     return saved === 'true';
   });
+  const [showBubble, setShowBubble] = useState(false);
 
   const [splineApp, setSplineApp] = useState<any>(null);
   const [fishObject, setFishObject] = useState<any>(null);
@@ -314,6 +315,32 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     }
   }, [location.pathname, isMinimized, fishObject]);
 
+  // Display timers and page state checks for the wobbly water bubble prompt
+  useEffect(() => {
+    if (!isMinimized) {
+      setShowBubble(false);
+      return;
+    }
+
+    const dismissed = localStorage.getItem('communityGoalsBubbleDismissed') === 'true';
+    if (dismissed) return;
+
+    // Show after 2s delay
+    const showTimer = setTimeout(() => {
+      setShowBubble(true);
+    }, 2000);
+
+    // Hide after 8s of visibility (10s total from mount/minimize)
+    const hideTimer = setTimeout(() => {
+      setShowBubble(false);
+    }, 10000);
+
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [isMinimized]);
+
   useEffect(() => {
     fetchGoals();
   }, []);
@@ -356,6 +383,10 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     const newState = !isMinimized;
     setIsMinimized(newState);
     localStorage.setItem('communityGoalsMinimized', String(newState));
+    if (!newState) {
+      setShowBubble(false);
+      localStorage.setItem('communityGoalsBubbleDismissed', 'true');
+    }
   };
 
   const handleGoalClick = (goal: ApiCommunityGoal) => {
@@ -416,7 +447,44 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        <style>{`
+          @keyframes bubbleFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+          }
+          @keyframes liquidWobble {
+            0%, 100% { border-radius: 1.5rem 1.5rem 1.5rem 0.25rem; }
+            33% { border-radius: 1.6rem 1.4rem 1.5rem 0.25rem; }
+            66% { border-radius: 1.4rem 1.6rem 1.45rem 0.25rem; }
+          }
+          .water-bubble {
+            animation: bubbleFloat 4s ease-in-out infinite, liquidWobble 6s ease-in-out infinite;
+          }
+        `}</style>
         <div className={`relative ${isHovered ? 'scale-110' : 'scale-100'} transition-transform duration-300`}>
+          {/* Water bubble text prompt */}
+          {showBubble && (
+            <div 
+              className="absolute right-28 bottom-4 w-48 bg-sky-100/95 dark:bg-sky-950/95 border border-sky-200/50 dark:border-sky-800/40 p-3 shadow-[0_8px_32px_rgba(14,165,233,0.15)] text-slate-800 dark:text-slate-100 text-xs z-30 water-bubble pointer-events-auto cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="pr-4 font-medium leading-relaxed">
+                Click the fish to see the goals you can complete!
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowBubble(false);
+                  localStorage.setItem('communityGoalsBubbleDismissed', 'true');
+                }}
+                className="absolute top-1 right-2 text-sky-500 hover:text-sky-700 font-bold text-sm"
+                aria-label="Close guide"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {/* Transparent clickable wrapper container */}
           <div
             ref={containerRef}
