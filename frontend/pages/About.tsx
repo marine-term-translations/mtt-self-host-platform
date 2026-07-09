@@ -193,7 +193,7 @@ const About: React.FC = () => {
                   This platform is made possible through the collaboration and support of leading marine science organizations and European institutions.
               </p>
               
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
                           <a href="https://vliz.be/en" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
@@ -236,6 +236,22 @@ const About: React.FC = () => {
                       <p className="text-sm text-slate-600 dark:text-slate-400">
                           A comprehensive vocabulary management tool that will leverage the multilingual translations created by this platform's community to enhance marine terminology accessibility.
                       </p>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col justify-between h-full md:col-span-2 lg:col-span-1">
+                      <div>
+                          <div className="h-10 flex items-center mb-4">
+                              <img src="/emodnet-logo.png" alt="EMODnet Logo" className="max-h-full object-contain bg-white/90 dark:bg-white px-2 py-1 rounded" />
+                          </div>
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
+                              <a href="https://emodnet.ec.europa.eu/" target="_blank" rel="noopener noreferrer" className="text-marine-600 hover:text-marine-700 dark:text-marine-400 dark:hover:text-marine-300 hover:underline">
+                                  EMODnet
+                              </a>
+                          </h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                              This project is sponsored by EMODnet (European Marine Observation and Data Network), supporting the development of this platform to facilitate the internationalization and harmonization of marine science vocabularies.
+                          </p>
+                      </div>
                   </div>
               </div>
           </div>
