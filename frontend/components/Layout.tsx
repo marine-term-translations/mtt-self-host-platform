@@ -24,6 +24,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [isFooterVisible, setIsFooterVisible] = useState(false);
+  const footerRef = React.useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsFooterVisible(entry.isIntersecting);
+      },
+      {
+        threshold: 0.8,
+      }
+    );
+    const currentFooter = footerRef.current;
+    if (currentFooter) {
+      observer.observe(currentFooter);
+    }
+    return () => {
+      if (currentFooter) {
+        observer.unobserve(currentFooter);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     // Only open if user is authenticated, has no email, and hasn't dismissed it in the current session
     if (isAuthenticated && user && !user.email) {
