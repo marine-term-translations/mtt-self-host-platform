@@ -164,6 +164,7 @@ function initializeDatabase() {
   applyMigrations();
   
   seedAchievements(db);
+  retroactivelyAwardAchievements(db);
   
   return true;
 }
@@ -209,6 +210,31 @@ function seedAchievements(db) {
     }
   } catch (err) {
     console.error('[DB Init] ERROR seeding achievements:', err.message);
+  }
+}
+
+/**
+ * Check all users in the database and retroactively award achievements they are eligible for.
+ */
+function retroactivelyAwardAchievements(db) {
+  try {
+    console.log('[DB Init] Running retroactive achievement awards for all users...');
+    const { checkAndAwardAchievements } = require("./achievement.service");
+    
+    // Get all users
+    const users = db.prepare("SELECT id FROM users").all();
+    let totalUnlockedCount = 0;
+    
+    for (const user of users) {
+      const newlyUnlocked = checkAndAwardAchievements(user.id);
+      if (newlyUnlocked && newlyUnlocked.length > 0) {
+        totalUnlockedCount += newlyUnlocked.length;
+      }
+    }
+    
+    console.log(`[DB Init] ✓ Retroactive achievement check completed. Newly awarded ${totalUnlockedCount} achievements across ${users.length} users.`);
+  } catch (err) {
+    console.error('[DB Init] ERROR running retroactive achievements:', err.message);
   }
 }
 
