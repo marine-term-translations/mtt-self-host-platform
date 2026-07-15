@@ -138,6 +138,13 @@ router.post("/terms/:termId/discussions", writeLimiter, (req, res) => {
       "INSERT INTO term_discussion_messages (discussion_id, author_id, message) VALUES (?, ?, ?)"
     );
     messageStmt.run(discussionId, currentUserId, message);
+
+    try {
+      const { checkAndAwardAchievements } = require("../services/achievement.service");
+      checkAndAwardAchievements(currentUserId);
+    } catch (err) {
+      console.log("Could not run achievements check:", err.message);
+    }
     
     // Add creator as participant
     const participantStmt = db.prepare(
@@ -399,6 +406,13 @@ router.post("/discussions/:id/messages", writeLimiter, (req, res) => {
       "INSERT INTO term_discussion_messages (discussion_id, author_id, message) VALUES (?, ?, ?)"
     );
     const info = stmt.run(discussionId, currentUserId, message.trim());
+
+    try {
+      const { checkAndAwardAchievements } = require("../services/achievement.service");
+      checkAndAwardAchievements(currentUserId);
+    } catch (err) {
+      console.log("Could not run achievements check:", err.message);
+    }
     
     // Update discussion updated_at
     db.prepare("UPDATE term_discussions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(discussionId);
