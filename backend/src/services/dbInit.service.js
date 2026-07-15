@@ -146,7 +146,8 @@ function initializeDatabase() {
   }
 
   // Get database instance (creates file if doesn't exist)
-  getDatabase();
+  const db = getDatabase();
+
 
   // Check if schema has been applied
   if (!isDatabaseInitialized()) {
@@ -162,8 +163,55 @@ function initializeDatabase() {
   console.log('[DB Init] Checking for migrations...');
   applyMigrations();
   
+  seedAchievements(db);
+  
   return true;
 }
+
+/**
+ * Seed default achievements and tiers if empty
+ */
+function seedAchievements(db) {
+  try {
+    const existing = db.prepare("SELECT COUNT(*) as c FROM achievements").get().c;
+    if (existing === 0) {
+      console.log('[DB Init] Seeding default achievements and tiers...');
+      const achs = [
+        { id: 'streak_puffer', name: 'Pufferfish Pride', desc: 'Maintain a daily translation/review streak.', cat: 'streak' },
+        { id: 'translation_angler', name: 'Deep Sea Translator', desc: 'Translate terms to help grow the marine knowledge base.', cat: 'translations' },
+        { id: 'review_turtle', name: 'Coral Conservator', desc: 'Review other translators\' work for quality control.', cat: 'reviews' },
+        { id: 'discussion_dolphin', name: 'Ocean Talker', desc: 'Participate in term discussions and translation appeals.', cat: 'discussions' },
+        { id: 'reputation_stingray', name: 'Tidal Wave', desc: 'Earn gamification points and build reputation.', cat: 'points' },
+        { id: 'goal_seahorse', name: 'Goal Getter', desc: 'Complete your daily translation/review goals.', cat: 'daily_goals' }
+      ];
+      
+      const insertAch = db.prepare("INSERT INTO achievements (id, name, description, category) VALUES (?, ?, ?, ?)");
+      const insertTier = db.prepare("INSERT INTO achievement_tiers (achievement_id, tier, target_value, reward_points) VALUES (?, ?, ?, ?)");
+      
+      db.transaction(() => {
+        for (const a of achs) {
+          insertAch.run(a.id, a.name, a.desc, a.cat);
+          const targets = {
+            streak_puffer: [3, 7, 30],
+            translation_angler: [10, 50, 250],
+            review_turtle: [20, 100, 500],
+            discussion_dolphin: [5, 25, 100],
+            reputation_stingray: [50, 250, 1000],
+            goal_seahorse: [5, 25, 100]
+          }[a.id];
+          const rewards = [10, 25, 100];
+          insertTier.run(a.id, 1, targets[0], rewards[0]);
+          insertTier.run(a.id, 2, targets[1], rewards[1]);
+          insertTier.run(a.id, 3, targets[2], rewards[2]);
+        }
+      })();
+      console.log('[DB Init] ✓ Achievements and tiers seeded successfully');
+    }
+  } catch (err) {
+    console.error('[DB Init] ERROR seeding achievements:', err.message);
+  }
+}
+
 
 /**
  * Run bootstrap process on app startup
