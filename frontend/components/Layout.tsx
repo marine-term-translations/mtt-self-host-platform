@@ -28,22 +28,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const footerRef = React.useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsFooterVisible(entry.isIntersecting);
-      },
-      {
-        threshold: 0.8,
-      }
-    );
-    const currentFooter = footerRef.current;
-    if (currentFooter) {
-      observer.observe(currentFooter);
-    }
+    const handleScroll = () => {
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+
+      setIsFooterVisible((prev) => {
+        if (!prev) {
+          // If footer is currently collapsed, check if we reached the bottom (within 10px)
+          return windowHeight + scrollTop >= documentHeight - 10;
+        } else {
+          // If footer is expanded, check if we scrolled up past the threshold (120px from bottom)
+          // to prevent layout loop / jitter caused by height changes.
+          return windowHeight + scrollTop >= documentHeight - 120;
+        }
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initialize state
+
     return () => {
-      if (currentFooter) {
-        observer.unobserve(currentFooter);
-      }
+      window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
