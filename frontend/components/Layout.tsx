@@ -135,7 +135,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className={`sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 ${isAuthenticated ? 'hidden md:block' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <Link to="/" className="flex items-center gap-2 group">
                 <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 group-hover:border-marine-500 transition-colors">
                   <img src="/mtt-logo.svg" alt="Marine Term Translations" className="w-6 h-6" />
@@ -143,6 +143,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight hidden sm:block">Marine Term Translations</span>
                 <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight sm:hidden">MTT</span>
               </Link>
+              {isAuthenticated && (
+                <a 
+                  href="https://emodnet.ec.europa.eu/en/biology" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center border-l border-slate-200 dark:border-slate-700 pl-3 group"
+                  title="EMODnet Biology"
+                >
+                  <img 
+                    src="/emodnet-logo.png" 
+                    alt="EMODnet Biology" 
+                    className="h-8 object-contain bg-white/90 dark:bg-white px-1.5 py-0.5 rounded group-hover:opacity-90 transition-opacity" 
+                  />
+                </a>
+              )}
             </div>
 
             {/* Desktop Nav */}
@@ -150,7 +165,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {isAuthenticated ? (
                 <>
                   <Link to="/browse" className={isActive('/browse')}>Browse</Link>
-                  <Link to="/blog" className={isActive('/blog')}>Blog</Link>
                   {user?.isAdmin && (
                     <Link to="/admin" className={`${isActive('/admin')} flex items-center gap-1`}>
                        <ShieldCheck size={16} /> Admin
@@ -161,7 +175,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <>
                   <Link to="/about" className={isActive('/about')}>About</Link>
                   <Link to="/communities" className={isActive('/communities')}>Communities</Link>
-                  <Link to="/blog" className={isActive('/blog')}>Blog</Link>
                   <Link to="/documentation" className={isActive('/documentation')}>Documentation</Link>
                 </>
               )}
@@ -217,12 +230,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                           className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                         >
                           Communities
-                        </Link>
-                        <Link 
-                          to="/blog" 
-                          className="block px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                        >
-                          Blog
                         </Link>
                         <Link 
                           to="/about" 
@@ -317,7 +324,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <span>Report Issue</span>
               </button>
               <Link to="/about" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>About</Link>
-              <Link to="/blog" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Blog</Link>
               <Link to="/leaderboard" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Community</Link>
               <Link to="/documentation" className="block py-2 text-slate-600 dark:text-slate-300 hover:text-marine-600" onClick={() => setIsMenuOpen(false)}>Documentation</Link>
                {isAuthenticated && (
@@ -347,43 +353,50 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {children}
       </main>
 
-      {/* Footer - hidden on phone when authenticated */}
+      {/* Footer - sticky when not authenticated, normal relative when authenticated */}
       <footer 
         ref={footerRef}
-        className={`bg-slate-100 dark:bg-slate-955 border-t border-slate-200 dark:border-slate-800 ${isAuthenticated ? 'hidden md:block' : ''}`}
+        className={`bg-slate-100/95 dark:bg-slate-955/95 border-t border-slate-200 dark:border-slate-800 ${
+          !isAuthenticated ? 'sticky bottom-0 z-40 backdrop-blur-md shadow-lg' : 'relative z-10'
+        }`}
       >
-        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-500 ease-in-out ${isFooterVisible ? 'py-14' : 'py-8'}`}>
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-3 transition-all duration-300 ${isFooterVisible ? 'py-4' : 'py-3'}`}>
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
             <Link to="/" className="flex items-center gap-2 group">
               <img 
                 src="/mtt-logo.svg" 
                 alt="Marine Term Translations" 
-                className={`transition-all duration-500 ease-in-out transform group-hover:scale-105 active:scale-95 ${isFooterVisible ? 'w-7 h-7' : 'w-5 h-5'}`} 
+                className="w-5 h-5 transition-transform group-hover:scale-105" 
               />
-              <span className={`font-semibold text-slate-700 dark:text-slate-300 transition-all duration-500 ease-in-out ${isFooterVisible ? 'text-lg' : 'text-base'}`}>
+              <span className="font-semibold text-slate-700 dark:text-slate-300 text-sm">
                 Marine Term Translations
               </span>
             </Link>
-            <div className={`flex items-center border-slate-300 dark:border-slate-800 sm:border-l sm:pl-6 py-1 transition-all duration-500 ease-in-out ${isFooterVisible ? 'gap-3' : 'gap-2'}`}>
-              <span className={`text-slate-500 dark:text-slate-400 font-medium transition-all duration-500 ease-in-out ${isFooterVisible ? 'text-sm' : 'text-xs'}`}>
+            <div className="flex items-center border-slate-300 dark:border-slate-800 sm:border-l sm:pl-6 py-0.5 gap-2">
+              <span className="text-slate-500 dark:text-slate-400 font-medium text-xs">
                 Sponsored by
               </span>
               <a 
-                href="https://emodnet.ec.europa.eu/" 
+                href="https://emodnet.ec.europa.eu/en/biology" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="hover:scale-105 active:scale-95 transition-transform duration-200"
               >
                 <img 
                   src="/emodnet-logo.png" 
-                  alt="EMODnet" 
-                  className={`object-contain bg-white/90 dark:bg-white px-1.5 py-0.5 rounded transition-all duration-500 ease-in-out ${isFooterVisible ? 'h-14' : 'h-6'}`} 
+                  alt="EMODnet Biology" 
+                  className="h-8 object-contain bg-white/90 dark:bg-white px-1.5 py-0.5 rounded" 
                 />
               </a>
             </div>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 text-center md:text-right">
+          <p className="text-xs text-slate-500 dark:text-slate-400 text-center md:text-right">
             &copy; {format(parse(now()), 'YYYY')} Marine Term Translations. Data sourced from NERC Vocabulary Server.
+          </p>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 text-center leading-tight max-w-5xl mx-auto">
+            The European Marine Observation and Data Network (EMODnet) is financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.
           </p>
         </div>
       </footer>

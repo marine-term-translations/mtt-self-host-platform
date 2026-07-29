@@ -92,7 +92,7 @@ const Documentation: React.FC = () => {
                   <strong className="text-slate-900 dark:text-white">Browse Page</strong>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Use the Browse page to explore all available terms. Filter by collection (P01, P02, etc.), language, or translation status.
+                  Use the Browse page to explore all available terms. Filter by collection (P02, L22, etc.), language, or translation status.
                 </p>
               </div>
             </div>
@@ -150,12 +150,12 @@ const Documentation: React.FC = () => {
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                <strong className="text-slate-900 dark:text-white">P01</strong>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Observed properties - what is being measured</p>
+                <strong className="text-slate-900 dark:text-white">P02</strong>
+                <p className="text-sm text-slate-600 dark:text-slate-400">SeaDataNet Parameter Discovery Vocabulary</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                <strong className="text-slate-900 dark:text-white">P02</strong>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Parameter groupings - categories of measurements</p>
+                <strong className="text-slate-900 dark:text-white">P06</strong>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Data storage units and measurement scales</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
                 <strong className="text-slate-900 dark:text-white">L22</strong>
