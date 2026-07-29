@@ -256,6 +256,16 @@ function bootstrap() {
     } else {
       console.error('[DB Init] WARNING: Failed to initialize language communities:', result.error);
     }
+
+    // Initialize collection community goals per language for all sources
+    console.log('[DB Init] Ensuring collection community goals per language for all sources...');
+    const { ensureCollectionGoalsForAllSources } = require("./sourceGoalAutoCreation.service");
+    const goalResult = ensureCollectionGoalsForAllSources();
+    if (goalResult.success) {
+      console.log(`[DB Init] ✓ Collection community goals initialized (${goalResult.totalCreatedGoalsCount} created)`);
+    } else {
+      console.error('[DB Init] WARNING: Failed to initialize collection community goals:', goalResult.error);
+    }
   } catch (err) {
     console.error('[DB Init] ERROR: Failed to initialize database:', err.message);
     console.error('[DB Init] Stack trace:', err.stack);

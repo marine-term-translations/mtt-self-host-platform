@@ -13,6 +13,7 @@ const config = require("../config");
 const datetime = require("../utils/datetime");
 const dockerService = require("../services/docker.service");
 const { MAIN_LDES_CONSUMER_CONTAINER, getLdesConsumerContainerName } = require("../config/docker");
+const { ensureCollectionGoalsForSource } = require("../services/sourceGoalAutoCreation.service");
 
 // Configure multer for file uploads to /data volume
 const storage = multer.diskStorage({
@@ -271,6 +272,13 @@ router.post("/sources", writeLimiter, async (req, res) => {
     
     // Update the source with the auto-generated graph_name
     db.prepare("UPDATE sources SET graph_name = ? WHERE source_id = ?").run(autoGraphName, sourceId);
+    
+    // Auto-create collection community goals per language for this new source
+    try {
+      ensureCollectionGoalsForSource(sourceId);
+    } catch (err) {
+      console.error(`Failed to auto-create collection goals for source ${sourceId}:`, err.message);
+    }
     
     // If this is an LDES feed, update ldes-feeds.yaml
     if (source_type === 'LDES') {
@@ -801,6 +809,13 @@ router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, 
     
     // Update the source with the auto-generated graph_name
     db.prepare("UPDATE sources SET graph_name = ? WHERE source_id = ?").run(autoGraphName, sourceId);
+    
+    // Auto-create collection community goals per language for this new source
+    try {
+      ensureCollectionGoalsForSource(sourceId);
+    } catch (err) {
+      console.error(`Failed to auto-create collection goals for source ${sourceId}:`, err.message);
+    }
     
     // Fetch the created source
     const source = db.prepare("SELECT * FROM sources WHERE source_id = ?").get(sourceId);
