@@ -34,6 +34,8 @@ const communityStatsRoutes = require("./routes/community-stats.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const vocabularyRequestsRoutes = require("./routes/vocabulary-requests.routes");
 const mailRoutes = require("./routes/mail.routes");
+const achievementsRoutes = require("./routes/achievements.routes");
+
 
 const app = express();
 
@@ -117,6 +119,8 @@ app.use("/", communityStatsRoutes);
 app.use("/", notificationRoutes);
 app.use("/", vocabularyRequestsRoutes);
 app.use("/", mailRoutes);
+app.use("/", achievementsRoutes);
+
 
 app.post("/debug-log", (req, res) => {
   const fs = require('fs');

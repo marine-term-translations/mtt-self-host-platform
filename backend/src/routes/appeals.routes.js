@@ -364,6 +364,13 @@ router.post("/appeals/:id/messages", writeLimiter, (req, res) => {
       "INSERT INTO appeal_messages (appeal_id, author_id, message) VALUES (?, ?, ?)"
     );
     const info = stmt.run(appealId, currentUserId, message.trim());
+
+    try {
+      const { checkAndAwardAchievements } = require("../services/achievement.service");
+      checkAndAwardAchievements(currentUserId);
+    } catch (err) {
+      console.log("Could not run achievements check:", err.message);
+    }
     
     // Get the created message with author info
     const createdMessage = db.prepare(`

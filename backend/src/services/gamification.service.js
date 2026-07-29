@@ -88,7 +88,7 @@ function awardPoints(userIdentifier, points, reason = "general") {
   try {
     db.transaction(() => {
       db.prepare(
-        "UPDATE users SET reputation = reputation + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        "UPDATE users SET reputation = reputation + ? WHERE id = ?"
       ).run(points, userId);
       db.prepare(
         "UPDATE user_stats SET points = points + ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
@@ -114,6 +114,16 @@ function awardPoints(userIdentifier, points, reason = "general") {
     ).run(userId, 'reputation_awarded', JSON.stringify({ points, reason }));
   } catch (err) {
     console.log("Could not log user activity:", err.message);
+  }
+
+  // Hook achievement check (prevent loops)
+  if (reason && !reason.startsWith('achievement_')) {
+    try {
+      const { checkAndAwardAchievements } = require("./achievement.service");
+      checkAndAwardAchievements(userId);
+    } catch (err) {
+      console.log("Could not run achievements check:", err.message);
+    }
   }
 }
 
@@ -212,6 +222,13 @@ function updateStreak(userIdentifier) {
     "UPDATE user_stats SET daily_streak = ?, longest_streak = ?, last_active_date = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(newStreak, longestStreak, today, userId);
   
+  try {
+    const { checkAndAwardAchievements } = require("./achievement.service");
+    checkAndAwardAchievements(userId);
+  } catch (err) {
+    console.log("Could not run achievements check:", err.message);
+  }
+
   return {
     streak: newStreak,
     longestStreak: longestStreak,
@@ -237,6 +254,13 @@ function incrementTranslationCount(userIdentifier) {
   db.prepare(
     "UPDATE user_stats SET translations_count = translations_count + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(userId);
+
+  try {
+    const { checkAndAwardAchievements } = require("./achievement.service");
+    checkAndAwardAchievements(userId);
+  } catch (err) {
+    console.log("Could not run achievements check:", err.message);
+  }
 }
 
 /**
@@ -256,6 +280,13 @@ function incrementReviewCount(userIdentifier) {
   db.prepare(
     "UPDATE user_stats SET reviews_count = reviews_count + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?"
   ).run(userId);
+
+  try {
+    const { checkAndAwardAchievements } = require("./achievement.service");
+    checkAndAwardAchievements(userId);
+  } catch (err) {
+    console.log("Could not run achievements check:", err.message);
+  }
 }
 
 /**
