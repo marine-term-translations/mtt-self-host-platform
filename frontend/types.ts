@@ -41,6 +41,7 @@ export interface User {
     translationLanguages?: string[];
     preferredLanguages?: string[];
     visibleExtraLanguages?: string[];
+    hasSeenOnboarding?: boolean;
   };
 }
 

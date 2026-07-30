@@ -424,8 +424,19 @@ class ApiService {
     translationLanguages?: string[];
     preferredLanguages?: string[];
     visibleExtraLanguages?: string[];
+    hasSeenOnboarding?: boolean;
   }> {
     return this.get('/user/preferences');
+  }
+
+  public async updateUserPreferences(prefs: {
+    nativeLanguage?: string;
+    translationLanguages?: string[];
+    preferredLanguages?: string[];
+    visibleExtraLanguages?: string[];
+    hasSeenOnboarding?: boolean;
+  }): Promise<{ success: boolean }> {
+    return this.post('/user/preferences', prefs);
   }
 
   /**
