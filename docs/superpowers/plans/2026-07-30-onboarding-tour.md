@@ -1,19 +1,18 @@
-# Onboarding Product Tour Implementation Plan
+# Onboarding Product Tour Implementation Plan (Multi-Page Expansion)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement a 5-step interactive onboarding product tour with dark element-highlighting overlays, skip/opt-out buttons, action-driven progression, backend state persistence, and a Settings page replay trigger.
+**Goal:** Implement a comprehensive multi-page onboarding product tour covering Settings (Languages & OpenRouter API key), Search/Browse, Term Details (submitting translations), and Translation Flow (rapid translation & approvals), with route-aware automatic navigation, micro-tours support, opt-out on every step, and DB persistence.
 
-**Architecture:** A lightweight custom React component engine (`<OnboardingTour />`, `<TourBackdrop />`, `<TourTooltip />`) powered by `OnboardingContext`. The backend tracks `has_seen_onboarding` in user preferences. Screen elements are targeted via `data-tour` attributes.
+**Architecture:** A route-aware React tour engine (`<OnboardingTour />`, `OnboardingContext`) using React Router `useNavigate` to transition across pages (`/settings`, `/browse`, `/terms/:id`, `/flow`) and highlight target `data-tour` elements. Backend stores `has_seen_onboarding` in user preferences.
 
-**Tech Stack:** React 18, TypeScript, Tailwind CSS, Express, SQLite (`better-sqlite3`), Node test assertions.
+**Tech Stack:** React 18, React Router v6, TypeScript, Tailwind CSS, Express, SQLite (`better-sqlite3`), Node test assertions.
 
 ## Global Constraints
-- Tour steps limited to 5 steps maximum ("Rule of 5").
-- Clear "Skip Tutorial" button present on every step.
-- Step 5 explicitly points to Settings ("You can restart this tour anytime from your settings").
+- Every step has a visible "Skip Tutorial" button.
+- Multi-page navigation supported seamlessly during tour steps.
+- Settings page includes "Help & Onboarding" with micro-tour trigger buttons.
 - Database flag `has_seen_onboarding` persists completion/opt-out status.
-- Settings page includes "Help & Onboarding" section with "Replay System Tour" button.
 - Strict TDD: Write failing test, verify RED, write minimal code, verify GREEN, commit.
 
 ---
@@ -52,12 +51,10 @@ async function run() {
   initializeDatabase();
   const db = getDatabase();
 
-  // Test 1: Ensure user_preferences table has has_seen_onboarding column
   const tableInfo = db.prepare("PRAGMA table_info(user_preferences)").all();
   const hasSeenCol = tableInfo.find(c => c.name === 'has_seen_onboarding');
   assert.ok(hasSeenCol, "user_preferences table must have has_seen_onboarding column");
 
-  // Test 2: Insert preference with has_seen_onboarding = 1 and verify fetch
   db.prepare(`
     INSERT INTO user_preferences (user_id, has_seen_onboarding)
     VALUES (101, 1)
@@ -82,50 +79,28 @@ run().catch(err => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `node backend/tests/onboarding-preferences.test.js`
-Expected: FAIL (missing `has_seen_onboarding` column in `user_preferences` table).
+Expected: FAIL (missing `has_seen_onboarding` column).
 
-- [ ] **Step 3: Update `dbInit.service.js` and `/api/user/preferences` handler in `server.js`**
+- [ ] **Step 3: Update `dbInit.service.js` and `/api/user/preferences` in `server.js`**
 
-Modify `backend/src/services/dbInit.service.js` to include column migration:
-```javascript
-db.exec(`
-  CREATE TABLE IF NOT EXISTS user_preferences (
-    user_id INTEGER PRIMARY KEY,
-    native_language TEXT,
-    translation_languages TEXT,
-    preferred_languages TEXT,
-    visible_extra_languages TEXT,
-    has_seen_onboarding INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-// Migration safeguard for existing tables
-try {
-  db.exec("ALTER TABLE user_preferences ADD COLUMN has_seen_onboarding INTEGER DEFAULT 0;");
-} catch (e) {
-  // Column already exists
-}
-```
-
-Update preference GET/POST endpoints in `backend/src/server.js` to return and accept `has_seen_onboarding` (converted to boolean).
+Add `has_seen_onboarding` column to `user_preferences` table in `dbInit.service.js`.
+Update GET/POST `/api/user/preferences` handlers in `server.js`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node backend/tests/onboarding-preferences.test.js`
-Expected: PASS (`✓ Onboarding preferences DB test passed!`).
+Expected: PASS.
 
-- [ ] **Step 5: Commit backend onboarding preference changes**
+- [ ] **Step 5: Commit Task 1**
 
 ```bash
 git add backend/src/services/dbInit.service.js backend/src/server.js backend/tests/onboarding-preferences.test.js
-git commit -m "feat(backend): add has_seen_onboarding user preference column and endpoint support"
+git commit -m "feat(backend): add has_seen_onboarding preference column and API support"
 ```
 
 ---
 
-### Task 2: Frontend `OnboardingContext` and State Management
+### Task 2: Route-Aware `OnboardingContext` State Management & Micro-Tours
 
 **Files:**
 - Create: `frontend/context/OnboardingContext.tsx`
@@ -134,10 +109,10 @@ git commit -m "feat(backend): add has_seen_onboarding user preference column and
 - Test: `frontend/tests/onboarding-context.test.js`
 
 **Interfaces:**
-- Consumes: `user` and `backendApi.updateUserPreferences`
-- Produces: `useOnboarding()` hook providing `{ activeTour, currentStep, hasSeenOnboarding, startTour, nextStep, prevStep, skipTour, completeTour, goToStep }`
+- Consumes: `useNavigate()`, `user`, `backendApi.updateUserPreferences`
+- Produces: `useOnboarding()` hook supporting full multi-page tour & micro-tours (`'full'`, `'settings'`, `'search'`, `'term_detail'`, `'flow'`)
 
-- [ ] **Step 1: Write failing test for `OnboardingContext` state management**
+- [ ] **Step 1: Write failing test for `OnboardingContext` route-awareness & multi-tour presets**
 
 Create `frontend/tests/onboarding-context.test.js`:
 ```javascript
@@ -150,22 +125,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing OnboardingContext implementation structure...");
+  console.log("Testing multi-page OnboardingContext setup...");
 
   const contextPath = path.join(__dirname, '../context/OnboardingContext.tsx');
   assert.ok(fs.existsSync(contextPath), "OnboardingContext.tsx file must exist");
 
   const content = fs.readFileSync(contextPath, 'utf8');
 
-  // Must define Tour step type and OnboardingContextType
-  assert.ok(content.includes('export interface OnboardingStep'), "Must export OnboardingStep interface");
-  assert.ok(content.includes('export const OnboardingProvider'), "Must export OnboardingProvider");
-  assert.ok(content.includes('export const useOnboarding'), "Must export useOnboarding hook");
-  assert.ok(content.includes('has_seen_onboarding'), "Must integrate with has_seen_onboarding preference");
-  assert.ok(content.includes('startTour'), "Must provide startTour method");
-  assert.ok(content.includes('skipTour'), "Must provide skipTour method");
+  assert.ok(content.includes('OnboardingStep'), "Must define OnboardingStep interface");
+  assert.ok(content.includes('route?: string'), "OnboardingStep must support route navigation");
+  assert.ok(content.includes('startTour'), "Must support startTour method");
+  assert.ok(content.includes('settings-languages'), "Must define settings tour step");
+  assert.ok(content.includes('search-input'), "Must define search tour step");
+  assert.ok(content.includes('add-translation'), "Must define term detail translation tour step");
+  assert.ok(content.includes('flow-actions'), "Must define translation flow tour step");
 
-  console.log("✓ OnboardingContext test passed!");
+  console.log("✓ Multi-page OnboardingContext test passed!");
 }
 
 try {
@@ -179,28 +154,28 @@ try {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `node frontend/tests/onboarding-context.test.js`
-Expected: FAIL (file does not exist).
+Expected: FAIL (file missing).
 
-- [ ] **Step 3: Implement `OnboardingContext.tsx`, update `types.ts` & `api.ts`**
+- [ ] **Step 3: Implement `OnboardingContext.tsx` with multi-page steps & micro-tours**
 
-Update `frontend/types.ts` to add `hasSeenOnboarding` to user preferences.
-Create `frontend/context/OnboardingContext.tsx` with full state logic, 5-step configuration:
-1. Welcome (Center modal)
-2. Language Pair Selection (`[data-tour="language-selector"]`)
-3. Search Input (`[data-tour="search-bar"]`)
-4. Results & Context (`[data-tour="results-area"]`)
-5. Wrap Up & Settings (`[data-tour="settings-icon"]`)
+Implement step configurations for:
+- Welcome modal
+- Settings (Languages & API Key) -> route `/settings`
+- Search & Browse -> route `/browse`
+- Term Detail -> route `/terms/1` (sample or active term)
+- Translation Flow -> route `/flow`
+- Wrap Up -> route `/settings`
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-context.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit `OnboardingContext`**
+- [ ] **Step 5: Commit Task 2**
 
 ```bash
 git add frontend/types.ts frontend/services/api.ts frontend/context/OnboardingContext.tsx frontend/tests/onboarding-context.test.js
-git commit -m "feat(frontend): create OnboardingContext state management and step configuration"
+git commit -m "feat(frontend): implement route-aware OnboardingContext with multi-page and micro-tour support"
 ```
 
 ---
@@ -215,9 +190,9 @@ git commit -m "feat(frontend): create OnboardingContext state management and ste
 
 **Interfaces:**
 - Consumes: `useOnboarding()`
-- Produces: Visual modal/tooltip tour overlay with spotlight backdrop and step navigation.
+- Produces: Spotlighting backdrop overlay and tooltip popovers with navigation & skip buttons.
 
-- [ ] **Step 1: Write failing test for Onboarding UI components**
+- [ ] **Step 1: Write failing test for UI components**
 
 Create `frontend/tests/onboarding-ui-components.test.js`:
 ```javascript
@@ -230,7 +205,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing Onboarding UI components existence and requirements...");
+  console.log("Testing Onboarding UI components...");
 
   const tourPath = path.join(__dirname, '../components/onboarding/OnboardingTour.tsx');
   const backdropPath = path.join(__dirname, '../components/onboarding/TourBackdrop.tsx');
@@ -242,10 +217,8 @@ function run() {
 
   const tooltipContent = fs.readFileSync(tooltipPath, 'utf8');
 
-  // Verify Skip button is present on every step
-  assert.ok(tooltipContent.includes('Skip Tutorial'), "Tooltip must render 'Skip Tutorial' button");
-  // Verify step indicator (e.g. Step X of 5)
-  assert.ok(tooltipContent.includes('Step'), "Tooltip must render step indicator");
+  assert.ok(tooltipContent.includes('Skip Tutorial'), "Tooltip must include 'Skip Tutorial' button");
+  assert.ok(tooltipContent.includes('Step'), "Tooltip must include step counter");
 
   console.log("✓ Onboarding UI components test passed!");
 }
@@ -263,43 +236,43 @@ try {
 Run: `node frontend/tests/onboarding-ui-components.test.js`
 Expected: FAIL (files missing).
 
-- [ ] **Step 3: Implement `TourBackdrop.tsx`, `TourTooltip.tsx`, and `OnboardingTour.tsx`**
+- [ ] **Step 3: Build `TourBackdrop.tsx`, `TourTooltip.tsx`, and `OnboardingTour.tsx`**
 
-Build responsive components:
-- `TourBackdrop.tsx`: SVG mask / fixed dark backdrop highlighting element bounding box.
-- `TourTooltip.tsx`: Card positioned with arrow, step counter, Skip Tutorial button, and Next/Finish actions.
-- `OnboardingTour.tsx`: Coordinates active step element calculation and renders backdrop + tooltip.
+- `TourBackdrop.tsx`: SVG mask spotlight around target rect.
+- `TourTooltip.tsx`: Card positioned with arrow, step counter, Skip Tutorial, and Next/Finish.
+- `OnboardingTour.tsx`: Auto-positions elements and handles route change delay cleanly.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node frontend/tests/onboarding-ui-components.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit Onboarding UI components**
+- [ ] **Step 5: Commit Task 3**
 
 ```bash
 git add frontend/components/onboarding/ frontend/tests/onboarding-ui-components.test.js
-git commit -m "feat(frontend): implement OnboardingTour, TourBackdrop, and TourTooltip components"
+git commit -m "feat(frontend): add OnboardingTour, TourBackdrop, and TourTooltip UI components"
 ```
 
 ---
 
-### Task 4: Target Attributes, Action-Driven Triggers, and App Layout Integration
+### Task 4: Target `data-tour` Attributes Across Multi-Page Application
 
 **Files:**
 - Modify: `frontend/App.tsx`
-- Modify: `frontend/components/Layout.tsx`
-- Modify: `frontend/pages/Dashboard.tsx`
-- Modify: `frontend/pages/Browse.tsx` or search components
-- Test: `frontend/tests/onboarding-target-attributes.test.js`
+- Modify: `frontend/pages/Settings.tsx`
+- Modify: `frontend/pages/Browse.tsx`
+- Modify: `frontend/pages/TermDetail.tsx`
+- Modify: `frontend/pages/TranslationFlow.tsx`
+- Test: `frontend/tests/onboarding-multi-page-targets.test.js`
 
 **Interfaces:**
-- Consumes: `<OnboardingProvider>`, `data-tour` DOM attributes
-- Produces: Live tour experience on first login with action triggers (auto-advancing on selection/input)
+- Consumes: `<OnboardingProvider>`
+- Produces: `data-tour` markers on Settings (languages, API key), Search/Browse (search input), Term Detail (translation input), and Translation Flow (action buttons).
 
-- [ ] **Step 1: Write failing test for `data-tour` attributes and Provider wrapper**
+- [ ] **Step 1: Write failing test for `data-tour` markers across pages**
 
-Create `frontend/tests/onboarding-target-attributes.test.js`:
+Create `frontend/tests/onboarding-multi-page-targets.test.js`:
 ```javascript
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -310,19 +283,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing data-tour attributes across frontend files...");
+  console.log("Testing data-tour attributes across all multi-page target files...");
 
-  const appContent = fs.readFileSync(path.join(__dirname, '../App.tsx'), 'utf8');
-  const layoutContent = fs.readFileSync(path.join(__dirname, '../components/Layout.tsx'), 'utf8');
+  const settingsContent = fs.readFileSync(path.join(__dirname, '../pages/Settings.tsx'), 'utf8');
+  const browseContent = fs.readFileSync(path.join(__dirname, '../pages/Browse.tsx'), 'utf8');
+  const termDetailContent = fs.readFileSync(path.join(__dirname, '../pages/TermDetail.tsx'), 'utf8');
+  const flowContent = fs.readFileSync(path.join(__dirname, '../pages/TranslationFlow.tsx'), 'utf8');
 
-  // Verify App.tsx wraps in OnboardingProvider
-  assert.ok(appContent.includes('OnboardingProvider'), "App.tsx must be wrapped in OnboardingProvider");
-  assert.ok(appContent.includes('OnboardingTour'), "App.tsx must include OnboardingTour component");
+  assert.ok(settingsContent.includes('data-tour="settings-languages"'), "Settings must contain data-tour='settings-languages'");
+  assert.ok(settingsContent.includes('data-tour="settings-api-key"'), "Settings must contain data-tour='settings-api-key'");
+  assert.ok(browseContent.includes('data-tour="search-input"'), "Browse/Search must contain data-tour='search-input'");
+  assert.ok(termDetailContent.includes('data-tour="add-translation-btn"'), "TermDetail must contain data-tour='add-translation-btn'");
+  assert.ok(flowContent.includes('data-tour="flow-actions"'), "TranslationFlow must contain data-tour='flow-actions'");
 
-  // Verify settings-icon data-tour attribute in Layout
-  assert.ok(layoutContent.includes('data-tour="settings-icon"'), "Layout header/nav must include data-tour='settings-icon'");
-
-  console.log("✓ Onboarding target attributes test passed!");
+  console.log("✓ Multi-page target attributes test passed!");
 }
 
 try {
@@ -335,44 +309,44 @@ try {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node frontend/tests/onboarding-target-attributes.test.js`
-Expected: FAIL (`OnboardingProvider` missing in `App.tsx`, `data-tour` missing).
+Run: `node frontend/tests/onboarding-multi-page-targets.test.js`
+Expected: FAIL (`data-tour` attributes missing).
 
-- [ ] **Step 3: Add `OnboardingProvider` to `App.tsx`, add `data-tour` attributes to `Layout.tsx`, `Dashboard.tsx`, `Browse.tsx`**
+- [ ] **Step 3: Add `data-tour` attributes to `Settings.tsx`, `Browse.tsx`, `TermDetail.tsx`, and `TranslationFlow.tsx`**
 
-- Add `data-tour="language-selector"` to language dropdown container.
-- Add `data-tour="search-bar"` to search input element.
-- Add `data-tour="results-area"` to search results wrapper.
-- Add `data-tour="settings-icon"` to profile/settings icon in `Layout.tsx`.
-- Wire action listeners in components (e.g. `onChange` call `nextStep()` if on step 1/2).
+- `Settings.tsx`: `data-tour="settings-languages"`, `data-tour="settings-api-key"`.
+- `Browse.tsx`: `data-tour="search-input"`.
+- `TermDetail.tsx`: `data-tour="add-translation-btn"`.
+- `TranslationFlow.tsx`: `data-tour="flow-actions"`.
+- `App.tsx`: Wrap layout in `<OnboardingProvider>` and `<OnboardingTour />`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `node frontend/tests/onboarding-target-attributes.test.js`
+Run: `node frontend/tests/onboarding-multi-page-targets.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit layout and target integration**
+- [ ] **Step 5: Commit Task 4**
 
 ```bash
-git add frontend/App.tsx frontend/components/Layout.tsx frontend/pages/Dashboard.tsx frontend/pages/Browse.tsx frontend/tests/onboarding-target-attributes.test.js
-git commit -m "feat(frontend): integrate OnboardingProvider and data-tour target attributes"
+git add frontend/App.tsx frontend/pages/Settings.tsx frontend/pages/Browse.tsx frontend/pages/TermDetail.tsx frontend/pages/TranslationFlow.tsx frontend/tests/onboarding-multi-page-targets.test.js
+git commit -m "feat(frontend): annotate multi-page target components with data-tour attributes"
 ```
 
 ---
 
-### Task 5: Settings Page Tour Replay Feature
+### Task 5: Settings Page "Help & Onboarding" & Micro-Tours Trigger UI
 
 **Files:**
 - Modify: `frontend/pages/Settings.tsx`
-- Test: `frontend/tests/onboarding-settings-replay.test.js`
+- Test: `frontend/tests/onboarding-settings-microtours.test.js`
 
 **Interfaces:**
-- Consumes: `useOnboarding().startTour('main')`, `useNavigate()`
-- Produces: "Help & Onboarding" section with "Replay System Tour" button in Settings.
+- Consumes: `useOnboarding().startTour(...)`
+- Produces: "Help & Onboarding" dashboard card with individual micro-tour buttons in `Settings.tsx`.
 
-- [ ] **Step 1: Write failing test for Settings tour replay button**
+- [ ] **Step 1: Write failing test for Settings micro-tours UI**
 
-Create `frontend/tests/onboarding-settings-replay.test.js`:
+Create `frontend/tests/onboarding-settings-microtours.test.js`:
 ```javascript
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -383,18 +357,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing Settings page tour replay section...");
+  console.log("Testing Settings Help & Onboarding micro-tours section...");
 
   const settingsContent = fs.readFileSync(path.join(__dirname, '../pages/Settings.tsx'), 'utf8');
 
-  // Must contain Help & Onboarding section heading
-  assert.ok(settingsContent.includes('Help & Onboarding'), "Settings page must include 'Help & Onboarding' section");
-  // Must contain Replay button
-  assert.ok(settingsContent.includes('Replay System Tour'), "Settings page must include 'Replay System Tour' button");
-  // Must use useOnboarding hook
-  assert.ok(settingsContent.includes('useOnboarding'), "Settings page must consume useOnboarding hook");
+  assert.ok(settingsContent.includes('Help & Onboarding'), "Settings page must include Help & Onboarding section");
+  assert.ok(settingsContent.includes("startTour('full')") || settingsContent.includes("startTour('main')"), "Must have full tour button");
+  assert.ok(settingsContent.includes("startTour('settings')"), "Must have Settings & API key micro-tour button");
+  assert.ok(settingsContent.includes("startTour('search')"), "Must have Search micro-tour button");
+  assert.ok(settingsContent.includes("startTour('term_detail')"), "Must have Term Detail micro-tour button");
+  assert.ok(settingsContent.includes("startTour('flow')"), "Must have Translation Flow micro-tour button");
 
-  console.log("✓ Settings page tour replay test passed!");
+  console.log("✓ Settings micro-tours UI test passed!");
 }
 
 try {
@@ -407,37 +381,16 @@ try {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node frontend/tests/onboarding-settings-replay.test.js`
-Expected: FAIL (`Help & Onboarding` missing from `Settings.tsx`).
+Run: `node frontend/tests/onboarding-settings-microtours.test.js`
+Expected: FAIL.
 
-- [ ] **Step 3: Add "Help & Onboarding" section to `Settings.tsx`**
+- [ ] **Step 3: Implement "Help & Onboarding" micro-tours section in `Settings.tsx`**
 
-Add a dedicated card in `Settings.tsx`:
-```tsx
-<div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-  <div className="flex items-center gap-3 mb-4">
-    <HelpCircle className="w-6 h-6 text-sky-500" />
-    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Help & Onboarding</h2>
-  </div>
-  <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
-    Need a quick refresher on how to navigate MTT, select language pairs, search terms, and interpret context?
-  </p>
-  <button
-    onClick={() => {
-      startTour('main');
-      navigate('/dashboard');
-    }}
-    className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-lg shadow transition-colors flex items-center gap-2"
-  >
-    <RotateCcw className="w-4 h-4" />
-    Replay System Tour
-  </button>
-</div>
-```
+Add micro-tour trigger buttons styling with icons and descriptions in `Settings.tsx`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `node frontend/tests/onboarding-settings-replay.test.js`
+Run: `node frontend/tests/onboarding-settings-microtours.test.js`
 Expected: PASS.
 
 - [ ] **Step 5: Run all test suites and commit**
@@ -447,12 +400,12 @@ Run:
 node backend/tests/onboarding-preferences.test.js
 node frontend/tests/onboarding-context.test.js
 node frontend/tests/onboarding-ui-components.test.js
-node frontend/tests/onboarding-target-attributes.test.js
-node frontend/tests/onboarding-settings-replay.test.js
+node frontend/tests/onboarding-multi-page-targets.test.js
+node frontend/tests/onboarding-settings-microtours.test.js
 ```
 
 Commit:
 ```bash
-git add frontend/pages/Settings.tsx frontend/tests/onboarding-settings-replay.test.js
-git commit -m "feat(frontend): add Help & Onboarding section with Replay System Tour in Settings"
+git add frontend/pages/Settings.tsx frontend/tests/onboarding-settings-microtours.test.js
+git commit -m "feat(frontend): add Help & Onboarding micro-tours suite to Settings page"
 ```
