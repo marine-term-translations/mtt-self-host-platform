@@ -342,7 +342,7 @@ const Settings: React.FC = () => {
       </div>
 
       {/* Language Preferences */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8">
+      <div data-tour="settings-languages" className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-marine-100 dark:bg-marine-900/30 rounded-lg">
             <Globe className="text-marine-600 dark:text-marine-400" size={24} />
@@ -624,7 +624,7 @@ const Settings: React.FC = () => {
       </div>
 
       {/* OpenRouter API Key Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mt-6">
+      <div data-tour="settings-api-key" className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mt-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
             <Sparkles className="text-indigo-600 dark:text-indigo-400" size={24} />
