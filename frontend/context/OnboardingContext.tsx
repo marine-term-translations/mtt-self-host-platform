@@ -59,7 +59,7 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   },
   {
     id: 'add-translation-btn',
-    route: '/terms',
+    route: '/term',
     target: '[data-tour="add-translation-btn"]',
     title: 'Contribute Translations',
     content: 'View detailed definition context here and submit your own translations with references for community review.'
@@ -130,13 +130,13 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const currentStep = activeSteps[currentStepIndex] || null;
 
-  // Route navigation helper handling dynamic real term page fetching
+  // Route navigation helper handling dynamic real term page fetching (/term/:id)
   const navigateToStepRoute = async (step: OnboardingStep) => {
     if (step.id === 'add-translation-btn') {
       try {
         const res = await backendApi.getTerms(1);
         if (res && res.terms && res.terms.length > 0 && res.terms[0].id) {
-          navigate(`/terms/${res.terms[0].id}`);
+          navigate(`/term/${res.terms[0].id}`);
           return;
         }
       } catch (e) {
@@ -154,9 +154,9 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
   // Navigate when current step changes
   useEffect(() => {
     if (activeTour && currentStep) {
-      if (currentStep.id === 'add-translation-btn' && !location.pathname.startsWith('/terms/')) {
+      if (currentStep.id === 'add-translation-btn' && !location.pathname.startsWith('/term/')) {
         navigateToStepRoute(currentStep);
-      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/terms/')) {
+      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/term/')) {
         navigateToStepRoute(currentStep);
       }
     }

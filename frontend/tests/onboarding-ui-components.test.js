@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing Onboarding UI scroll lock, auto-scroll, and component requirements...");
+  console.log("Testing Onboarding UI scroll lock, auto-scroll, element interaction, and component requirements...");
 
   const tourPath = path.join(__dirname, '../components/onboarding/OnboardingTour.tsx');
   const backdropPath = path.join(__dirname, '../components/onboarding/TourBackdrop.tsx');
@@ -23,6 +23,8 @@ function run() {
   assert.ok(tourContent.includes('overflow = \'hidden\''), "OnboardingTour must lock body scrolling with overflow = 'hidden'");
   // Verify auto-scrolling to element
   assert.ok(tourContent.includes('scrollIntoView'), "OnboardingTour must scroll element into view with scrollIntoView");
+  // Verify interactive z-index elevation for target element
+  assert.ok(tourContent.includes('zIndex') || tourContent.includes('pointer-events') || tourContent.includes('9992'), "OnboardingTour must elevate target element z-index for user interaction");
 
   const tooltipContent = fs.readFileSync(tooltipPath, 'utf8');
 
@@ -31,7 +33,7 @@ function run() {
   // Verify step indicator (e.g. Step X of Y)
   assert.ok(tooltipContent.includes('Step'), "Tooltip must render step indicator");
 
-  console.log("✓ Onboarding UI scroll lock and auto-scroll test passed!");
+  console.log("✓ Onboarding UI scroll lock, interaction, and auto-scroll test passed!");
 }
 
 try {

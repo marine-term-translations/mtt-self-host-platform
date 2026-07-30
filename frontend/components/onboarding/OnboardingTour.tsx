@@ -22,7 +22,6 @@ export const OnboardingTour: React.FC = () => {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
-      // Prevent scroll event default behavior as additional safeguard
       const preventDefaultScroll = (e: Event) => {
         e.preventDefault();
       };
@@ -38,7 +37,7 @@ export const OnboardingTour: React.FC = () => {
     }
   }, [activeTour, currentStep]);
 
-  // Track target rect and auto-scroll to element
+  // Track target rect, elevate zIndex for interaction, and auto-scroll to element
   useEffect(() => {
     if (!activeTour || !currentStep) {
       setTargetRect(null);
@@ -51,12 +50,36 @@ export const OnboardingTour: React.FC = () => {
     }
 
     let hasScrolled = false;
+    let elevatedElement: HTMLElement | null = null;
+    let originalPosition = '';
+    let originalZIndex = '';
+    let originalPointerEvents = '';
 
     const updateTargetRect = () => {
       if (!currentStep.target) return;
-      const element = document.querySelector(currentStep.target);
+      const element = document.querySelector(currentStep.target) as HTMLElement | null;
       if (element) {
         setTargetRect(element.getBoundingClientRect());
+
+        // Elevate z-index and pointer-events so user can interact with the element
+        if (elevatedElement !== element) {
+          if (elevatedElement) {
+            elevatedElement.style.position = originalPosition;
+            elevatedElement.style.zIndex = originalZIndex;
+            elevatedElement.style.pointerEvents = originalPointerEvents;
+          }
+          elevatedElement = element;
+          originalPosition = element.style.position;
+          originalZIndex = element.style.zIndex;
+          originalPointerEvents = element.style.pointerEvents;
+
+          const computedPosition = window.getComputedStyle(element).position;
+          if (computedPosition === 'static') {
+            element.style.position = 'relative';
+          }
+          element.style.zIndex = '9992';
+          element.style.pointerEvents = 'auto';
+        }
 
         // Auto-scroll element into view once on step transition
         if (!hasScrolled) {
@@ -64,7 +87,6 @@ export const OnboardingTour: React.FC = () => {
           try {
             element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
           } catch (e) {
-            // Fallback if scrollIntoView options not supported in legacy environment
             element.scrollIntoView();
           }
         }
@@ -82,6 +104,11 @@ export const OnboardingTour: React.FC = () => {
     window.addEventListener('resize', updateTargetRect);
 
     return () => {
+      if (elevatedElement) {
+        elevatedElement.style.position = originalPosition;
+        elevatedElement.style.zIndex = originalZIndex;
+        elevatedElement.style.pointerEvents = originalPointerEvents;
+      }
       clearInterval(interval);
       clearTimeout(timeout);
       window.removeEventListener('resize', updateTargetRect);
