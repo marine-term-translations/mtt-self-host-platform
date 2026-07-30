@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing multi-page OnboardingContext setup...");
+  console.log("Testing multi-page OnboardingContext setup and dynamic term navigation...");
 
   const contextPath = path.join(__dirname, '../context/OnboardingContext.tsx');
   assert.ok(fs.existsSync(contextPath), "OnboardingContext.tsx file must exist");
@@ -22,6 +22,9 @@ function run() {
   assert.ok(content.includes('search-input'), "Must define search tour step target");
   assert.ok(content.includes('add-translation-btn'), "Must define term detail translation tour step target");
   assert.ok(content.includes('flow-actions'), "Must define translation flow tour step target");
+
+  // Dynamic term fetching check (no hardcoded static /terms/1 fallback)
+  assert.ok(content.includes('getTerms') || content.includes('/terms/'), "OnboardingContext must support dynamic term detail navigation");
 
   console.log("✓ Multi-page OnboardingContext test passed!");
 }

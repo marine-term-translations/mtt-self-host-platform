@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing Onboarding UI components existence and requirements...");
+  console.log("Testing Onboarding UI scroll lock, auto-scroll, and component requirements...");
 
   const tourPath = path.join(__dirname, '../components/onboarding/OnboardingTour.tsx');
   const backdropPath = path.join(__dirname, '../components/onboarding/TourBackdrop.tsx');
@@ -17,6 +17,13 @@ function run() {
   assert.ok(fs.existsSync(backdropPath), "TourBackdrop.tsx must exist");
   assert.ok(fs.existsSync(tooltipPath), "TourTooltip.tsx must exist");
 
+  const tourContent = fs.readFileSync(tourPath, 'utf8');
+
+  // Verify body scroll locking
+  assert.ok(tourContent.includes('overflow = \'hidden\''), "OnboardingTour must lock body scrolling with overflow = 'hidden'");
+  // Verify auto-scrolling to element
+  assert.ok(tourContent.includes('scrollIntoView'), "OnboardingTour must scroll element into view with scrollIntoView");
+
   const tooltipContent = fs.readFileSync(tooltipPath, 'utf8');
 
   // Verify Skip button is present on every step
@@ -24,7 +31,7 @@ function run() {
   // Verify step indicator (e.g. Step X of Y)
   assert.ok(tooltipContent.includes('Step'), "Tooltip must render step indicator");
 
-  console.log("✓ Onboarding UI components test passed!");
+  console.log("✓ Onboarding UI scroll lock and auto-scroll test passed!");
 }
 
 try {

@@ -59,7 +59,7 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   },
   {
     id: 'add-translation-btn',
-    route: '/terms/1',
+    route: '/terms',
     target: '[data-tour="add-translation-btn"]',
     title: 'Contribute Translations',
     content: 'View detailed definition context here and submit your own translations with references for community review.'
@@ -130,21 +130,44 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const currentStep = activeSteps[currentStepIndex] || null;
 
-  // Navigate when current step specifies a route
+  // Route navigation helper handling dynamic real term page fetching
+  const navigateToStepRoute = async (step: OnboardingStep) => {
+    if (step.id === 'add-translation-btn') {
+      try {
+        const res = await backendApi.getTerms(1);
+        if (res && res.terms && res.terms.length > 0 && res.terms[0].id) {
+          navigate(`/terms/${res.terms[0].id}`);
+          return;
+        }
+      } catch (e) {
+        console.warn('[Onboarding] Failed to fetch real term for tour, falling back to /browse:', e);
+      }
+      navigate('/browse');
+      return;
+    }
+
+    if (step.route && location.pathname !== step.route) {
+      navigate(step.route);
+    }
+  };
+
+  // Navigate when current step changes
   useEffect(() => {
-    if (activeTour && currentStep && currentStep.route) {
-      if (location.pathname !== currentStep.route && !location.pathname.startsWith('/terms/')) {
-        navigate(currentStep.route);
+    if (activeTour && currentStep) {
+      if (currentStep.id === 'add-translation-btn' && !location.pathname.startsWith('/terms/')) {
+        navigateToStepRoute(currentStep);
+      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/terms/')) {
+        navigateToStepRoute(currentStep);
       }
     }
   }, [activeTour, currentStepIndex, currentStep, location.pathname]);
 
-  const startTour = (tourType: TourType = 'full') => {
+  const startTour = async (tourType: TourType = 'full') => {
     setActiveTour(tourType);
     setCurrentStepIndex(0);
     const steps = (tourType === 'full' || tourType === 'main') ? FULL_TOUR_STEPS : MICRO_TOURS[tourType as keyof typeof MICRO_TOURS];
-    if (steps && steps[0] && steps[0].route) {
-      navigate(steps[0].route);
+    if (steps && steps[0]) {
+      await navigateToStepRoute(steps[0]);
     }
   };
 
@@ -213,7 +236,7 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
 export const useOnboarding = () => {
   const context = useContext(OnboardingContext);
   if (!context) {
-    throw new Error('useOnboarding must be used within an OnboardingProvider');
+    throw new Error('useOnboarding must be used within an AuthProvider');
   }
   return context;
 };
