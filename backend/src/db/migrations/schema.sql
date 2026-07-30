@@ -75,6 +75,7 @@ CREATE TABLE user_preferences (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     preferred_languages TEXT NOT NULL DEFAULT '["en"]',  -- JSON array of language codes
     visible_extra_languages TEXT NOT NULL DEFAULT '[]',  -- JSON array of additional languages to show
+    has_seen_onboarding INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
