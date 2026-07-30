@@ -28,6 +28,8 @@ export interface OnboardingContextType {
   goToStep: (index: number) => void;
 }
 
+const DEFAULT_TERM_URI_ENCODED = 'http%3A%2F%2Fvocab.nerc.ac.uk%2Fcollection%2FP02%2Fcurrent%2FFREP%2F';
+
 const FULL_TOUR_STEPS: OnboardingStep[] = [
   {
     id: 'welcome',
@@ -41,7 +43,7 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
     route: '/settings',
     target: '[data-tour="settings-languages"]',
     title: 'Language Preferences',
-    content: 'Select your native language and the target languages you translate between.'
+    content: 'Start by selecting your native language and target translation languages. Please select your preferred language(s) before proceeding to customize your workspace.'
   },
   {
     id: 'settings-api-key',
@@ -59,7 +61,7 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   },
   {
     id: 'add-translation-btn',
-    route: '/term',
+    route: `/term/${DEFAULT_TERM_URI_ENCODED}`,
     target: '[data-tour="add-translation-btn"]',
     title: 'Contribute Translations',
     content: 'View detailed definition context here and submit your own translations with references for community review.'
@@ -130,19 +132,35 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const currentStep = activeSteps[currentStepIndex] || null;
 
-  // Route navigation helper handling dynamic real term page fetching (/term/:id)
+  // Get user target language for flow route
+  const getUserTargetLanguage = () => {
+    const userLangs = user?.languagePreferences?.translationLanguages || user?.languagePreferences?.preferredLanguages || [];
+    return userLangs[0] || 'nl';
+  };
+
+  // Route navigation helper handling dynamic real term page fetching (/term/:id) and flow language param
   const navigateToStepRoute = async (step: OnboardingStep) => {
     if (step.id === 'add-translation-btn') {
       try {
         const res = await backendApi.getTerms(1);
-        if (res && res.terms && res.terms.length > 0 && res.terms[0].id) {
-          navigate(`/term/${res.terms[0].id}`);
+        if (res && res.terms && res.terms.length > 0) {
+          const firstTerm = res.terms[0];
+          const termUriOrId = firstTerm.uri || String(firstTerm.id);
+          const encodedPath = `/term/${encodeURIComponent(termUriOrId)}`;
+          navigate(encodedPath);
           return;
         }
       } catch (e) {
-        console.warn('[Onboarding] Failed to fetch real term for tour, falling back to /browse:', e);
+        console.warn('[Onboarding] Failed to fetch term for tour, falling back to default term:', e);
       }
-      navigate('/browse');
+      navigate(`/term/${DEFAULT_TERM_URI_ENCODED}`);
+      return;
+    }
+
+    if (step.id === 'flow-actions') {
+      const lang = getUserTargetLanguage();
+      const flowPath = `/flow?language=${lang}`;
+      navigate(flowPath);
       return;
     }
 
@@ -156,7 +174,9 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
     if (activeTour && currentStep) {
       if (currentStep.id === 'add-translation-btn' && !location.pathname.startsWith('/term/')) {
         navigateToStepRoute(currentStep);
-      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/term/')) {
+      } else if (currentStep.id === 'flow-actions' && (!location.pathname.startsWith('/flow') || !location.search.includes('language='))) {
+        navigateToStepRoute(currentStep);
+      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/term/') && !location.pathname.startsWith('/flow')) {
         navigateToStepRoute(currentStep);
       }
     }

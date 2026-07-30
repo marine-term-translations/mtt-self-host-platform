@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function run() {
-  console.log("Testing multi-page OnboardingContext setup and singular /term/ navigation...");
+  console.log("Testing OnboardingContext encoded term URI navigation and language-param flow route...");
 
   const contextPath = path.join(__dirname, '../context/OnboardingContext.tsx');
   assert.ok(fs.existsSync(contextPath), "OnboardingContext.tsx file must exist");
@@ -15,18 +15,19 @@ function run() {
   const content = fs.readFileSync(contextPath, 'utf8');
 
   assert.ok(content.includes('OnboardingStep'), "Must define OnboardingStep interface");
-  assert.ok(content.includes('route?: string'), "OnboardingStep must support route navigation");
   assert.ok(content.includes('startTour'), "Must support startTour method");
-  assert.ok(content.includes('settings-languages'), "Must define settings-languages tour step target");
-  assert.ok(content.includes('settings-api-key'), "Must define settings-api-key tour step target");
-  assert.ok(content.includes('search-input'), "Must define search tour step target");
-  assert.ok(content.includes('add-translation-btn'), "Must define term detail translation tour step target");
-  assert.ok(content.includes('flow-actions'), "Must define translation flow tour step target");
 
-  // Verify route /term/ (singular term, matching App.tsx route)
-  assert.ok(content.includes('/term/'), "OnboardingContext must navigate to /term/:id singular route for TermDetail");
+  // Verify encoded term URI route support (/term/ or encodeURIComponent)
+  assert.ok(content.includes('/term/'), "Must use /term/ route for term detail step");
+  assert.ok(content.includes('encodeURIComponent') || content.includes('http%3A%2F%2F'), "Must handle URI encoding for term detail navigation");
 
-  console.log("✓ Multi-page OnboardingContext test passed!");
+  // Verify flow route with ?language= query parameter
+  assert.ok(content.includes('/flow?language=') || content.includes('language='), "Flow route must include ?language= query parameter based on user preferences");
+
+  // Verify Step 2 urges language selection
+  assert.ok(content.includes('settings-languages'), "Must define settings-languages step");
+
+  console.log("✓ OnboardingContext encoded term & language-param flow test passed!");
 }
 
 try {

@@ -840,7 +840,7 @@ const Settings: React.FC = () => {
 
       {/* Add Language Modal */}
       {showAddLanguageModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAddLanguageModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999] pointer-events-auto" onClick={() => setShowAddLanguageModal(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
