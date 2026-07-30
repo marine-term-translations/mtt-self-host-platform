@@ -27,6 +27,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
 
   const [splineApp, setSplineApp] = useState<any>(null);
   const [fishObject, setFishObject] = useState<any>(null);
+  const [isPuffed, setIsPuffed] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const [position, setPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
@@ -138,7 +139,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     return () => clearTimeout(timer);
   }, [location.pathname]);
 
-  // Track mouse coordinates globally and detect mouse idle state (300ms delay)
+  // Track mouse coordinates globally and detect 1-second mouse idle state to trigger puff up when goals are not open
   useEffect(() => {
     const isTranslationPage = location.pathname.startsWith('/flow') || location.pathname.includes('/term/') || location.pathname.includes('/admin');
     if (!isMinimized || isTranslationPage) return;
@@ -148,23 +149,34 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
         x: e.clientX,
         y: e.clientY
       };
-      // Offset target position to prevent the fish from thinking the cursor is hovering over it (which causes puff animation), while still letting eyes follow the cursor
       mouseRef.current = {
-        x: e.clientX + 30,
-        y: e.clientY + 30
+        x: e.clientX,
+        y: e.clientY
       };
 
-      // Mouse is moving, so update the timestamp
       lastMovedRef.current = Date.now();
       setIsMouseIdle(false);
+      setIsPuffed(false);
 
-      // Reset the idle timeout
       if (mouseMoveTimeoutRef.current) {
         clearTimeout(mouseMoveTimeoutRef.current);
       }
+      // If user doesn't move mouse for 1 second on the page when goals are not open (isMinimized), puff up and grow
       mouseMoveTimeoutRef.current = setTimeout(() => {
         setIsMouseIdle(true);
-      }, 200);
+        setIsPuffed(true);
+        if (splineApp && fishObject) {
+          try {
+            splineApp.emitEvent('mouseDown', fishObject.name);
+            splineApp.emitEvent('click', fishObject.name);
+            if (fishObject.id) {
+              splineApp.emitEventReverse('mouseDown', fishObject.id);
+            }
+          } catch (e) {
+            console.error('[Spline Pufferfish] Failed to emit puff event:', e);
+          }
+        }
+      }, 1000);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -174,9 +186,9 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
         clearTimeout(mouseMoveTimeoutRef.current);
       }
     };
-  }, [isMinimized, location.pathname]);
+  }, [isMinimized, location.pathname, splineApp, fishObject]);
 
-  // Animation loop for smooth lagging trailing
+  // Animation loop to keep fish stationary without eye/body rotation on hover
   useEffect(() => {
     const isTranslationPage = location.pathname.startsWith('/flow') || location.pathname.includes('/term/');
     if (!isMinimized || isTranslationPage) return;
@@ -184,103 +196,33 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
     let animationFrameId: number;
 
     const updatePosition = () => {
-      const targetX = mouseRef.current.x;
-      const targetY = mouseRef.current.y;
-
-      const dx = targetX - posRef.current.x;
-      const dy = targetY - posRef.current.y;
-
-      // Always follow physical position removed to make widget stationary
-      // posRef.current.x += dx * speedFactor;
-      // posRef.current.y += dy * speedFactor;
-      // setPosition({ x: clampedX, y: clampedY });
-
-
-      // Check proximity (distance between actual cursor and pufferfish)
-      const rawDx = rawMouseRef.current.x - posRef.current.x;
-      const rawDy = rawMouseRef.current.y - posRef.current.y;
-      const distance = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-      const isClose = distance < 120; // threshold for being close/hovering on the fish
-
       if (fishObject) {
-        if (isClose) {
-          // Stop body rotation when close (override manual tilt and built-in hover rotation)
-          fishObject.rotation.y += (0 - fishObject.rotation.y) * 0.2;
-          fishObject.rotation.x += (0 - fishObject.rotation.x) * 0.2;
-        } else {
-          // 2.5D isometric body rotation towards the cursor (moderate bounds to prevent eye shifting)
-          const targetYaw = -Math.max(-0.18, Math.min(0.18, dx * 0.003));
-          const targetPitch = Math.max(-0.09, Math.min(0.09, dy * 0.003));
-          fishObject.rotation.y += (targetYaw - fishObject.rotation.y) * 0.15;
-          fishObject.rotation.x += (targetPitch - fishObject.rotation.x) * 0.15;
-        }
+        // Keep body stationary without mouse tilt
+        fishObject.rotation.y += (0 - fishObject.rotation.y) * 0.2;
+        fishObject.rotation.x += (0 - fishObject.rotation.x) * 0.2;
       }
 
-      // Rotate fins and eyes in unison with the body rotation, with stabilization for eyeballs/pupils
-      const bodyRotY = fishObject ? fishObject.rotation.y : 0;
-      const bodyRotX = fishObject ? fishObject.rotation.x : 0;
-
-      // Helper function to check if an object is a child of the fishObject
-      const isChildOfFish = (obj: any): boolean => {
-        if (!fishObject) return false;
-        let p = obj.parent;
-        while (p) {
-          if (p === fishObject) return true;
-          p = p.parent;
-        }
-        return false;
-      };
-
-      // Factor to stabilize eye rotation relative to the body (only 30% of body rotation influence)
-      const eyeBodyInfluence = 0.3;
-
-      // Keep eyeballs aligned with the body rotation, but with reduced influence (pointing more forward)
+      // Keep eyeballs stationary at default rotation
       eyeballsRef.current.forEach((item) => {
         if (item.obj && item.obj.rotation) {
-          const isChild = isChildOfFish(item.obj);
-          const targetEyeYaw = item.defaultRotation.y + (isChild ? -bodyRotY * (1 - eyeBodyInfluence) : bodyRotY * eyeBodyInfluence);
-          const targetEyePitch = item.defaultRotation.x + (isChild ? -bodyRotX * (1 - eyeBodyInfluence) : bodyRotX * eyeBodyInfluence);
-
-          item.obj.rotation.y += (targetEyeYaw - item.obj.rotation.y) * 0.2;
-          item.obj.rotation.x += (targetEyePitch - item.obj.rotation.x) * 0.2;
+          item.obj.rotation.y += (item.defaultRotation.y - item.obj.rotation.y) * 0.2;
+          item.obj.rotation.x += (item.defaultRotation.x - item.obj.rotation.x) * 0.2;
         }
       });
 
-      // Keep pupils tracking the mouse dynamically (even when close), but aligned relative to stabilized eyeballs and strictly clamped
+      // Keep pupils stationary at default rotation
       pupilsRef.current.forEach((item) => {
         if (item.obj && item.obj.rotation) {
-          const isEyeballParent = eyeballsRef.current.some(eye => eye.obj === item.obj.parent);
-          const isChild = isChildOfFish(item.obj);
-          
-          // Pupils rotate to look towards the mouse, strictly limited to prevent wonkiness
-          const maxPupilYaw = 0.03; // reduced from 0.05
-          const maxPupilPitch = 0.018; // reduced from 0.03
-          const pupilYawOffset = -Math.max(-maxPupilYaw, Math.min(maxPupilYaw, dx * 0.0003));
-          const pupilPitchOffset = Math.max(-maxPupilPitch, Math.min(maxPupilPitch, dy * 0.0003));
-
-          let targetPupilYaw = item.defaultRotation.y + pupilYawOffset;
-          let targetPupilPitch = item.defaultRotation.x + pupilPitchOffset;
-
-          if (!isEyeballParent) {
-            // If the parent is not an eyeball, we must manually account for the body rotation
-            targetPupilYaw += (isChild ? -bodyRotY * (1 - eyeBodyInfluence) : bodyRotY * eyeBodyInfluence);
-            targetPupilPitch += (isChild ? -bodyRotX * (1 - eyeBodyInfluence) : bodyRotX * eyeBodyInfluence);
-          }
-
-          item.obj.rotation.y += (targetPupilYaw - item.obj.rotation.y) * 0.2;
-          item.obj.rotation.x += (targetPupilPitch - item.obj.rotation.x) * 0.2;
+          item.obj.rotation.y += (item.defaultRotation.y - item.obj.rotation.y) * 0.2;
+          item.obj.rotation.x += (item.defaultRotation.x - item.obj.rotation.x) * 0.2;
         }
       });
 
-      // Keep fins aligned with the body rotation
+      // Keep fins at default rotation
       finsRef.current.forEach((item) => {
         if (item.obj && item.obj.rotation) {
-          const isChild = isChildOfFish(item.obj);
-          const targetFinYaw = item.defaultRotation.y + (isChild ? 0 : bodyRotY);
-          const targetFinPitch = item.defaultRotation.x + (isChild ? 0 : bodyRotX);
-
-          item.obj.rotation.y += (targetFinYaw - item.obj.rotation.y) * 0.2;
-          item.obj.rotation.x += (targetFinPitch - item.obj.rotation.x) * 0.2;
+          item.obj.rotation.y += (item.defaultRotation.y - item.obj.rotation.y) * 0.2;
+          item.obj.rotation.x += (item.defaultRotation.x - item.obj.rotation.x) * 0.2;
         }
       });
 
@@ -289,7 +231,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
 
     animationFrameId = requestAnimationFrame(updatePosition);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isMinimized, isHovered, fishObject, location.pathname, pageDelayPassed]);
+  }, [isMinimized, isHovered, isPuffed, fishObject, location.pathname, pageDelayPassed]);
 
   // Track window size to keep the stationary center correct for the eye tracking calculations
   useEffect(() => {
@@ -461,7 +403,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
             animation: bubbleFloat 4s ease-in-out infinite, liquidWobble 6s ease-in-out infinite;
           }
         `}</style>
-        <div className={`relative ${isHovered ? 'scale-110' : 'scale-100'} transition-transform duration-300`}>
+        <div className={`relative ${isPuffed ? 'scale-125' : (isHovered ? 'scale-105' : 'scale-100')} transition-transform duration-500 ease-out`}>
           {/* Water bubble text prompt */}
           {showBubble && (
             <div 
@@ -501,7 +443,7 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
 
             {/* 3D Spline Scene (Pufferfish) wrapped in a native resolution container to prevent scale-based blurriness */}
             <div 
-              className="absolute w-[240px] h-[240px] pointer-events-auto"
+              className={`absolute w-[240px] h-[240px] pointer-events-auto transition-transform duration-500 ease-out ${isPuffed ? 'scale-125' : 'scale-100'}`}
               style={{ left: '-64px', top: '-64px' }}
             >
               <SplineScene
