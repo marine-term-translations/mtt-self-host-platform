@@ -68,10 +68,36 @@ router.get('/ldes/feeds', apiLimiter, (req, res) => {
       // Get all .ttl files except latest.ttl
       const fragmentFiles = files.filter(f => f.endsWith('.ttl') && f !== 'latest.ttl');
       
-      const fragments = fragmentFiles.map(filename => ({
-        name: filename,
-        url: `api/ldes/data/${sourceId}/${filename}`
-      }));
+      const fragments = fragmentFiles.map(filename => {
+        const filePath = path.join(sourcePath, filename);
+        let memberCount = 0;
+        let timestamp = null;
+
+        try {
+          // Parse timestamp from numeric filename (e.g. 1771594035.ttl) or file stats
+          const timestampNum = parseInt(filename.replace('.ttl', ''), 10);
+          if (!isNaN(timestampNum) && timestampNum > 1000000000) {
+            timestamp = new Date(timestampNum * 1000).toISOString();
+          } else {
+            const stats = fs.statSync(filePath);
+            timestamp = stats.mtime.toISOString();
+          }
+
+          // Count tree:member occurrences in the fragment file
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const matches = content.match(/tree:member/g);
+          memberCount = matches ? matches.length : 0;
+        } catch (fileErr) {
+          console.error(`Failed to parse fragment metadata for ${filename}:`, fileErr);
+        }
+
+        return {
+          name: filename,
+          url: `api/ldes/data/${sourceId}/${filename}`,
+          memberCount,
+          timestamp
+        };
+      });
 
       // Try to get source description from database
       let description = null;

@@ -212,8 +212,8 @@ const Landing: React.FC = () => {
               </div>
             </div>
             
-            <div className="hidden md:grid grid-cols-2 gap-4 opacity-90">
-                <div className="space-y-4 translate-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-90 relative z-30 pointer-events-auto">
+                <div className="space-y-4 md:translate-y-8">
                     <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20">
                         <Anchor className="text-marine-300 mb-3" size={32} />
                         <h3 className="font-bold text-lg mb-1">Standardized</h3>
@@ -231,7 +231,7 @@ const Landing: React.FC = () => {
                         <h3 className="font-bold text-lg mb-1">Interoperable</h3>
                         <p className="text-sm text-slate-300">FAIR data powered by LDES technology.</p>
                     </div>
-                    <Link to="/ldes" className="block bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all cursor-pointer group">
+                    <Link to="/ldes" className="block bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all cursor-pointer group relative z-30 pointer-events-auto">
                         <Database className="text-amber-300 mb-3 group-hover:scale-110 transition-transform" size={32} />
                         <h3 className="font-bold text-lg mb-1">
                           {loading ? (
