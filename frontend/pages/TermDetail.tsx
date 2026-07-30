@@ -968,7 +968,7 @@ Original Text (${fieldName}): "${field.original_value}"`;
         {/* Workspace Column */}
         <div className="lg:col-span-2 space-y-6">
           {/* Top Bar with Language Selection */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+          <div data-tour="add-translation-btn" className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Globe size={20} className="text-marine-500" /> Translation Workspace

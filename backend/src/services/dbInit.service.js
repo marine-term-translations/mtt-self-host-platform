@@ -40,6 +40,10 @@ function shouldIgnoreMigrationError(db, filename, err) {
     return tableExists(db, 'notifications') && tableExists(db, 'discussion_participants');
   }
 
+  if (filename === '033_has_seen_onboarding.sql' && /duplicate column name/i.test(err.message)) {
+    return columnExists(db, 'user_preferences', 'has_seen_onboarding');
+  }
+
   return false;
 }
 

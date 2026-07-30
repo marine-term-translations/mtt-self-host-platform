@@ -49,12 +49,17 @@ import BlogIndex from './pages/blog/BlogIndex';
 import LostInTranslation from './pages/blog/LostInTranslation';
 import MttTechnicalDeepdive from './pages/blog/MttTechnicalDeepdive';
 
+import { OnboardingProvider } from './context/OnboardingContext';
+import { OnboardingTour } from './components/onboarding/OnboardingTour';
+
 const App: React.FC = () => {
   const { user } = useAuth();
   
   return (
-    <Layout>
-      <Toaster 
+    <OnboardingProvider>
+      <Layout>
+        <OnboardingTour />
+        <Toaster 
         position="top-right"
         toastOptions={{
           className: 'dark:bg-slate-800 dark:text-white',
@@ -249,6 +254,7 @@ const App: React.FC = () => {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
+  </OnboardingProvider>
   );
 };
 

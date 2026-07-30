@@ -77,26 +77,29 @@ router.get("/user/preferences", userPreferencesLimiter, requireAuth, (req, res) 
     
     if (tableExists) {
       // Try to get preferences from new table
-      const userPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      const userPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages, has_seen_onboarding FROM user_preferences WHERE user_id = ?').get(userId);
       
       if (userPrefs) {
         try {
           preferences = {
             preferredLanguages: JSON.parse(userPrefs.preferred_languages),
-            visibleExtraLanguages: JSON.parse(userPrefs.visible_extra_languages)
+            visibleExtraLanguages: JSON.parse(userPrefs.visible_extra_languages),
+            hasSeenOnboarding: Boolean(userPrefs.has_seen_onboarding)
           };
         } catch (err) {
           console.error('[User Preferences] Failed to parse user preferences JSON:', err);
           preferences = {
             preferredLanguages: ['en'],
-            visibleExtraLanguages: []
+            visibleExtraLanguages: [],
+            hasSeenOnboarding: Boolean(userPrefs.has_seen_onboarding)
           };
         }
       } else {
         // Initialize with defaults
         preferences = {
           preferredLanguages: ['en'],
-          visibleExtraLanguages: []
+          visibleExtraLanguages: [],
+          hasSeenOnboarding: false
         };
       }
     }
@@ -191,12 +194,15 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
       userId
     );
     
+    const { hasSeenOnboarding, has_seen_onboarding } = req.body;
+    const finalHasSeen = hasSeenOnboarding !== undefined ? hasSeenOnboarding : has_seen_onboarding;
+
     // Check if new user_preferences table exists
     const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_preferences'").get();
     
-    if (tableExists && (preferredLanguages !== undefined || visibleExtraLanguages !== undefined)) {
+    if (tableExists && (preferredLanguages !== undefined || visibleExtraLanguages !== undefined || finalHasSeen !== undefined)) {
       // Get current preferences
-      const currentPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages FROM user_preferences WHERE user_id = ?').get(userId);
+      const currentPrefs = db.prepare('SELECT preferred_languages, visible_extra_languages, has_seen_onboarding FROM user_preferences WHERE user_id = ?').get(userId);
       
       const newPreferredLanguages = preferredLanguages !== undefined 
         ? JSON.stringify(preferredLanguages) 
@@ -205,16 +211,21 @@ router.post("/user/preferences", userPreferencesLimiter, requireAuth, (req, res)
       const newVisibleExtraLanguages = visibleExtraLanguages !== undefined
         ? JSON.stringify(visibleExtraLanguages)
         : (currentPrefs ? currentPrefs.visible_extra_languages : '[]');
+
+      const newHasSeen = finalHasSeen !== undefined
+        ? (finalHasSeen ? 1 : 0)
+        : (currentPrefs ? (currentPrefs.has_seen_onboarding ?? 0) : 0);
       
       // Insert or update preferences
       db.prepare(`
-        INSERT INTO user_preferences (user_id, preferred_languages, visible_extra_languages, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO user_preferences (user_id, preferred_languages, visible_extra_languages, has_seen_onboarding, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(user_id) DO UPDATE SET
           preferred_languages = excluded.preferred_languages,
           visible_extra_languages = excluded.visible_extra_languages,
+          has_seen_onboarding = excluded.has_seen_onboarding,
           updated_at = CURRENT_TIMESTAMP
-      `).run(userId, newPreferredLanguages, newVisibleExtraLanguages);
+      `).run(userId, newPreferredLanguages, newVisibleExtraLanguages, newHasSeen);
       
       // Sync user to language communities based on both preferred and translation languages
       const languagesToSync = [];

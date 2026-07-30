@@ -528,6 +528,7 @@ const Browse: React.FC = () => {
               <Search className="h-5 w-5 text-slate-400" />
             </div>
             <input
+              data-tour="search-input"
               type="text"
               className="block w-full pl-10 pr-24 py-3 border border-slate-300 dark:border-slate-600 rounded-lg leading-5 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-marine-500 focus:border-marine-500 sm:text-sm"
               placeholder="Search terms, definitions, or translations..."

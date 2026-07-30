@@ -552,7 +552,7 @@ const TranslationFlow: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 md:gap-8">
+        <div data-tour="flow-actions" className="grid grid-cols-1 lg:grid-cols-3 gap-0 md:gap-8">
           {/* Main Task Area */}
           <div className="lg:col-span-2">
             <FlowTermCard
