@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Globe, Save, Shield, Settings as SettingsIcon, Plus, X, ChevronUp, ChevronDown, Search, Key, Eye, EyeOff, Sparkles, Mail } from 'lucide-react';
+import { useOnboarding } from '../context/OnboardingContext';
+import { Globe, Save, Shield, Settings as SettingsIcon, Plus, X, ChevronUp, ChevronDown, Search, Key, Eye, EyeOff, Sparkles, Mail, HelpCircle, RotateCcw, PlayCircle, FileText, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CONFIG } from '../config';
 import { backendApi } from '../services/api';
@@ -20,6 +21,7 @@ interface Language {
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
+  const { startTour } = useOnboarding();
   const [orderedLanguages, setOrderedLanguages] = useState<string[]>([]);
   const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
   const [isLoadingLanguages, setIsLoadingLanguages] = useState(true);
@@ -747,6 +749,93 @@ const Settings: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Help & Onboarding Section */}
+      <div data-tour="settings-help" className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mt-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-sky-100 dark:bg-sky-900/30 rounded-lg">
+            <HelpCircle className="text-sky-600 dark:text-sky-400" size={24} />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Help & Onboarding</h2>
+            <p className="text-slate-600 dark:text-slate-400">
+              Replay the full platform walkthrough or jump into specific feature tours anytime
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Main Full Tour Button */}
+          <div className="p-5 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/40 rounded-xl border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-sky-500" />
+                Full System Walkthrough
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                A guided tour covering settings, search, adding translations, and reviewing in the flow.
+              </p>
+            </div>
+            <button
+              onClick={() => startTour('full')}
+              className="px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-semibold text-xs rounded-xl shadow transition-all flex items-center gap-2 whitespace-nowrap"
+            >
+              <RotateCcw size={16} />
+              Replay System Tour
+            </button>
+          </div>
+
+          {/* Micro-Tours Grid */}
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Feature Micro-Tours</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => startTour('settings')}
+                className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-left transition-colors flex items-center gap-3"
+              >
+                <Key className="w-5 h-5 text-indigo-500 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Settings & API Key</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Languages & AI configuration</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => startTour('search')}
+                className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-left transition-colors flex items-center gap-3"
+              >
+                <Search className="w-5 h-5 text-emerald-500 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Searching Terminology</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Search bar & filter options</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => startTour('term_detail')}
+                className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-left transition-colors flex items-center gap-3"
+              >
+                <FileText className="w-5 h-5 text-amber-500 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Term Details & Translating</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Definitions & submitting translations</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => startTour('flow')}
+                className="p-3.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900/60 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-left transition-colors flex items-center gap-3"
+              >
+                <TrendingUp className="w-5 h-5 text-purple-500 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Translation & Approval Flow</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Rapid flow workspace & reviews</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Add Language Modal */}
