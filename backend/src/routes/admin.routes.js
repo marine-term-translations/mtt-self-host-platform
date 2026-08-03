@@ -1264,8 +1264,8 @@ router.get("/admin/community-reports", requireAdmin, apiLimiter, (req, res) => {
         u2.username as reviewed_by_username,
         u3.username as community_owner_username
       FROM community_reports cr
-      INNER JOIN communities c ON cr.community_id = c.id
-      INNER JOIN users u1 ON cr.reported_by_id = u1.id
+      LEFT JOIN communities c ON cr.community_id = c.id
+      LEFT JOIN users u1 ON cr.reported_by_id = u1.id
       LEFT JOIN users u2 ON cr.reviewed_by_id = u2.id
       LEFT JOIN users u3 ON c.owner_id = u3.id
     `;
@@ -1279,7 +1279,10 @@ router.get("/admin/community-reports", requireAdmin, apiLimiter, (req, res) => {
     
     query += ' ORDER BY cr.created_at DESC';
     
-    const reports = db.prepare(query).all(...params);
+    const reports = db.prepare(query).all(...params).map(r => ({
+      ...r,
+      report_number: `RPT-C${String(r.id).padStart(5, '0')}`
+    }));
     
     res.json(reports);
   } catch (err) {

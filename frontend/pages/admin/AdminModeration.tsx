@@ -36,16 +36,35 @@ interface MessageReport {
   appeal_id: number;
 }
 
+interface CommunityReport {
+  id: number;
+  report_number?: string;
+  community_id: number;
+  community_name?: string;
+  community_type?: string;
+  reported_by_id: number;
+  reported_by_username?: string;
+  reason: string;
+  description: string | null;
+  status: string;
+  reviewed_by_id: number | null;
+  reviewed_by_username?: string;
+  resolution_notes: string | null;
+  created_at: string;
+}
+
 const AdminModeration: React.FC = () => {
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'appeals' | 'reports'>('appeals');
+  const [activeTab, setActiveTab] = useState<'appeals' | 'reports' | 'community_reports'>('appeals');
   const [appeals, setAppeals] = useState<ApiAppeal[]>([]);
   const [reports, setReports] = useState<MessageReport[]>([]);
+  const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
   const [selectedAppeal, setSelectedAppeal] = useState<number | null>(null);
   const [targetReportId, setTargetReportId] = useState<number | null>(null);
   const [appealMessages, setAppealMessages] = useState<AppealMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingReport, setReviewingReport] = useState<number | null>(null);
+  const [reviewingCommunityReport, setReviewingCommunityReport] = useState<number | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [penalizingUser, setPenalizingUser] = useState<number | null>(null);
   const [penaltyAction, setPenaltyAction] = useState<'reputation_penalty' | 'ban'>('reputation_penalty');
@@ -58,11 +77,15 @@ const AdminModeration: React.FC = () => {
     const reportIdParam = params.get('reportId');
     const reportNumParam = params.get('reportNumber');
     const appealIdParam = params.get('appealId');
+    const tabParam = params.get('tab');
 
-    if (reportIdParam || reportNumParam) {
+    if (tabParam === 'community_reports') {
+      setActiveTab('community_reports');
+    } else if (reportIdParam || reportNumParam) {
       const parsedId = parseInt((reportIdParam || reportNumParam || '').replace(/\D/g, ''), 10);
       if (!isNaN(parsedId)) {
         setTargetReportId(parsedId);
+        // Default to reports tab if not specified
         setActiveTab('reports');
       }
     } else if (appealIdParam) {
@@ -88,10 +111,17 @@ const AdminModeration: React.FC = () => {
         if (selectedAppeal) {
           loadAppealMessages(selectedAppeal);
         }
-      } else {
+      } else if (activeTab === 'reports') {
         const reportsData = await backendApi.getModerationReports();
         setReports(reportsData);
+      } else if (activeTab === 'community_reports') {
+        const communityReportsData = await backendApi.getCommunityReports();
+        setCommunityReports(communityReportsData);
       }
+      
+      // Always fetch counts for non-active tabs in the background
+      backendApi.getModerationReports().then(setReports).catch(() => {});
+      backendApi.getCommunityReports().then(setCommunityReports).catch(() => {});
     } catch (error) {
       toast.error("Failed to fetch moderation data");
     } finally {
@@ -118,6 +148,18 @@ const AdminModeration: React.FC = () => {
       fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to review report");
+    }
+  };
+
+  const handleReviewCommunityReport = async (reportId: number, status: string) => {
+    try {
+      await backendApi.reviewCommunityReport(reportId, status, reviewNotes);
+      toast.success("Community report reviewed successfully");
+      setReviewingCommunityReport(null);
+      setReviewNotes('');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to review community report");
     }
   };
 
@@ -175,6 +217,17 @@ const AdminModeration: React.FC = () => {
         >
           <Flag size={16} className="inline mr-2" />
           Reported Messages ({reports.filter(r => r.status === 'pending').length})
+        </button>
+        <button
+          onClick={() => setActiveTab('community_reports')}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+            activeTab === 'community_reports'
+              ? 'border-marine-600 text-marine-600'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+          }`}
+        >
+          <AlertTriangle size={16} className="inline mr-2 text-amber-500" />
+          Reported Communities ({communityReports.filter(c => c.status === 'pending').length})
         </button>
       </div>
 
@@ -369,6 +422,122 @@ const AdminModeration: React.FC = () => {
         </div>
       )}
 
+      {/* Community Reports Tab */}
+      {activeTab === 'community_reports' && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {loading ? (
+            <div className="p-12 flex justify-center">
+              <Loader2 className="animate-spin text-marine-500" size={32} />
+            </div>
+          ) : communityReports.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+              <CheckCircle size={48} className="text-green-500 mb-4" />
+              <p>No reported communities</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              {communityReports.map(report => (
+                <div 
+                  key={report.id} 
+                  id={`community-report-card-${report.id}`}
+                  className={`p-6 transition-colors ${
+                    targetReportId === report.id ? 'bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-500' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
+                        report.status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                        report.status === 'action_taken' ? 'bg-red-100 text-red-800' :
+                        report.status === 'dismissed' ? 'bg-slate-100 text-slate-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {report.status}
+                      </span>
+                      <p className="text-sm text-slate-500 font-mono font-medium mt-1">
+                        Report {report.report_number || `RPT-C${String(report.id).padStart(5, '0')}`}
+                      </p>
+                    </div>
+                    <span className="text-sm text-slate-500">
+                      {format(parse(report.created_at), 'YYYY-MM-DD HH:mm')}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded mb-3 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        Community: {report.community_name || `ID #${report.community_id}`}
+                      </span>
+                      <Link 
+                        to={`/community/${report.community_id}`} 
+                        className="text-xs text-marine-600 hover:text-marine-700 font-medium inline-flex items-center gap-1"
+                      >
+                        View Community <ExternalLink size={12} />
+                      </Link>
+                    </div>
+                    {report.community_type && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 uppercase font-semibold">
+                        Type: {report.community_type}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mb-3 space-y-1">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-semibold">Reported by:</span> @{report.reported_by_username || `User #${report.reported_by_id}`}
+                    </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-semibold">Reason:</span> <span className="font-medium text-slate-800 dark:text-slate-200">{report.reason}</span>
+                    </p>
+                    {report.description && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        <span className="font-semibold">Description:</span> {report.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {report.status === 'pending' && (
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={() => setReviewingCommunityReport(report.id)}
+                        className="px-3 py-1 bg-marine-600 text-white rounded hover:bg-marine-700 text-sm font-medium"
+                      >
+                        Review Report
+                      </button>
+                      <button
+                        onClick={() => handleReviewCommunityReport(report.id, 'dismissed')}
+                        className="px-3 py-1 bg-slate-600 text-white rounded hover:bg-slate-700 text-sm font-medium"
+                      >
+                        Dismiss
+                      </button>
+                      <button
+                        onClick={() => handleReviewCommunityReport(report.id, 'action_taken')}
+                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
+                      >
+                        Action Taken
+                      </button>
+                    </div>
+                  )}
+
+                  {report.resolution_notes && (
+                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
+                      <p className="text-sm text-slate-700 dark:text-slate-300">
+                        <span className="font-semibold">Resolution notes:</span> {report.resolution_notes}
+                      </p>
+                      {report.reviewed_by_username && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          Reviewed by {report.reviewed_by_username}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Review Dialog */}
       {reviewingReport && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -393,6 +562,39 @@ const AdminModeration: React.FC = () => {
               </button>
               <button
                 onClick={() => handleReviewReport(reviewingReport, 'reviewed')}
+                className="px-4 py-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700"
+              >
+                Mark as Reviewed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Community Report Dialog */}
+      {reviewingCommunityReport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Review Community Report</h3>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-marine-500 outline-none"
+              rows={4}
+              placeholder="Resolution notes (optional)..."
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+            />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setReviewingCommunityReport(null);
+                  setReviewNotes('');
+                }}
+                className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReviewCommunityReport(reviewingCommunityReport, 'reviewed')}
                 className="px-4 py-2 bg-marine-600 text-white rounded-lg hover:bg-marine-700"
               >
                 Mark as Reviewed

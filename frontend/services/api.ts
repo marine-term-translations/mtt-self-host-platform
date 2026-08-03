@@ -383,6 +383,16 @@ class ApiService {
     return this.put(`/admin/moderation/reports/${reportId}/review`, { status, admin_notes: adminNotes });
   }
 
+  public async getCommunityReports(status?: string): Promise<any[]> {
+    const params: Record<string, string> = {};
+    if (status) params.status = status;
+    return this.get('/admin/community-reports', params);
+  }
+
+  public async reviewCommunityReport(reportId: number, status: string, resolutionNotes?: string): Promise<any> {
+    return this.put(`/admin/community-reports/${reportId}/review`, { status, resolution_notes: resolutionNotes });
+  }
+
   public async getAppealMessagesForModeration(appealId: number): Promise<any[]> {
     return this.get(`/admin/moderation/appeals/${appealId}/messages`);
   }
