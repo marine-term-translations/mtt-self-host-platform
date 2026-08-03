@@ -39,29 +39,33 @@ function getAdminEmails() {
  * Notify all admins about a new report (message report or community report)
  */
 function notifyAdminsNewReport({ reportId, type = 'message', reason, reporterUsername, itemDetails }) {
-  const admins = getAdminEmails();
-  if (admins.length === 0) {
-    console.log('[Admin Notification] No admins with email found for report notification.');
-    return;
-  }
+  try {
+    const admins = getAdminEmails();
+    if (admins.length === 0) {
+      console.log('[Admin Notification] No admins with email found for report notification.');
+      return;
+    }
 
-  const reportNumber = formatReportNumber(reportId);
-  const directLink = `${config.frontendUrl}/admin/moderation?reportId=${reportId}`;
-  const subject = `[MTT Moderation] New Report ${reportNumber} (${type === 'community' ? 'Community' : 'Message'})`;
+    const reportNumber = formatReportNumber(reportId);
+    const directLink = `${config.frontendUrl}/admin/moderation?reportId=${reportId}`;
+    const subject = `[MTT Moderation] New Report ${reportNumber} (${type === 'community' ? 'Community' : 'Message'})`;
 
-  for (const admin of admins) {
-    queueMail(
-      admin.email,
-      subject,
-      'base', // uses standard email base layout
-      {
-        recipient_name: admin.username,
-        title: `New Report Submitted (${reportNumber})`,
-        body: `A new ${type} report (${reportNumber}) has been submitted by user @${reporterUsername || 'unknown'}.\n\nReason: "${reason || 'No reason specified'}"\n${itemDetails ? `\nDetails: ${itemDetails}\n` : ''}\nClick below to review this report directly in the MTT Moderation queue:`,
-        action_text: `Review Report ${reportNumber}`,
-        action_url: directLink
-      }
-    );
+    for (const admin of admins) {
+      queueMail(
+        admin.email,
+        subject,
+        'admin-report',
+        {
+          recipient_name: admin.username,
+          title: `New Report Submitted (${reportNumber})`,
+          body: `A new ${type} report (${reportNumber}) has been submitted by user @${reporterUsername || 'unknown'}.\n\nReason: "${reason || 'No reason specified'}"\n${itemDetails ? `\nDetails: ${itemDetails}\n` : ''}\nClick below to review this report directly in the MTT Moderation queue:`,
+          action_text: `Review Report ${reportNumber}`,
+          action_url: directLink
+        }
+      );
+    }
+  } catch (err) {
+    console.error('[Admin Notification] Failed to notify admins of report:', err.message);
   }
 }
 
@@ -69,29 +73,33 @@ function notifyAdminsNewReport({ reportId, type = 'message', reason, reporterUse
  * Notify all admins about a new appeal
  */
 function notifyAdminsNewAppeal({ appealId, reason, authorUsername, termName }) {
-  const admins = getAdminEmails();
-  if (admins.length === 0) {
-    console.log('[Admin Notification] No admins with email found for appeal notification.');
-    return;
-  }
+  try {
+    const admins = getAdminEmails();
+    if (admins.length === 0) {
+      console.log('[Admin Notification] No admins with email found for appeal notification.');
+      return;
+    }
 
-  const appealNumber = formatAppealNumber(appealId);
-  const directLink = `${config.frontendUrl}/admin/moderation?appealId=${appealId}`;
-  const subject = `[MTT Moderation] New Appeal ${appealNumber} Submitted`;
+    const appealNumber = formatAppealNumber(appealId);
+    const directLink = `${config.frontendUrl}/admin/moderation?appealId=${appealId}`;
+    const subject = `[MTT Moderation] New Appeal ${appealNumber} Submitted`;
 
-  for (const admin of admins) {
-    queueMail(
-      admin.email,
-      subject,
-      'base',
-      {
-        recipient_name: admin.username,
-        title: `New Appeal Submitted (${appealNumber})`,
-        body: `A new translation appeal (${appealNumber}) has been submitted by user @${authorUsername || 'unknown'}${termName ? ` regarding term "${termName}"` : ''}.\n\nReason: "${reason || 'No reason specified'}"\n\nClick below to review this appeal directly in the MTT Moderation queue:`,
-        action_text: `Review Appeal ${appealNumber}`,
-        action_url: directLink
-      }
-    );
+    for (const admin of admins) {
+      queueMail(
+        admin.email,
+        subject,
+        'admin-report',
+        {
+          recipient_name: admin.username,
+          title: `New Appeal Submitted (${appealNumber})`,
+          body: `A new translation appeal (${appealNumber}) has been submitted by user @${authorUsername || 'unknown'}${termName ? ` regarding term "${termName}"` : ''}.\n\nReason: "${reason || 'No reason specified'}"\n\nClick below to review this appeal directly in the MTT Moderation queue:`,
+          action_text: `Review Appeal ${appealNumber}`,
+          action_url: directLink
+        }
+      );
+    }
+  } catch (err) {
+    console.error('[Admin Notification] Failed to notify admins of appeal:', err.message);
   }
 }
 

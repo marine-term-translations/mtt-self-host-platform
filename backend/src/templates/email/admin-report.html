@@ -1,0 +1,11 @@
+<h2 style="color: #0f172a; margin-bottom: 16px;">{{title}}</h2>
+<p style="font-size: 16px; color: #334155; margin-bottom: 16px;">Hello {{recipient_name}},</p>
+<div style="background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+  <p style="white-space: pre-line; color: #334155; margin: 0; line-height: 1.5;">{{body}}</p>
+</div>
+{{#if action_url}}
+<p style="text-align: center; margin-top: 24px; margin-bottom: 24px;">
+  <a href="{{action_url}}" class="btn" style="background-color: #0284c7; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">{{action_text}}</a>
+</p>
+{{/if}}
+<p style="font-size: 14px; color: #64748b; margin-top: 24px;">This is an automated moderation alert for MTT system administrators.</p>
