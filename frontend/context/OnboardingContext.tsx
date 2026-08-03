@@ -53,11 +53,25 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
     content: 'Enter your OpenRouter API key here to unlock AI-assisted translation suggestions.'
   },
   {
+    id: 'nav-browse',
+    route: '/settings',
+    target: '[data-tour="nav-browse"]',
+    title: 'Navigate to Browse',
+    content: 'Use the "Browse" link in the top navigation bar to navigate to the search and terminology catalog.'
+  },
+  {
     id: 'search-input',
     route: '/browse',
     target: '[data-tour="search-input"]',
     title: 'Search Terminology',
     content: 'Type any marine or scientific term here to search exact matches, synonyms, and context notes across languages.'
+  },
+  {
+    id: 'nav-term-detail',
+    route: '/browse',
+    target: '[data-tour="term-card"]',
+    title: 'Select a Term',
+    content: 'Click on any term card to open its detail page and contribute or inspect translations.'
   },
   {
     id: 'add-translation-btn',
@@ -67,11 +81,25 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
     content: 'View detailed definition context here and submit your own translations with references for community review.'
   },
   {
+    id: 'nav-flow',
+    route: `/term/${DEFAULT_TERM_URI_ENCODED}`,
+    target: '[data-tour="nav-flow"]',
+    title: 'Navigate to Flow',
+    content: 'Click the "Flow" button in the top navigation bar to access the rapid translation workspace.'
+  },
+  {
     id: 'flow-actions',
     route: '/flow',
     target: '[data-tour="flow-actions"]',
     title: 'Translation & Approval Flow',
     content: 'Use this rapid flow workspace to quickly translate missing terms or vote to approve community contributions.'
+  },
+  {
+    id: 'nav-settings',
+    route: '/flow',
+    target: '[data-tour="nav-settings"]',
+    title: 'Navigate to Settings',
+    content: 'Click your user profile / settings area in the top navigation bar to return to Settings at any time.'
   },
   {
     id: 'settings-help',
@@ -82,19 +110,21 @@ const FULL_TOUR_STEPS: OnboardingStep[] = [
   }
 ];
 
+const findStep = (id: string): OnboardingStep => FULL_TOUR_STEPS.find(s => s.id === id) || FULL_TOUR_STEPS[0];
+
 const MICRO_TOURS: Record<Exclude<TourType, 'full' | 'main'>, OnboardingStep[]> = {
   settings: [
-    FULL_TOUR_STEPS[1], // settings-languages
-    FULL_TOUR_STEPS[2]  // settings-api-key
+    findStep('settings-languages'),
+    findStep('settings-api-key')
   ],
   search: [
-    FULL_TOUR_STEPS[3]  // search-input
+    findStep('search-input')
   ],
   term_detail: [
-    FULL_TOUR_STEPS[4]  // add-translation-btn
+    findStep('add-translation-btn')
   ],
   flow: [
-    FULL_TOUR_STEPS[5]  // flow-actions
+    findStep('flow-actions')
   ]
 };
 
