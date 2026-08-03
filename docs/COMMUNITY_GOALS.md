@@ -1,5 +1,7 @@
 # Community Goals Feature
 
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
 ## Overview
 
 The Community Goals feature allows administrators to create and manage community-wide translation goals and challenges to motivate and engage translators. Goals can be set for specific translation counts, languages, or entire collections.

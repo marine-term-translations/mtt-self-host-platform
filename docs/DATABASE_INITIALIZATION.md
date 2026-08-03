@@ -1,5 +1,7 @@
 # Database Initialization
 
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
 This document explains how the automatic database initialization works in the Marine Term Translations platform.
 
 ## Overview

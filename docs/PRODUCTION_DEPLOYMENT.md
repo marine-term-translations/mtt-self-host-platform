@@ -1,5 +1,7 @@
 # Production Deployment Guide
 
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
 This guide explains how to deploy the Marine Term Translations platform to production at `https://mtt.vliz.be`.
 
 ## Frontend Configuration for Production Backend
