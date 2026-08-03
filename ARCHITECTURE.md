@@ -1,6 +1,14 @@
-# Architecture Overview
+# System Architecture Overview
 
-This document provides a comprehensive overview of the Marine Term Translations (MTT) Platform architecture, including component interactions, data flow, and external service integrations.
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
+> [!NOTE]
+> **Sponsored by EMODnet Biology**  
+> Marine Term Translations (MTT) is developed within the framework of [EMODnet Biology](https://emodnet.ec.europa.eu/en/biology) (European Marine Observation and Data Network) to facilitate the internationalization, translation, and harmonization of marine science vocabularies.
+> 
+> *The European Marine Observation and Data Network (EMODnet) is financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.*
+
+---
 
 ## Table of Contents
 
@@ -11,6 +19,9 @@ This document provides a comprehensive overview of the Marine Term Translations 
 - [Authentication Flow](#authentication-flow)
 - [External Services](#external-services)
 - [Network Architecture](#network-architecture)
+- [Volume Mounts](#volume-mounts)
+- [Security Considerations](#security-considerations)
+- [Scaling Considerations](#scaling-considerations)
 
 ---
 
@@ -19,7 +30,7 @@ This document provides a comprehensive overview of the Marine Term Translations 
 ```mermaid
 graph TB
     subgraph "Client Layer"
-        Browser[Web Browser]
+        Browser[Web Browser / API Client]
     end
 
     subgraph "Container Network"
@@ -29,6 +40,7 @@ graph TB
 
         subgraph "Backend Service"
             BE[Express.js API<br/>:5000]
+            LDES[LDES Event Streams<br/>/api/ldes]
             Swagger[Swagger Docs<br/>/api/docs]
         end
 
@@ -40,7 +52,7 @@ graph TB
     subgraph "External Services"
         ORCID[ORCID OAuth]
         OpenRouter[OpenRouter API]
-        EMODnet[EMODnet APIs]
+        EMODnet[EMODnet APIs & NVS]
     end
 
     Browser --> FE
@@ -48,12 +60,14 @@ graph TB
     FE --> BE
     BE --> SQLite
     BE --> ORCID
+    BE --> LDES
     FE -.-> OpenRouter
     BE -.-> EMODnet
 
     style FE fill:#61dafb,stroke:#333
     style BE fill:#68a063,stroke:#333
     style SQLite fill:#003b57,stroke:#333
+    style LDES fill:#ff9900,stroke:#333
 ```
 
 ---
@@ -64,105 +78,65 @@ graph TB
 
 | Attribute | Value |
 |-----------|-------|
-| **Technology** | React 18, Vite 6, TypeScript |
-| **Port** | 4173 (preview mode) |
+| **Technology** | React 18, Vite 6, TypeScript, Tailwind CSS |
+| **Port** | 4173 (preview mode) / 5173 (dev mode) |
 | **Container** | `marine-frontend` |
-| **Purpose** | User interface for translation management |
+| **Purpose** | User interface for translation management, community goals, discussions, and moderation |
 
 **Key Features:**
-- Translation browsing and editing interface
-- User authentication via ORCID OAuth
-- Real-time translation status updates
-- OpenRouter AI integration for translation suggestions
-
-**Configuration:**
-- `VITE_API_URL`: Backend API endpoint
-- `VITE_DOMAIN`: Domain for the platform
+- Term browsing, filtering, and translation management interface
+- Authentication via ORCID iD
+- Community translation challenge widgets and user statistics
+- OpenRouter AI integration for automated translation assistance
+- Admin moderation controls and issue reporting dashboard
 
 ### Backend (Express.js)
 
 | Attribute | Value |
 |-----------|-------|
-| **Technology** | Node.js, Express.js |
+| **Technology** | Node.js 20, Express.js |
 | **Port** | 5000 |
 | **Container** | `marine-backend` |
-| **Purpose** | REST API for translation operations |
+| **Purpose** | REST API for translation operations, LDES feeds, ORCID auth, and admin controls |
 
-**API Routes:**
-- `/api/auth/*` - ORCID authentication endpoints
-- `/api/terms/*` - Term management
-- `/api/teams/*` - Team management (returns empty for now)
-- `/api/appeals/*` - Appeal handling
-- `/api/docs` - Swagger documentation
-
-**Key Services:**
-- `dbInit.service.js` - Database initialization
-- `reputation.service.js` - User reputation system
-- `harvest.service.js` - EMODnet data harvesting
+**Key API Routes:**
+- `/api/auth/*` - ORCID OAuth authentication and session endpoints
+- `/api/terms/*` - Marine terminology management and search
+- `/api/translations/*` - Translation submissions, votes, and status
+- `/api/ldes/*` - Linked Data Event Streams (LDES) feed generation and fragment serving
+- `/api/community-goals/*` - Community goal metrics and tracking
+- `/api/reports/*` - Content moderation and issue reports
+- `/api/docs` - Interactive Swagger API documentation
 
 ### SQLite Database
 
 | Attribute | Value |
 |-----------|-------|
 | **Location** | `backend/data/translations.db` |
-| **Purpose** | Translation data storage |
-
-**Schema Tables:**
-- `terms` - Marine terminology
-- `term_fields` - Term field definitions
-- `translations` - Translation content
-- `appeals` - Translation appeals
-- `appeal_messages` - Appeal discussion messages
-- `users` - User profiles and reputation
-- `reputation_events` - Reputation tracking
-- `user_activity` - Activity logging
-
-**Features:**
-- Automatic initialization on first startup
-- Schema migrations via `migrations/schema.sql`
-- Volume-mounted for data persistence
+| **Purpose** | Persistent data store for terms, translations, users, goals, and LDES event logs |
 
 ---
 
 ## Data Flow
 
-### Translation Workflow
+### Translation Lifecycle & LDES Event Flow
 
 ```mermaid
 sequenceDiagram
-    participant U as User Browser
-    participant FE as Frontend
-    participant BE as Backend
-    participant DB as SQLite
+    participant U as User / Translator
+    participant FE as Frontend UI
+    participant BE as Backend API
+    participant DB as SQLite DB
+    participant LDES as LDES Stream Feed
 
-    U->>FE: View/Edit Translation
-    FE->>BE: API Request
-    BE->>DB: Query/Update
-    DB-->>BE: Result
+    U->>FE: Submit / Vote on Translation
+    FE->>BE: POST /api/translations
+    BE->>DB: Record translation & update score
+    BE->>DB: Append event to LDES log
+    DB-->>BE: Success
     BE-->>FE: Response
-    FE-->>U: Display Result
-```
-
-### Authentication Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant FE as Frontend
-    participant BE as Backend
-    participant ORCID as ORCID
-
-    U->>FE: Login Request
-    FE->>BE: Initiate OAuth
-    BE->>ORCID: OAuth Redirect
-    ORCID->>U: Authorization Page
-    U->>ORCID: Approve
-    ORCID->>BE: Auth Code
-    BE->>ORCID: Exchange for Token
-    ORCID-->>BE: Access Token + User Info
-    BE->>DB: Store/Update User
-    BE-->>FE: Session Created
-    FE-->>U: Logged In
+    FE-->>U: Display updated term status
+    BE-->>LDES: Serve event fragment to external consumers
 ```
 
 ---
@@ -179,225 +153,53 @@ sequenceDiagram
 │   ├── GET /me (get current user)
 │   └── POST /logout (logout)
 ├── /terms
-│   ├── GET / (list terms)
-│   ├── GET /:id (get term)
-│   ├── POST / (create term)
-│   └── PUT /:id (update term)
-├── /teams
-│   ├── GET / (list teams - currently returns empty)
-│   └── POST / (create team)
-├── /appeals
-│   ├── GET / (list appeals)
-│   ├── POST / (create appeal)
-│   └── PUT /:id (resolve appeal)
+│   ├── GET / (list & search terms)
+│   ├── GET /:id (get term details)
+│   └── POST / (create/import term)
+├── /translations
+│   ├── GET / (list translations)
+│   ├── POST / (submit translation)
+│   └── POST /:id/vote (upvote/downvote)
+├── /ldes
+│   ├── GET / (feed stream index)
+│   └── GET /by-page (paged LDES event fragments)
+├── /community-goals
+│   └── GET / (active community challenges)
 └── /docs
     └── Swagger UI
-```
-
-### API Documentation
-
-Access the interactive API documentation at:
-```
-http://localhost:5000/api/docs
-```
-
----
-
-## Authentication Flow
-
-### ORCID OAuth Integration
-
-The platform uses ORCID as the identity provider:
-
-1. **User Authentication**: Users log in via ORCID iD
-2. **Token Generation**: ORCID issues access tokens
-3. **User Info Retrieval**: Backend fetches user profile from ORCID
-4. **Session Management**: Backend creates session with HttpOnly cookies
-
-### Session Flow
-
-```mermaid
-graph LR
-    User[User] -->|1. Clicks Login| FE[Frontend]
-    FE -->|2. Redirect| BE[Backend /auth/orcid]
-    BE -->|3. OAuth Request| ORCID[ORCID]
-    ORCID -->|4. User Approves| BE
-    BE -->|5. Create Session| Session[Session Store]
-    Session -->|6. Set Cookie| User
 ```
 
 ---
 
 ## External Services
 
-### ORCID
+### EMODnet & NERC Vocabularies
 
 | Aspect | Details |
 |--------|---------|
-| **Purpose** | User authentication and identity |
-| **Integration Point** | Backend OAuth flow |
-| **Configuration** | `ORCID_CLIENT_ID`, `ORCID_CLIENT_SECRET` |
+| **Purpose** | Marine terminology source data and harmonization registry |
+| **Integration** | Backend API sync and link referencing |
+| **URL** | `https://emodnet.ec.europa.eu/en/biology` |
 
-**Usage:**
-- Single sign-on authentication
-- User profile information
-- Persistent user identification
-
-### OpenRouter API
+### ORCID OAuth
 
 | Aspect | Details |
 |--------|---------|
-| **Purpose** | AI-powered translation suggestions |
-| **Integration Point** | Frontend (client-side) |
-| **Configuration** | `OPENROUTER_API_KEY` in environment |
+| **Purpose** | Federated user authentication and author identity verification |
+| **Integration** | Passport.js OAuth 2.0 backend flow |
 
-**Usage:**
-- Translation assistance
-- Quality improvement suggestions
-- Context-aware recommendations
-
-### EMODnet APIs
+### OpenRouter AI
 
 | Aspect | Details |
 |--------|---------|
-| **Purpose** | Marine terminology data source |
-| **Integration Point** | Backend API |
-| **Data** | Term definitions, vocabularies |
-
-**Integration:**
-- Term imports
-- Vocabulary synchronization
-- Metadata enrichment
+| **Purpose** | Multi-model AI assistance for marine translation suggestions |
+| **Integration** | Client-side API calls configured with user API key |
 
 ---
 
-## Network Architecture
+## License & Funding
 
-### Docker Network Topology
+This project is licensed under the [MIT License](LICENSE).
 
-```mermaid
-graph TB
-    subgraph "Docker Bridge Network"
-        FE[frontend<br/>:4173]
-        BE[backend<br/>:5000]
-    end
-
-    subgraph "Host Network"
-        H[Host Machine]
-    end
-
-    subgraph "External"
-        I[Internet]
-    end
-
-    FE ---|Internal| BE
-
-    H -->|4173| FE
-    H -->|5000| BE
-    I -->|80/443| H
-```
-
-### Port Mappings
-
-| Service | Container Port | Host Port | Purpose |
-|---------|---------------|-----------|---------|
-| Backend | 5000 | 5000 | REST API |
-| Frontend | 4173 | 4173 | Web application |
-
-### Container-to-Container Communication
-
-Services communicate using Docker DNS:
-- `http://backend:5000` - Backend from frontend container (if needed)
-
-### Reverse Proxy Integration
-
-For production, add a reverse proxy layer:
-
-```mermaid
-graph LR
-    Internet -->|443| RP[Reverse Proxy<br/>Traefik/Caddy/nginx]
-    RP -->|/api/*| BE[Backend:5000]
-    RP -->|/*| FE[Frontend:4173]
-```
-
----
-
-## Volume Mounts
-
-### Persistent Data
-
-| Volume | Path | Purpose |
-|--------|------|---------|
-| Backend Data | `./backend/data:/app/backend/data` | SQLite database |
-
-### Benefits
-
-- ✅ Database persists across container restarts
-- ✅ Easy backup and restore
-- ✅ Direct access to database file from host
-
----
-
-## Security Considerations
-
-### Secret Management
-
-- **Environment Variables**: Store sensitive data in `.env`
-- **Git Ignore**: `.env` excluded from version control
-- **Session Secrets**: Strong random SESSION_SECRET required
-
-### Network Security
-
-- **HTTPS Required**: Production must use HTTPS for ORCID OAuth
-- **CORS**: Configured for allowed origins
-- **Cookies**: HttpOnly, Secure cookies for sessions
-
-### Container Security
-
-- **Non-root Users**: Services run as non-root where possible
-- **Minimal Images**: Alpine-based images where available
-- **Resource Limits**: Consider adding in production
-
----
-
-## Scaling Considerations
-
-### Horizontal Scaling
-
-The architecture supports scaling through:
-- Multiple frontend instances behind a load balancer
-- Backend API replication with shared database (consider PostgreSQL migration)
-
-### Performance Optimization
-
-- **SQLite**: Consider PostgreSQL for high-write workloads or multiple backend instances
-- **Caching**: Add Redis for session/API caching
-- **CDN**: Serve frontend assets via CDN
-
-**SQLite Limitations:**
-- ✅ Suitable for single-server deployments
-- ✅ Moderate traffic (< 10,000 requests/day)
-- ⚠️ Not recommended for multi-server setups (use PostgreSQL instead)
-
----
-
-## Development Architecture
-
-### Local Development
-
-```bash
-# Frontend development server
-cd frontend && npm run dev  # :5173
-
-# Backend with hot reload (if configured)
-cd backend && npm run dev  # :5000
-
-# Full stack with Docker
-docker compose up -d
-```
-
-### Testing
-
-- Unit tests in respective service directories
-- Integration tests against Docker Compose stack
-- E2E tests with Playwright (if configured)
+**Funding Acknowledgment:**  
+This platform was developed with support from **EMODnet Biology** (European Marine Observation and Data Network), financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.
