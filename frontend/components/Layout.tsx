@@ -164,7 +164,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <nav className="hidden md:flex items-center space-x-8">
               {isAuthenticated ? (
                 <>
-                  <Link to="/browse" className={isActive('/browse')}>Browse</Link>
+                  <Link to="/browse" data-tour="nav-browse" className={isActive('/browse')}>Browse</Link>
                   {user?.isAdmin && (
                     <Link to="/admin" className={`${isActive('/admin')} flex items-center gap-1`}>
                        <ShieldCheck size={16} /> Admin
@@ -198,6 +198,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   {topmostNonEnglishLang && (
                     <Link
                       to={`/flow?language=${topmostNonEnglishLang}`}
+                      data-tour="nav-flow"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-marine-500 to-marine-600 hover:from-marine-600 hover:to-marine-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       <Zap size={15} className="fill-white" />
@@ -265,7 +266,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </button>
               
               {isAuthenticated ? (
-                <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700" data-tour="nav-settings">
                    <NotificationBell />
                    <div className="relative group">
                      <Link to={`/user/${user?.id || user?.user_id}`} className="flex items-center gap-2 hover:opacity-80">

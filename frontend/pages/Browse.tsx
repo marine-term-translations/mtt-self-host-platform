@@ -768,7 +768,7 @@ const Browse: React.FC = () => {
         </div>
       ) : terms.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div data-tour="term-card" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {terms.map(term => (
               <TermCard key={term.id} term={term} />
             ))}
