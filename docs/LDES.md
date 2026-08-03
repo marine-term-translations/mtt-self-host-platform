@@ -1,5 +1,7 @@
 # LDES Implementation Guide
 
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
 ## Overview
 
 This platform now supports automatic generation and updating of LDES (Linked Data Event Streams) for all sources. Each source produces its own isolated LDES feed that complies with the LDES specification.

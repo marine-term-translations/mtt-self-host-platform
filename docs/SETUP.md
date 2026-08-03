@@ -1,5 +1,15 @@
 # Self-Hosting Setup Guide
 
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+
+> [!NOTE]
+> **Sponsored by EMODnet Biology**  
+> Marine Term Translations (MTT) is developed within the framework of [EMODnet Biology](https://emodnet.ec.europa.eu/en/biology) (European Marine Observation and Data Network) to facilitate the internationalization, translation, and harmonization of marine science vocabularies.
+> 
+> *The European Marine Observation and Data Network (EMODnet) is financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.*
+
+---
+
 This document provides a comprehensive step-by-step guide for deploying your own instance of the Marine Term Translations (MTT) Platform.
 
 ## Table of Contents
@@ -100,30 +110,6 @@ Edit the `.env` file with your configuration. Below is a complete reference of a
 |----------|----------|---------|-------------|
 | `VITE_OPENROUTER_API_KEY` | No | - | Fallback OpenRouter API key for AI translations. Users can provide their own key in Settings. Get yours from https://openrouter.ai/settings/keys |
 
-### Example Production Configuration
-
-```bash
-# Production domain settings
-NODE_ENV=production
-BASE_URL=https://mtt.example.org
-FRONTEND_URL=https://mtt.example.org
-
-# Frontend URLs (must be accessible from browser)
-VITE_API_URL=https://mtt.example.org/api
-VITE_DOMAIN=mtt.example.org
-
-# ORCID OAuth
-ORCID_CLIENT_ID=APP-XXXXXXXXXXXXXXXX
-ORCID_CLIENT_SECRET=11111111-2222-3333-4444-555555555555
-
-# Session security
-SESSION_SECRET=your-very-long-random-string-here-change-this
-
-# Optional: System-wide AI translation assistance (fallback)
-# Users can configure their own OpenRouter API key in Settings
-VITE_OPENROUTER_API_KEY=your_openrouter_api_key_here
-```
-
 ---
 
 ## Domain and DNS Setup
@@ -146,16 +132,6 @@ Type: CNAME
 Name: terms
 Value: your-server.example.org
 TTL: 3600
-```
-
-### Verify DNS Propagation
-
-```bash
-# Check DNS resolution
-dig terms.example.org +short
-
-# Or using nslookup
-nslookup terms.example.org
 ```
 
 ---
@@ -213,46 +189,6 @@ terms.example.org {
 }
 ```
 
-### Option 3: nginx with Certbot
-
-Use an external nginx installation with Certbot for SSL certificates.
-
-Example nginx configuration:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name mtt.example.org;
-    
-    ssl_certificate /etc/letsencrypt/live/mtt.example.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mtt.example.org/privkey.pem;
-
-    # Backend API routes
-    location /api/ {
-        proxy_pass http://localhost:5000/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Frontend
-    location / {
-        proxy_pass http://localhost:4173/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-
-server {
-    listen 80;
-    server_name mtt.example.org;
-    return 301 https://$server_name$request_uri;
-}
-```
-
 ---
 
 ## Deployment
@@ -278,10 +214,6 @@ docker compose ps
 
 # View logs
 docker compose logs -f
-
-# Check individual service
-docker compose logs frontend
-docker compose logs backend
 ```
 
 ---
@@ -302,13 +234,7 @@ Before using the platform, register an OAuth application with ORCID:
    - **Website URL**: Your domain (e.g., `https://mtt.example.org`)
    - **Description**: Translation platform for marine terminology
    - **Redirect URI**: `http://localhost:5000/api/auth/orcid/callback` (for development) or `https://mtt.example.org/api/auth/orcid/callback` (for production)
-
-5. Copy the Client ID and Client Secret
-6. Add them to your `.env` file:
-   ```bash
-   ORCID_CLIENT_ID=APP-XXXXXXXXXXXXXXXX
-   ORCID_CLIENT_SECRET=11111111-2222-3333-4444-555555555555
-   ```
+5. Copy the Client ID and Client Secret to `.env`.
 
 ### 2. Restart Services
 
@@ -321,200 +247,12 @@ docker compose restart
 1. Navigate to `http://localhost:4173` (or your domain)
 2. Click "Sign in with ORCID"
 3. Authenticate with your ORCID iD
-4. You will be redirected back to the application
-
-The database will be automatically created and initialized with the schema on first startup.
 
 ---
 
-## Production vs Development
+## License & Funding
 
-### Development Mode
+This project is licensed under the [MIT License](../LICENSE).
 
-Default configuration runs in development mode:
-
-```bash
-# Uses localhost URLs
-NODE_ENV=development
-BASE_URL=http://localhost:5000
-FRONTEND_URL=http://localhost:5173
-VITE_API_URL=http://localhost:5000/api
-```
-
-Access locally:
-- Frontend: http://localhost:4173
-- Backend API: http://localhost:5000/api
-- API Docs: http://localhost:5000/api/docs
-
-**ORCID Redirect URI for development:**
-```
-http://localhost:5000/api/auth/orcid/callback
-```
-
-### Production Mode
-
-Update `.env` for production:
-
-```bash
-NODE_ENV=production
-BASE_URL=https://mtt.example.org
-FRONTEND_URL=https://mtt.example.org
-VITE_API_URL=https://mtt.example.org/api
-VITE_DOMAIN=mtt.example.org
-
-# Update ORCID redirect URI in ORCID Developer Tools to:
-# https://mtt.example.org/api/auth/orcid/callback
-```
-
-Rebuild with:
-
-```bash
-docker compose up -d --build
-```
-
-**Important:** Update the redirect URI in your ORCID OAuth application to match your production domain.
-
----
-
-## Updating the Instance
-
-### Standard Update
-
-```bash
-# Pull latest changes
-git pull origin main
-
-# Rebuild and restart
-docker compose up -d --build
-```
-
-### Update with Data Preservation
-
-```bash
-# Backup database first
-mkdir -p backups
-cp backend/data/translations.db backups/translations-$(date +%Y%m%d-%H%M%S).db
-
-# Pull changes
-git pull origin main
-
-# Rebuild
-docker compose up -d --build
-```
-
-### Full Reset (Data Loss)
-
-⚠️ **WARNING**: This will delete all data including the database.
-
-```bash
-# Stop containers
-docker compose down
-
-# Remove database
-rm -rf backend/data/
-
-# Restart fresh
-docker compose up -d --build
-```
-
----
-
-## Troubleshooting
-
-### Port Conflicts
-
-**Symptom**: "Port already in use" error.
-
-**Solution**: Change ports in `docker-compose.yml` or stop conflicting services:
-
-```bash
-# Find what's using a port
-lsof -i :5000
-
-# Or change in docker-compose.yml:
-ports:
-  - "5001:5000"  # Map host 5001 to container 5000
-```
-
-### SSL Certificate Issues
-
-**Symptom**: Certificate errors or HTTPS not working.
-
-**Solution**:
-1. Verify DNS is properly configured
-2. Check reverse proxy logs
-3. Ensure ports 80 and 443 are open
-4. Wait for certificate propagation (can take a few minutes)
-
-### ORCID Callback Fails
-
-**Symptom**: Redirect to `/login?error=invalid_state` or error after ORCID login.
-
-**Solution**:
-1. Ensure `BASE_URL` in backend matches the domain: `BASE_URL=https://mtt.example.org`
-2. Check ORCID redirect URI is exactly: `https://mtt.example.org/api/auth/orcid/callback`
-3. Verify `NODE_ENV=production` is set (for secure cookies over HTTPS)
-4. Check that SESSION_SECRET is set and consistent
-
-### Session Doesn't Persist
-
-**Symptom**: Logged out after page refresh.
-
-**Solution**:
-1. Ensure `NODE_ENV=production` (enables secure cookies over HTTPS)
-2. Check that cookies are being set (browser DevTools > Application > Cookies)
-3. Verify cookie domain matches your domain
-4. Ensure SESSION_SECRET is configured
-
-### Database Initialization Fails
-
-**Symptom**: Backend fails to start or shows database errors.
-
-**Solution**:
-
-```bash
-# Check backend logs
-docker compose logs backend
-
-# Ensure data directory exists and is writable
-mkdir -p backend/data
-chmod 755 backend/data
-
-# Restart backend
-docker compose restart backend
-```
-
-### View All Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f backend
-
-# Last 100 lines
-docker compose logs --tail=100 backend
-```
-
-### Frontend Build Issues
-
-**Symptom**: Frontend fails to build or shows errors.
-
-**Solution**:
-
-```bash
-# Check frontend logs
-docker compose logs frontend
-
-# Rebuild frontend
-docker compose up -d --build frontend
-```
-
----
-
-## Getting Help
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/marine-term-translations/mtt-self-host-platform/issues)
-- **Documentation**: Check other docs in this repository
-- **ORCID OAuth**: See [ORCID Developer Documentation](https://info.orcid.org/documentation/integration-guide/)
+**Funding Acknowledgment:**  
+This platform was developed with support from **EMODnet Biology** (European Marine Observation and Data Network), financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.

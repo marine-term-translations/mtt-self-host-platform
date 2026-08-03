@@ -1,37 +1,54 @@
 # Marine Term Translations Platform
 
-Self-hosting platform for marine term translations, featuring a React frontend and Express.js backend with ORCID authentication.
+[![EMODnet Biology Sponsored](https://img.shields.io/badge/Sponsored%20by-EMODnet%20Biology-005596?style=for-the-badge)](https://emodnet.ec.europa.eu/en/biology)
+[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker&logoColor=white)](docker-compose.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-> **📚 Documentation**: See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions and [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture.
+> [!NOTE]
+> **Sponsored by EMODnet Biology**  
+> Marine Term Translations (MTT) is developed within the framework of [EMODnet Biology](https://emodnet.ec.europa.eu/en/biology) (European Marine Observation and Data Network) to facilitate the internationalization, translation, and harmonization of marine science vocabularies.
+> 
+> *The European Marine Observation and Data Network (EMODnet) is financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.*
+
+---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Services](#services)
+- [Key Features](#key-features)
+- [Services Architecture](#services-architecture)
 - [Quick Start](#quick-start)
 - [Post-Deployment Setup](#post-deployment-setup)
 - [Access Points](#access-points)
+- [Environment Configuration](#environment-configuration)
 - [Project Structure](#project-structure)
-- [Documentation](#documentation)
-- [License](#license)
+- [Documentation Index](#documentation-index)
+- [License & Funding](#license--funding)
 
 ---
 
 ## Overview
 
-This platform enables organizations to self-host their own marine terminology translation system with:
-
-- **Full data sovereignty** - All data stored in your infrastructure
-- **Secure ORCID authentication** - OAuth-based authentication via ORCID iD
-- **SQLite database** - Lightweight, embedded database with automatic initialization
-- **AI-powered suggestions** - Users can configure their own OpenRouter API key for AI translation assistance
-- **Community goals** - Motivate translators with community-wide translation challenges and goals
+The **Marine Term Translations (MTT)** platform is a self-hostable, web-based system designed for marine scientific organizations to manage, translate, and harmonize marine terminology across multiple languages. By connecting regional vocabulary terms with standard registries such as the **NERC Vocabulary Server (NVS)** and **EMODnet data portals**, MTT bridges technical marine science terminology with global community understanding.
 
 ---
 
-## Services
+## Key Features
 
-The platform consists of two Docker services defined in `docker-compose.yml`:
+- **Full Data Sovereignty**: Self-hosted Docker deployment with local SQLite persistence ensures complete control over your terminology assets.
+- **Secure ORCID iD Authentication**: OAuth 2.0 authentication via ORCID iD guarantees verified researcher identities and contributor attribution.
+- **Vocabulary & Term Harmonization**: Standardized mapping to NERC Vocabulary Server concepts and EMODnet term APIs.
+- **Linked Data Event Streams (LDES)**: Real-time, specs-compliant LDES feed generation and consumer interfaces for seamless metadata synchronization across international marine networks.
+- **Community Translation Goals**: Gamified community challenges and progress tracking widgets to engage translators and ocean literacy contributors.
+- **AI-Powered Assistance**: Optional integration with OpenRouter API to provide AI-assisted translation suggestions directly within the workflow.
+- **Moderation & Dispute Resolution**: Administrator dashboard for reviewing reports, managing user privileges, and resolving term translation disputes.
+- **Personal Access Tokens (API Keys)**: User-managed API keys for programmatic access and external automated integrations.
+
+---
+
+## Services Architecture
+
+The platform consists of two main Docker services defined in `docker-compose.yml`:
 
 ### Frontend (Vite + React)
 
@@ -39,20 +56,8 @@ The platform consists of two Docker services defined in `docker-compose.yml`:
 |----------|-------|
 | **Container** | `marine-frontend` |
 | **Port** | `4173` |
-| **Technology** | React 18, Vite 6, TypeScript |
-| **Purpose** | User interface for translation management |
-
-**Environment Variables:**
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_URL` | Backend API URL (browser-accessible) | `http://localhost:5000/api` |
-| `VITE_DOMAIN` | Domain name | `localhost` |
-
-**Volume Mounts:** None (stateless)
-
-**Local Access:** http://localhost:4173
-
----
+| **Technology** | React 18, Vite 6, TypeScript, Tailwind CSS |
+| **Purpose** | User interface for translation management, community goals, and admin controls |
 
 ### Backend (Node.js + Express)
 
@@ -60,28 +65,8 @@ The platform consists of two Docker services defined in `docker-compose.yml`:
 |----------|-------|
 | **Container** | `marine-backend` |
 | **Port** | `5000` |
-| **Technology** | Node.js 20, Express.js, SQLite |
-| **Purpose** | REST API for translations, users, and ORCID authentication |
-
-**Environment Variables:**
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Environment mode | `production` |
-| `BASE_URL` | Backend base URL | `http://localhost:5000` |
-| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
-| `ORCID_CLIENT_ID` | ORCID OAuth client ID | Required |
-| `ORCID_CLIENT_SECRET` | ORCID OAuth client secret | Required |
-| `SESSION_SECRET` | Session encryption secret | Required |
-| `SQLITE_DB_PATH` | SQLite database path | `/app/backend/data/translations.db` |
-
-**Volume Mounts:**
-| Container Path | Host Path | Purpose |
-|----------------|-----------|---------|
-| `/app/backend/data` | `./backend/data` | SQLite database persistence |
-
-**Local Access:** 
-- API: http://localhost:5000/api
-- Swagger Docs: http://localhost:5000/api/docs
+| **Technology** | Node.js 20, Express.js, SQLite3 |
+| **Purpose** | REST API for translations, LDES feeds, ORCID authentication, and admin reporting |
 
 ---
 
@@ -92,64 +77,63 @@ The platform consists of two Docker services defined in `docker-compose.yml`:
 git clone https://github.com/marine-term-translations/mtt-self-host-platform.git
 cd mtt-self-host-platform
 
-# 2. Copy and configure environment
+# 2. Copy and configure environment variables
 cp .env.example .env
-# Edit .env with your ORCID credentials (see docs/SETUP.md for full reference)
+# Edit .env with your ORCID OAuth credentials (see docs/SETUP.md for full reference)
 
-# 3. Deploy
+# 3. Build and launch services with Docker Compose
 docker compose up -d --build
 
-# 4. Verify all services are running
+# 4. Verify all containers are healthy
 docker compose ps
 ```
 
-The database will be automatically initialized on first startup.
+The database is automatically initialized with the standard schema on first startup.
 
 ---
 
 ## Post-Deployment Setup
 
-After initial deployment, you can:
+After deployment, perform these initial administrative steps:
 
-### Access the Application
-
-1. Navigate to http://localhost:4173 (or your configured domain)
-2. Click "Sign in with ORCID"
-3. Authenticate with your ORCID iD
-
-### Register ORCID OAuth Application
-
-Before using the platform, you must register an OAuth application with ORCID:
-
-1. Go to https://orcid.org/developer-tools
-2. Register a new application with redirect URI: `http://localhost:5000/api/auth/orcid/callback`
-3. Copy the Client ID and Client Secret to your `.env` file
-4. Restart services: `docker compose restart`
-
-### Enable AI Translation Features (Optional)
-
-To use AI-powered translation suggestions:
-
-1. Log in to the platform with your ORCID account
-2. Navigate to **Settings** → **AI Translation Settings**
-3. Follow the [AI Translation Guide](docs/AI_TRANSLATION_GUIDE.md) to:
-   - Get your free OpenRouter API key
-   - Configure it in your settings
-   - Start using AI translation suggestions
-
-> 📚 See [docs/AI_TRANSLATION_GUIDE.md](docs/AI_TRANSLATION_GUIDE.md) for detailed instructions on obtaining and configuring your OpenRouter API key.
+1. **Register ORCID OAuth Application**:
+   - Register an application at [ORCID Developer Tools](https://orcid.org/developer-tools).
+   - Set the Redirect URI to: `http://localhost:5000/api/auth/orcid/callback` (or your domain equivalent).
+   - Add `ORCID_CLIENT_ID` and `ORCID_CLIENT_SECRET` to your `.env` file and run `docker compose restart`.
+2. **Access the Application**:
+   - Open `http://localhost:4173` (or your configured frontend URL) and click **Sign in with ORCID**.
+3. **Configure AI Translation Suggestions (Optional)**:
+   - Navigate to **Settings** → **AI Translation Settings**.
+   - Enter your OpenRouter API Key. See [docs/AI_TRANSLATION_GUIDE.md](docs/AI_TRANSLATION_GUIDE.md).
 
 ---
 
 ## Access Points
 
-After deployment, access these endpoints:
+| Service | Local URL | Production Example |
+|---------|-----------|--------------------|
+| **Frontend App** | http://localhost:4173 | https://your-domain.org |
+| **Backend API** | http://localhost:5000/api | https://your-domain.org/api |
+| **API Documentation** | http://localhost:5000/api/docs | https://your-domain.org/api/docs |
 
-| Service | Local URL | Production URL |
-|---------|-----------|----------------|
-| Frontend App | http://localhost:4173 | https://your-domain.org |
-| Backend API | http://localhost:5000/api | https://your-domain.org/api |
-| API Documentation | http://localhost:5000/api/docs | https://your-domain.org/api/docs |
+---
+
+## Environment Configuration
+
+Configure the environment variables in `.env` before launching:
+
+| Variable | Scope | Description | Default |
+|----------|-------|-------------|---------|
+| `NODE_ENV` | Backend | Execution environment (`development`/`production`) | `production` |
+| `PORT` | Backend | HTTP port for API service | `5000` |
+| `BASE_URL` | Backend | Base API URL accessible by clients | `http://localhost:5000` |
+| `FRONTEND_URL` | Backend | Frontend URL for CORS authorization | `http://localhost:5173` |
+| `ORCID_CLIENT_ID` | Backend | Client ID from ORCID Developer Tools | *Required* |
+| `ORCID_CLIENT_SECRET` | Backend | Client Secret from ORCID Developer Tools | *Required* |
+| `SESSION_SECRET` | Backend | Secret key for encrypting user session cookies | *Required* |
+| `SQLITE_DB_PATH` | Backend | Path to SQLite database file | `/app/backend/data/translations.db` |
+| `VITE_API_URL` | Frontend | Browser API endpoint | `http://localhost:5000/api` |
+| `VITE_DOMAIN` | Frontend | Public domain name | `localhost` |
 
 ---
 
@@ -157,75 +141,81 @@ After deployment, access these endpoints:
 
 ```
 mtt-self-host-platform/
-├── docker-compose.yml          # Service definitions
-├── .env.example                 # Environment template
-├── .gitignore
-├── README.md                    # This file
-├── ARCHITECTURE.md              # System architecture overview
+├── docker-compose.yml          # Multi-container service orchestrator
+├── .env.example                # Environment configuration template
+├── README.md                   # System documentation landing page
+├── ARCHITECTURE.md             # System architecture & component data flow
 │
-├── backend/                     # Express.js API
+├── backend/                    # Express.js API service
 │   ├── Dockerfile
 │   ├── package.json
-│   ├── data/                   # SQLite database (created at runtime)
+│   ├── data/                   # Persistent SQLite database volume
 │   └── src/
-│       ├── app.js              # Express app setup
-│       ├── server.js           # Entry point
-│       ├── config/             # Configuration
-│       ├── controllers/        # Request handlers
-│       ├── routes/             # API routes
-│       ├── services/           # Business logic
-│       ├── middleware/         # Express middleware
-│       ├── db/                 # Database utilities and migrations
-│       └── docs/               # Swagger specs
+│       ├── app.js              # Express application setup
+│       ├── server.js           # Server entry point
+│       ├── controllers/        # Request handlers (auth, translations, admin)
+│       ├── routes/             # REST endpoint routes
+│       ├── services/           # Business logic (LDES, ORCID, OpenRouter)
+│       └── db/                 # Database migrations & seeds
 │
-├── frontend/                    # React/Vite application
+├── frontend/                   # Vite + React UI application
 │   ├── Dockerfile
 │   ├── package.json
-│   ├── vite.config.ts          # Vite configuration
 │   ├── index.html
-│   ├── pages/                  # React components/pages
-│   ├── components/             # Reusable components
-│   └── services/               # API services
+│   ├── pages/                  # React page views (Browse, About, Dashboard, Admin)
+│   ├── components/             # Reusable UI components
+│   └── services/               # Frontend API client modules
 │
-├── docs/                        # Documentation
-│   ├── SETUP.md                # Detailed setup guide
-│   ├── PRODUCTION_DEPLOYMENT.md # Production deployment
-│   ├── DATABASE_INITIALIZATION.md # Database setup
-│   └── ORCID_MIGRATION.md      # ORCID OAuth guide
+├── docs/                       # Technical & user documentation
+│   ├── SETUP.md                # Comprehensive self-hosting setup guide
+│   ├── PRODUCTION_DEPLOYMENT.md # Production deployment best practices
+│   ├── LDES.md                 # Linked Data Event Streams integration guide
+│   ├── COMMUNITY_GOALS.md      # Community goals feature overview
+│   └── AI_TRANSLATION_GUIDE.md # OpenRouter AI translation guide
 │
-├── infra/                       # Infrastructure scripts (legacy)
-│   ├── backup.sh               # Backup script
-│   ├── rebuild.sh              # Rebuild containers
-│   └── restore.sh              # Restore script
-│
-└── templates/                   # Template files
-    └── translation-repo/       # Initial repo template
+└── templates/                  # Translation repository templates
 ```
 
 ---
 
-## Documentation
+## Documentation Index
 
-### For Users
+### For Users & Translators
 
-| Document | Description |
-|----------|-------------|
-| [docs/AI_TRANSLATION_GUIDE.md](docs/AI_TRANSLATION_GUIDE.md) | **How to get and use OpenRouter API key for AI translations** |
+| Guide | Description |
+|-------|-------------|
+| [AI Translation Guide](docs/AI_TRANSLATION_GUIDE.md) | How to obtain and configure an OpenRouter API key for AI translation assistance |
+| [Community Goals Guide](docs/COMMUNITY_GOALS.md) | Overview of community translation challenges and reward systems |
+| [Discussion & Moderation System](docs/DISCUSSION_SYSTEM.md) | Participating in translation discussions, submitting disputes, and flagging items |
+| [Language Settings UI Guide](LANGUAGE_SETTINGS_UI_GUIDE.md) | Managing primary/target languages and user preferences |
 
-### For Administrators
+### For Administrators & Operators
 
-| Document | Description |
-|----------|-------------|
-| [docs/SETUP.md](docs/SETUP.md) | Complete self-hosting guide with step-by-step instructions |
-| [docs/ORCID_MIGRATION.md](docs/ORCID_MIGRATION.md) | ORCID OAuth configuration guide |
-| [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | Production deployment guide |
-| [docs/DATABASE_INITIALIZATION.md](docs/DATABASE_INITIALIZATION.md) | Database initialization and management |
-| [docs/COMMUNITY_GOALS.md](docs/COMMUNITY_GOALS.md) | Community goals feature guide |
-| [docs/DOCKER_ADMIN_CONTROL.md](docs/DOCKER_ADMIN_CONTROL.md) | Docker container management for admin users |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, data flow, and component diagrams |
+| Guide | Description |
+|-------|-------------|
+| [Self-Hosting Setup Guide](docs/SETUP.md) | Comprehensive step-by-step installation and initial setup |
+| [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md) | Security, SSL certificates, Nginx reverse proxy, and scaling |
+| [Database Initialization Guide](docs/DATABASE_INITIALIZATION.md) | Database schema migrations, seed data, and backup procedures |
+| [ORCID OAuth Setup](docs/ORCID_MIGRATION.md) | Configuring ORCID developer keys and redirect endpoints |
+| [Docker Admin Controls](docs/DOCKER_ADMIN_CONTROL.md) | Administrator container management and status monitoring |
+| [SMTP & Email Setup](docs/SMTP_SETUP.md) | Configuring transactional email services for notifications |
+| [User API Key Implementation](USER_API_KEY_IMPLEMENTATION.md) | Technical setup and management of personal access tokens |
+
+### Architecture & Standards
+
+| Guide | Description |
+|-------|-------------|
+| [System Architecture](ARCHITECTURE.md) | In-depth technical architecture, data flows, and component diagrams |
+| [Linked Data Event Streams (LDES)](docs/LDES.md) | LDES feed specifications, fragment generation, and consumer synchronization |
+| [Search and Browse API](docs/SEARCH_AND_BROWSE_API.md) | REST API endpoints for querying and filtering marine vocabularies |
+| [Translation Flow](docs/TRANSLATION_FLOW.md) | Workflow lifecycle for term submissions, reviews, and approval |
+| [Source Configuration Flow](docs/SOURCE_CONFIG_FLOW.md) | Dynamic vocabulary source configuration and feed sync |
 
 ---
 
-## License
+## License & Funding
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
+
+**Funding Acknowledgment:**  
+This platform was developed with support from **EMODnet Biology** (European Marine Observation and Data Network), financed by the European Union under Regulation (EU) 2021/1139 of the European Parliament and of the Council of 7 July 2021 establishing the European Maritime, Fisheries and Aquaculture Fund.
