@@ -38,74 +38,33 @@ export const AchievementIcon: React.FC<AchievementIconProps> = ({
   const renderIconContent = () => {
     switch (id) {
       case 'streak_puffer':
-        // Uses the original puffer.png
         return (
           <img
-            src="/puffer.png"
-            alt="Pufferfish"
+            src="/achievements/puffer_cartoon.jpg"
+            alt="Pufferfish Pride"
             style={{ width: size, height: size, objectFit: 'contain', ...style }}
             className={`transition-all duration-300 ${className}`}
           />
         );
 
       case 'translation_angler':
-        // Anglerfish
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" style={style} className={`transition-all duration-300 ${className}`}>
-            <defs>
-              <linearGradient id="anglerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#4f46e5" />
-                <stop offset="100%" stopColor="#ec4899" />
-              </linearGradient>
-            </defs>
-            {/* Angler light */}
-            <path d="M 50,30 Q 30,10 40,8" fill="none" stroke="#fbbf24" strokeWidth="3" />
-            <circle cx="40" cy="8" r="5" fill="#fef08a" filter="drop-shadow(0 0 4px #fbbf24)" />
-            {/* Body */}
-            <circle cx="55" cy="55" r="30" fill="url(#anglerGrad)" />
-            {/* Eyes (big cartoon eyes) */}
-            <circle cx="65" cy="45" r="8" fill="white" />
-            <circle cx="65" cy="45" r="4" fill="#1e293b" />
-            <circle cx="67" cy="43" r="1.5" fill="white" /> {/* Reflection */}
-            {/* Smile */}
-            <path d="M 55,65 Q 65,70 70,62" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" />
-            {/* Back Fin */}
-            <path d="M 25,55 L 12,45 L 18,55 L 12,65 Z" fill="#ec4899" />
-            {/* Top Fin */}
-            <path d="M 45,26 Q 55,20 65,26 L 55,32 Z" fill="#4f46e5" />
-          </svg>
+          <img
+            src="/achievements/angler.jpg"
+            alt="Deep Sea Translator"
+            style={{ width: size, height: size, objectFit: 'contain', ...style }}
+            className={`transition-all duration-300 ${className}`}
+          />
         );
 
       case 'review_turtle':
-        // Sea Turtle
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" style={style} className={`transition-all duration-300 ${className}`}>
-            <defs>
-              <linearGradient id="turtleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#047857" />
-              </linearGradient>
-            </defs>
-            {/* Flippers */}
-            <ellipse cx="30" cy="40" rx="14" ry="6" fill="#047857" transform="rotate(-30 30 40)" />
-            <ellipse cx="70" cy="40" rx="14" ry="6" fill="#047857" transform="rotate(30 70 40)" />
-            <ellipse cx="32" cy="70" rx="10" ry="5" fill="#047857" transform="rotate(20 32 70)" />
-            <ellipse cx="68" cy="70" rx="10" ry="5" fill="#047857" transform="rotate(-20 68 70)" />
-            {/* Shell */}
-            <ellipse cx="50" cy="55" rx="26" ry="22" fill="url(#turtleGrad)" />
-            <ellipse cx="50" cy="55" rx="20" ry="16" fill="none" stroke="#065f46" strokeWidth="2" />
-            {/* Head */}
-            <circle cx="50" cy="24" r="12" fill="#10b981" />
-            {/* Eyes */}
-            <circle cx="46" cy="21" r="2.5" fill="white" />
-            <circle cx="46" cy="21" r="1.2" fill="#1e293b" />
-            <circle cx="54" cy="21" r="2.5" fill="white" />
-            <circle cx="54" cy="21" r="1.2" fill="#1e293b" />
-            {/* Smile */}
-            <path d="M 47,28 Q 50,31 53,28" fill="none" stroke="#047857" strokeWidth="2" strokeLinecap="round" />
-            {/* Tail */}
-            <path d="M 50,77 L 47,84 L 53,84 Z" fill="#047857" />
-          </svg>
+          <img
+            src="/achievements/turtle.jpg"
+            alt="Coral Conservator"
+            style={{ width: size, height: size, objectFit: 'contain', ...style }}
+            className={`transition-all duration-300 ${className}`}
+          />
         );
 
       case 'discussion_dolphin':
@@ -135,51 +94,23 @@ export const AchievementIcon: React.FC<AchievementIconProps> = ({
         );
 
       case 'reputation_stingray':
-        // Stingray
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" style={style} className={`transition-all duration-300 ${className}`}>
-            <defs>
-              <linearGradient id="stingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8b5cf6" />
-                <stop offset="100%" stopColor="#6d28d9" />
-              </linearGradient>
-            </defs>
-            {/* Tail */}
-            <path d="M 50,55 Q 50,85 55,90" fill="none" stroke="#6d28d9" strokeWidth="3" strokeLinecap="round" />
-            {/* Wings / Body */}
-            <path d="M 50,20 C 65,22 88,38 88,44 C 88,50 68,52 50,55 C 32,52 12,50 12,44 C 12,38 35,22 50,20 Z" fill="url(#stingGrad)" />
-            {/* Eyes (situated on top of head) */}
-            <circle cx="42" cy="28" r="3" fill="white" />
-            <circle cx="42" cy="28" r="1.5" fill="#1e293b" />
-            <circle cx="58" cy="28" r="3" fill="white" />
-            <circle cx="58" cy="28" r="1.5" fill="#1e293b" />
-            {/* Cute Smile */}
-            <path d="M 47,34 Q 50,37 53,34" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+          <img
+            src="/achievements/stingray.jpg"
+            alt="Tidal Wave"
+            style={{ width: size, height: size, objectFit: 'contain', ...style }}
+            className={`transition-all duration-300 ${className}`}
+          />
         );
 
       case 'goal_seahorse':
-        // Seahorse
         return (
-          <svg width={size} height={size} viewBox="0 0 100 100" style={style} className={`transition-all duration-300 ${className}`}>
-            <defs>
-              <linearGradient id="seahorseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#f59e0b" />
-                <stop offset="100%" stopColor="#d97706" />
-              </linearGradient>
-            </defs>
-            {/* Head & Body */}
-            <path d="M 55,20 C 55,10 40,12 40,22 C 40,28 48,30 46,38 C 44,46 36,48 38,58 C 40,68 50,66 48,74 C 46,80 38,78 40,84 C 42,90 52,86 52,80 C 52,70 44,70 46,58 C 48,48 56,46 54,36 C 52,30 55,26 55,20 Z" fill="url(#seahorseGrad)" />
-            {/* Snout */}
-            <path d="M 40,20 L 30,22 L 30,25 L 40,24 Z" fill="#d97706" />
-            {/* Fins */}
-            <path d="M 54,42 Q 62,40 60,48 Q 52,48 54,42" fill="#f59e0b" />
-            {/* Eyes */}
-            <circle cx="47" cy="18" r="3" fill="white" />
-            <circle cx="47" cy="18" r="1.5" fill="#1e293b" />
-            {/* Cute mouth line */}
-            <path d="M 33,24 Q 35,26 38,24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <img
+            src="/achievements/seahorse.jpg"
+            alt="Goal Getter"
+            style={{ width: size, height: size, objectFit: 'contain', ...style }}
+            className={`transition-all duration-300 ${className}`}
+          />
         );
 
       default:

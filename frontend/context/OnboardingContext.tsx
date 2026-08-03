@@ -176,7 +176,7 @@ export const OnboardingProvider: React.FC<{ children: ReactNode }> = ({ children
         navigateToStepRoute(currentStep);
       } else if (currentStep.id === 'flow-actions' && (!location.pathname.startsWith('/flow') || !location.search.includes('language='))) {
         navigateToStepRoute(currentStep);
-      } else if (currentStep.route && location.pathname !== currentStep.route && !location.pathname.startsWith('/term/') && !location.pathname.startsWith('/flow')) {
+      } else if (currentStep.route && location.pathname !== currentStep.route) {
         navigateToStepRoute(currentStep);
       }
     }
