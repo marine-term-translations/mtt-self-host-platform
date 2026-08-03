@@ -220,8 +220,9 @@ CREATE TABLE message_reports (
     message_id  INTEGER NOT NULL REFERENCES appeal_messages(id) ON DELETE CASCADE,
     reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reason      TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'dismissed')),
+    status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'dismissed', 'action_taken')),
     reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    admin_notes TEXT,
     reviewed_at DATETIME,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(message_id, reported_by)

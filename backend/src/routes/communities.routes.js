@@ -5,6 +5,7 @@ const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { requireAuth, requireAdmin } = require("../middleware/admin");
 const { apiLimiter } = require("../middleware/rateLimit");
+const { notifyAdminsNewReport } = require("../services/adminNotification.service");
 const datetime = require("../utils/datetime");
 
 /**
@@ -1053,6 +1054,17 @@ router.post("/communities/:id/report", requireAuth, apiLimiter, (req, res) => {
     `).run(communityId, userId, reason, description || null);
 
     const reportId = result.lastInsertRowid;
+
+    // Notify admins by email
+    const reporter = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+    const comm = db.prepare('SELECT name FROM communities WHERE id = ?').get(communityId);
+    notifyAdminsNewReport({
+      reportId: reportId,
+      type: 'community',
+      reason: reason,
+      reporterUsername: reporter?.username || 'user',
+      itemDetails: `Community: ${comm?.name || communityId}${description ? ` - ${description}` : ''}`
+    });
 
     // Log activity
     db.prepare(

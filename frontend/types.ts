@@ -138,6 +138,7 @@ export interface ApiAppealMessage {
 
 export interface ApiAppeal {
   id: number;
+  appeal_number?: string;
   translation_id: number;
   opened_by_id: number;     // New: user ID (replaces opened_by)
   opened_by?: string;       // Deprecated: kept for backward compat

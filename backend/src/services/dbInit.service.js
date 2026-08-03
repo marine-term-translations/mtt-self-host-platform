@@ -44,6 +44,10 @@ function shouldIgnoreMigrationError(db, filename, err) {
     return columnExists(db, 'user_preferences', 'has_seen_onboarding');
   }
 
+  if (filename === '034_message_reports_admin_notes.sql' && /duplicate column name/i.test(err.message)) {
+    return columnExists(db, 'message_reports', 'admin_notes');
+  }
+
   return false;
 }
 

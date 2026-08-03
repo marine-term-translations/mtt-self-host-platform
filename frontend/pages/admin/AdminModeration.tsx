@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { backendApi } from '../../services/api';
 import { ApiAppeal } from '../../types';
 import { ArrowLeft, Loader2, AlertTriangle, CheckCircle, ExternalLink, MessageSquare, Flag, Ban, TrendingDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { parse, format } from '@/src/utils/datetime';
 
@@ -19,6 +19,7 @@ interface AppealMessage {
 
 interface MessageReport {
   id: number;
+  report_number?: string;
   appeal_message_id: number;
   reported_by_id: number;
   reason: string;
@@ -36,10 +37,12 @@ interface MessageReport {
 }
 
 const AdminModeration: React.FC = () => {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'appeals' | 'reports'>('appeals');
   const [appeals, setAppeals] = useState<ApiAppeal[]>([]);
   const [reports, setReports] = useState<MessageReport[]>([]);
   const [selectedAppeal, setSelectedAppeal] = useState<number | null>(null);
+  const [targetReportId, setTargetReportId] = useState<number | null>(null);
   const [appealMessages, setAppealMessages] = useState<AppealMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingReport, setReviewingReport] = useState<number | null>(null);
@@ -48,6 +51,28 @@ const AdminModeration: React.FC = () => {
   const [penaltyAction, setPenaltyAction] = useState<'reputation_penalty' | 'ban'>('reputation_penalty');
   const [penaltyAmount, setPenaltyAmount] = useState(10);
   const [banReason, setBanReason] = useState('');
+
+  // Handle URL deep-linking query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reportIdParam = params.get('reportId');
+    const reportNumParam = params.get('reportNumber');
+    const appealIdParam = params.get('appealId');
+
+    if (reportIdParam || reportNumParam) {
+      const parsedId = parseInt((reportIdParam || reportNumParam || '').replace(/\D/g, ''), 10);
+      if (!isNaN(parsedId)) {
+        setTargetReportId(parsedId);
+        setActiveTab('reports');
+      }
+    } else if (appealIdParam) {
+      const parsedAppealId = parseInt(appealIdParam.replace(/\D/g, ''), 10);
+      if (!isNaN(parsedAppealId)) {
+        setSelectedAppeal(parsedAppealId);
+        setActiveTab('appeals');
+      }
+    }
+  }, [location.search]);
 
   useEffect(() => {
     fetchData();
@@ -58,7 +83,11 @@ const AdminModeration: React.FC = () => {
     try {
       if (activeTab === 'appeals') {
         const appealsData = await backendApi.getAppeals();
-        setAppeals(appealsData.filter(a => a.status === 'open' || a.status === 'resolved'));
+        const filteredAppeals = appealsData.filter(a => a.status === 'open' || a.status === 'resolved');
+        setAppeals(filteredAppeals);
+        if (selectedAppeal) {
+          loadAppealMessages(selectedAppeal);
+        }
       } else {
         const reportsData = await backendApi.getModerationReports();
         setReports(reportsData);
@@ -182,7 +211,9 @@ const AdminModeration: React.FC = () => {
                       }`}>
                         {appeal.status}
                       </span>
-                      <span className="text-slate-500 text-sm">Appeal #{appeal.id}</span>
+                      <span className="text-slate-500 text-sm font-mono font-medium">
+                        {appeal.appeal_number || `APL-${String(appeal.id).padStart(5, '0')}`}
+                      </span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-slate-300 italic truncate">
                       "{appeal.resolution}"
@@ -200,7 +231,7 @@ const AdminModeration: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 border-b border-slate-200 dark:border-slate-700">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                {selectedAppeal ? `Messages for Appeal #${selectedAppeal}` : 'Select an appeal'}
+                {selectedAppeal ? `Messages for Appeal APL-${String(selectedAppeal).padStart(5, '0')}` : 'Select an appeal'}
               </h2>
             </div>
             {selectedAppeal ? (
@@ -255,7 +286,13 @@ const AdminModeration: React.FC = () => {
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {reports.map(report => (
-                <div key={report.id} className="p-6">
+                <div 
+                  key={report.id} 
+                  id={`report-card-${report.id}`}
+                  className={`p-6 transition-colors ${
+                    targetReportId === report.id ? 'bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-500' : ''
+                  }`}
+                >
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${
@@ -266,8 +303,8 @@ const AdminModeration: React.FC = () => {
                       }`}>
                         {report.status}
                       </span>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Report #{report.id} • Appeal #{report.appeal_id}
+                      <p className="text-sm text-slate-500 font-mono font-medium mt-1">
+                        Report {report.report_number || `RPT-${String(report.id).padStart(5, '0')}`} • Appeal APL-{String(report.appeal_id).padStart(5, '0')}
                       </p>
                     </div>
                     <span className="text-sm text-slate-500">

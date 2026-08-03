@@ -716,11 +716,11 @@ router.get("/admin/moderation/reports", requireAdmin, apiLimiter, (req, res) => 
     let query = `
       SELECT 
         mr.id,
-        mr.appeal_message_id,
-        mr.reported_by_id,
+        mr.message_id AS appeal_message_id,
+        mr.reported_by AS reported_by_id,
         mr.reason,
         mr.status,
-        mr.reviewed_by_id,
+        mr.reviewed_by AS reviewed_by_id,
         mr.admin_notes,
         mr.created_at,
         mr.reviewed_at,
@@ -731,9 +731,9 @@ router.get("/admin/moderation/reports", requireAdmin, apiLimiter, (req, res) => 
         author.username as message_author_username,
         am.appeal_id
       FROM message_reports mr
-      LEFT JOIN users reporter ON mr.reported_by_id = reporter.id
-      LEFT JOIN users reviewer ON mr.reviewed_by_id = reviewer.id
-      LEFT JOIN appeal_messages am ON mr.appeal_message_id = am.id
+      LEFT JOIN users reporter ON mr.reported_by = reporter.id
+      LEFT JOIN users reviewer ON mr.reviewed_by = reviewer.id
+      LEFT JOIN appeal_messages am ON mr.message_id = am.id
       LEFT JOIN users author ON am.author_id = author.id
       WHERE 1=1
     `;
@@ -747,7 +747,10 @@ router.get("/admin/moderation/reports", requireAdmin, apiLimiter, (req, res) => 
     
     query += ' ORDER BY mr.created_at DESC';
     
-    const reports = db.prepare(query).all(...params);
+    const reports = db.prepare(query).all(...params).map(r => ({
+      ...r,
+      report_number: `RPT-${String(r.id).padStart(5, '0')}`
+    }));
     
     res.json(reports);
   } catch (err) {
@@ -799,7 +802,7 @@ router.put("/admin/moderation/reports/:id/review", requireAdmin, apiLimiter, (re
     
     // Update report
     const result = db.prepare(
-      'UPDATE message_reports SET status = ?, reviewed_by_id = ?, admin_notes = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?'
+      'UPDATE message_reports SET status = ?, reviewed_by = ?, admin_notes = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?'
     ).run(status, currentUserId, admin_notes || null, reportId);
     
     if (result.changes === 0) {
