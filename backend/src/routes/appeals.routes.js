@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { writeLimiter, apiLimiter } = require("../middleware/rateLimit");
+const { notifyAdminsNewReport, notifyAdminsNewAppeal } = require("../services/adminNotification.service");
 /**
  * @openapi
  * /api/appeals:
@@ -60,7 +61,15 @@ router.post("/appeals", writeLimiter, (req, res) => {
       "INSERT INTO appeals (translation_id, opened_by_id, resolution) VALUES (?, ?, ?)"
     );
     const info = stmt.run(translation_id, currentUserId, resolution || null);
-    // Git commit and push removed - Gitea integration removed
+    
+    // Notify admins by email
+    const author = db.prepare("SELECT username FROM users WHERE id = ?").get(currentUserId);
+    notifyAdminsNewAppeal({
+      appealId: info.lastInsertRowid,
+      reason: resolution ? String(resolution).trim() : 'New appeal opened',
+      authorUsername: author?.username || 'user'
+    });
+
     res.status(201).json({ id: info.lastInsertRowid, translation_id, opened_by_id: currentUserId, resolution });
   } catch (err) {
     console.error("Error creating appeal:", err.message);
@@ -464,6 +473,15 @@ router.post("/appeals/messages/:id/report", writeLimiter, (req, res) => {
     );
     const info = stmt.run(messageId, currentUserId, reason.trim());
     
+    // Notify admins by email
+    const reporter = db.prepare("SELECT username FROM users WHERE id = ?").get(currentUserId);
+    notifyAdminsNewReport({
+      reportId: info.lastInsertRowid,
+      type: 'message',
+      reason: reason.trim(),
+      reporterUsername: reporter?.username || 'user'
+    });
+
     res.status(201).json({ 
       success: true, 
       message: 'Report submitted successfully',
