@@ -13,7 +13,12 @@ let db = null;
  */
 function getDatabase() {
   if (!db) {
-    db = new Database(config.translations.dbPath);
+    const dbPath = path.resolve(process.cwd(), config.translations.dbPath);
+    const dbDir = path.dirname(dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    db = new Database(dbPath);
   }
   return db;
 }
