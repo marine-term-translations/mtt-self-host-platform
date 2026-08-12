@@ -1,18 +1,21 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database, BookOpen } from 'lucide-react';
+import { ArrowRight, Globe, Share2, Anchor, Users, Award, Loader2, Database, BookOpen, Trophy } from 'lucide-react';
 import TermCard from '../components/TermCard';
 import SplineScene from '../components/SplineScene';
 import { backendApi } from '../services/api';
-import { Term, ApiTerm, ApiPublicUser } from '../types';
+import { fetchEvents } from '../services/eventApi';
+import { Term, ApiTerm, ApiPublicUser, Event } from '../types';
 import { parse } from '@/src/utils/datetime';
+
 
 const Landing: React.FC = () => {
   const [featuredTerms, setFeaturedTerms] = useState<Term[]>([]);
   const [contributors, setContributors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ldesFeedCount, setLdesFeedCount] = useState<number>(0);
+  const [activeEvent, setActiveEvent] = useState<Event | null>(null);
 
   // Helper to map P-codes to names (simplified version for Landing)
   const getCollectionName = (code: string) => {
@@ -31,14 +34,20 @@ const Landing: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [termsResponse, apiUsers, ldesResponse] = await Promise.all([
+        const [termsResponse, apiUsers, ldesResponse, eventsList] = await Promise.all([
           backendApi.getTerms(10, 0), // Limit to first 10 for landing page
           backendApi.getUsers(),
-          backendApi.getLdesFeeds().catch(() => ({ feeds: [] })) // Gracefully handle LDES fetch failure
+          backendApi.getLdesFeeds().catch(() => ({ feeds: [] })), // Gracefully handle LDES fetch failure
+          fetchEvents().catch(() => [])
         ]);
 
         // Set LDES feed count
         setLdesFeedCount(ldesResponse.feeds?.length || 0);
+
+        // Find active event
+        const currentActive = eventsList.find(e => e.status === 'ACTIVE') || null;
+        setActiveEvent(currentActive);
+
 
         // --- 1. Process Recent Terms ---
         // Sort by updated_at (descending)
@@ -226,11 +235,35 @@ const Landing: React.FC = () => {
                     </div>
                 </div>
                 <div className="space-y-4">
-                    <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20">
-                        <Share2 className="text-purple-300 mb-3" size={32} />
-                        <h3 className="font-bold text-lg mb-1">Interoperable</h3>
-                        <p className="text-sm text-slate-300">FAIR data powered by LDES technology.</p>
-                    </div>
+                    {activeEvent ? (
+                        <Link 
+                            to={`/events/${activeEvent.id}`} 
+                            className="block bg-gradient-to-br from-cyan-900/80 via-marine-800/90 to-emerald-900/80 backdrop-blur-md p-6 rounded-2xl border-2 border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.35)] hover:border-cyan-300 hover:scale-[1.02] transition-all cursor-pointer group relative z-30 pointer-events-auto overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs font-bold tracking-wide uppercase">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                                    Live Event
+                                </span>
+                                <Trophy className="text-amber-300 group-hover:rotate-12 transition-transform" size={24} />
+                            </div>
+                            <h3 className="font-bold text-lg text-white mb-1 truncate">{activeEvent.title}</h3>
+                            <p className="text-xs text-cyan-100/80 line-clamp-2 mb-3">{activeEvent.description || "Active translation competition ongoing!"}</p>
+                            <div className="flex items-center justify-between text-xs text-cyan-200 font-medium pt-2 border-t border-white/10">
+                                <span>{activeEvent.teams?.length || 0} Teams Competing</span>
+                                <span className="flex items-center gap-1 text-emerald-300 font-bold group-hover:translate-x-1 transition-transform">
+                                    Join Event <ArrowRight size={14} />
+                                </span>
+                            </div>
+                        </Link>
+                    ) : (
+                        <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20">
+                            <Share2 className="text-purple-300 mb-3" size={32} />
+                            <h3 className="font-bold text-lg mb-1">Interoperable</h3>
+                            <p className="text-sm text-slate-300">FAIR data powered by LDES technology.</p>
+                        </div>
+                    )}
+
                     <Link to="/ldes" className="block bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all cursor-pointer group relative z-30 pointer-events-auto">
                         <Database className="text-amber-300 mb-3 group-hover:scale-110 transition-transform" size={32} />
                         <h3 className="font-bold text-lg mb-1">

@@ -43,3 +43,12 @@ export async function updateEventStatus(eventId: string, status: string): Promis
 export async function joinEventTeam(eventId: string, joinCode: string): Promise<{ success: boolean; teamId: string }> {
   return backendApi.post<{ success: boolean; teamId: string }>(`/events/${eventId}/join`, { joinCode });
 }
+
+export async function deleteEvent(eventId: string): Promise<{ success: boolean; message: string }> {
+  return backendApi.delete<{ success: boolean; message: string }>(`/events/${eventId}`);
+}
+
+export async function deleteTeam(eventId: string, teamId: string): Promise<{ success: boolean; message: string }> {
+  return backendApi.delete<{ success: boolean; message: string }>(`/events/${eventId}/teams/${teamId}`);
+}
+
