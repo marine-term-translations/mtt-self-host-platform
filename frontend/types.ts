@@ -322,3 +322,32 @@ export interface ApiAdminActivity {
   created_at: string;
   admin_username: string;
 }
+
+// Events & Competitions Types
+export interface EventTeam {
+  id: string;
+  event_id: string;
+  name: string;
+  image_url?: string;
+  join_code: string;
+  member_count?: number;
+  total_points?: number;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  target_category?: string;
+  status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+  teams?: EventTeam[];
+}
+
+export interface UserTitle {
+  user_reward_id: string;
+  reward_id: string;
+  name: string;
+  is_equipped: number;
+}
