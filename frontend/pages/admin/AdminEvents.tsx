@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, deleteEvent, deleteTeam, EventSource } from "../../services/eventApi";
+import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, deleteEvent, deleteTeam, setFeaturedEvent, EventSource } from "../../services/eventApi";
 import { Event } from "../../types";
 import { QRCodeModal } from "../../components/QRCodeModal";
 import { Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+
 
 
 export const AdminEvents: React.FC = () => {
@@ -129,6 +130,18 @@ export const AdminEvents: React.FC = () => {
     }
   };
 
+  const handleSetFeatured = async (eventId: string, isFeatured: boolean) => {
+    try {
+      await setFeaturedEvent(eventId, isFeatured);
+      toast.success(isFeatured ? 'Event set as Featured on Homepage!' : 'Event removed from Homepage feature');
+      loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update featured event');
+    }
+  };
+
+
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -175,7 +188,17 @@ export const AdminEvents: React.FC = () => {
                     </div>
                     <p className="text-sm text-slate-300 mt-1">{evt.description}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-semibold text-cyan-300 cursor-pointer hover:bg-slate-800 transition">
+                      <input
+                        type="radio"
+                        name="featured_homepage_event"
+                        checked={!!evt.is_featured_homepage}
+                        onChange={() => handleSetFeatured(evt.id, !evt.is_featured_homepage)}
+                        className="accent-cyan-400 cursor-pointer"
+                      />
+                      Featured on Homepage
+                    </label>
                     <select
                       value={evt.status}
                       onChange={(e) => handleStatusChange(evt.id, e.target.value)}
@@ -186,6 +209,7 @@ export const AdminEvents: React.FC = () => {
                       <option value="ENDED">Set ENDED</option>
                       <option value="CANCELLED">Set CANCELLED</option>
                     </select>
+
                     <button
                       onClick={() => setActiveQr({ eventId: evt.id })}
                       className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded-lg"

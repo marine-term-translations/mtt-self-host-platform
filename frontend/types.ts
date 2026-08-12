@@ -346,9 +346,11 @@ export interface Event {
   target_count?: number;
   current_count?: number;
   target_category?: string;
+  is_featured_homepage?: number;
   status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
   teams?: EventTeam[];
 }
+
 
 export interface UserTitle {
   user_reward_id: string;

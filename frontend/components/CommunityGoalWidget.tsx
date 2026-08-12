@@ -3,9 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Target, TrendingUp, Calendar } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { backendApi } from '../services/api';
-import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
+import { fetchEvents } from '../services/eventApi';
+import { ApiCommunityGoal, ApiCommunityGoalProgress, Event } from '../types';
 import toast from 'react-hot-toast';
 import SplineScene from './SplineScene';
+
 
 interface CommunityGoalWidgetProps {
   onDismiss?: () => void;
@@ -17,7 +19,23 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
   const location = useLocation();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
+  const [activeUserEvent, setActiveUserEvent] = useState<{ event: Event; userTeam: any } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEvents()
+      .then((events) => {
+        const active = events.find(e => e.status === 'ACTIVE');
+        if (active && active.teams) {
+          const joinedTeam = active.teams.find(t => t.member_count > 0);
+          if (joinedTeam) {
+            setActiveUserEvent({ event: active, userTeam: joinedTeam });
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [isMinimized, setIsMinimized] = useState(() => {
     // Load minimized state from localStorage
     const saved = localStorage.getItem('communityGoalsMinimized');
@@ -488,7 +506,30 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
       </div>
 
       <div className="divide-y divide-slate-200 dark:divide-slate-700">
+        {activeUserEvent && (
+          <div className="p-4 bg-gradient-to-br from-cyan-900/90 via-marine-900/90 to-emerald-900/90 border-b border-cyan-500/40 text-white">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/30 text-cyan-200 border border-cyan-400/40">
+                🏆 Active Competition
+              </span>
+              <span className="text-xs text-emerald-300 font-bold font-mono">Team: {activeUserEvent.userTeam.name}</span>
+            </div>
+            <h4 className="font-bold text-sm text-white mb-1 truncate">{activeUserEvent.event.title}</h4>
+            <div className="flex items-center justify-between text-xs text-cyan-200 mb-3">
+              <span>Points: {activeUserEvent.userTeam.total_points || 0} pts</span>
+              <span className="font-mono font-bold text-emerald-400">{activeUserEvent.event.current_count || 0} Total Contributions</span>
+            </div>
+            <button
+              onClick={() => navigate(`/flow?eventId=${activeUserEvent.event.id}`)}
+              className="w-full py-1.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-xs rounded-lg shadow transition"
+            >
+              Start Translating &rarr;
+            </button>
+          </div>
+        )}
+
         {goals.map((goal) => {
+
           const goalProgress = progress[goal.id];
 
           return (
