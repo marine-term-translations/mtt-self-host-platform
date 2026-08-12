@@ -39,4 +39,12 @@ addRoute("post", "/events/:id/join", eventController.joinTeam);
 // 8. Generate event or team QR code
 addRoute("get", "/events/:id/qr", eventController.generateQR);
 
+// 9. Delete an event
+addRoute("delete", "/events/:id", eventController.deleteEvent);
+
+// 10. Delete a team from an event
+addRoute("delete", "/events/:eventId/teams/:teamId", eventController.deleteTeam);
+addRoute("delete", "/events/:id/teams/:teamId", eventController.deleteTeam);
+
 module.exports = router;
+

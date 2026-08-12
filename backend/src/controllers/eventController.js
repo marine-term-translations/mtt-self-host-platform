@@ -107,6 +107,28 @@ async function generateQR(req, res) {
   }
 }
 
+async function deleteEvent(req, res) {
+  try {
+    const result = eventService.deleteEvent(req.params.id);
+    if (!result.success) return res.status(404).json({ error: "Event not found" });
+    res.json({ success: true, message: "Event deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function deleteTeam(req, res) {
+  try {
+    const eventId = req.params.eventId || req.params.id;
+    const teamId = req.params.teamId;
+    const result = eventService.deleteTeam(eventId, teamId);
+    if (!result.success) return res.status(404).json({ error: "Team not found" });
+    res.json({ success: true, message: "Team deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   listEvents,
   getSources,
@@ -115,5 +137,8 @@ module.exports = {
   updateStatus,
   createTeam,
   joinTeam,
-  generateQR
+  generateQR,
+  deleteEvent,
+  deleteTeam
 };
+

@@ -170,6 +170,26 @@ function updateEventStatus(eventId, status) {
   return getEventById(eventId);
 }
 
+function deleteTeam(eventId, teamId) {
+  ensureEventsTable();
+  const db = getDatabase();
+  db.prepare("DELETE FROM event_contributions WHERE team_id = ?").run(teamId);
+  db.prepare("DELETE FROM event_memberships WHERE team_id = ?").run(teamId);
+  const result = db.prepare("DELETE FROM event_teams WHERE id = ? AND event_id = ?").run(teamId, eventId);
+  return { success: result.changes > 0 };
+}
+
+function deleteEvent(eventId) {
+  ensureEventsTable();
+  const db = getDatabase();
+  db.prepare("DELETE FROM event_rewards WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM event_contributions WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM event_memberships WHERE event_id = ?").run(eventId);
+  db.prepare("DELETE FROM event_teams WHERE event_id = ?").run(eventId);
+  const result = db.prepare("DELETE FROM events WHERE id = ?").run(eventId);
+  return { success: result.changes > 0 };
+}
+
 module.exports = {
   getEventSources,
   getAllEvents,
@@ -177,5 +197,8 @@ module.exports = {
   createEvent,
   updateEventStatus,
   createTeam,
-  joinTeam
+  joinTeam,
+  deleteTeam,
+  deleteEvent
 };
+
