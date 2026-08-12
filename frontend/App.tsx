@@ -40,6 +40,7 @@ import AdminReputationRules from './pages/admin/AdminReputationRules';
 import AdminMailSettings from './pages/admin/AdminMailSettings';
 import AdminAchievements from './pages/admin/AdminAchievements';
 import Banned from './pages/Banned';
+import { EventsHubPage } from './pages/EventsHubPage';
 
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -86,6 +87,7 @@ const App: React.FC = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/events" element={<EventsHubPage />} />
         <Route path="/ldes" element={<LdesFeeds />} />
         <Route path="/banned" element={<Banned />} />
         
