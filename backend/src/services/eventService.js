@@ -123,8 +123,14 @@ function joinTeam(eventId, identifier, userId) {
   let team = db.prepare("SELECT * FROM event_teams WHERE event_id = ? AND (id = ? OR join_code = ?)").get(eventId, identifier, identifier);
   if (!team) throw new Error("Team not found");
 
-  // Deactivate any existing team membership for this user in this event
-  db.prepare("UPDATE event_memberships SET is_active = 0 WHERE event_id = ? AND user_id = ?").run(eventId, userId);
+  // Check existing active membership for this user in this event
+  const existingMem = db.prepare("SELECT * FROM event_memberships WHERE event_id = ? AND user_id = ? AND is_active = 1").get(eventId, userId);
+  if (existingMem) {
+    if (existingMem.team_id === team.id) {
+      return { success: true, teamId: team.id, teamName: team.name, message: "Already a member of this team" };
+    }
+    throw new Error("You are already locked into a team for this competition. Team switching is not allowed.");
+  }
 
   // Insert new active membership
   const membershipId = `mem_${crypto.randomUUID()}`;
@@ -135,6 +141,7 @@ function joinTeam(eventId, identifier, userId) {
 
   return { success: true, teamId: team.id, teamName: team.name };
 }
+
 
 function createEvent({ title, description, startDate, endDate, sourceId, targetLanguage, targetCount, rewardTitle }) {
   ensureEventsTable();

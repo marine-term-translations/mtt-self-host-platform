@@ -195,19 +195,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {/* If authenticated, show Flow button and Burger Menu */}
               {isAuthenticated && (
                 <>
-                  {topmostNonEnglishLang && (
+                  { (user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang) && (
                     <Link
-                      to={`/flow?language=${topmostNonEnglishLang}`}
+                      to={`/flow?language=${user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang}`}
                       data-tour="nav-flow"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-marine-500 to-marine-600 hover:from-marine-600 hover:to-marine-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       <Zap size={15} className="fill-white" />
                       <span>Flow</span>
                       <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold uppercase">
-                        {topmostNonEnglishLang}
+                        {user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang}
                       </span>
                     </Link>
                   )}
+
 
                   {/* Burger Menu */}
                   <div ref={burgerRef} className="relative">

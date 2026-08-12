@@ -520,11 +520,12 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
               <span className="font-mono font-bold text-emerald-400">{activeUserEvent.event.current_count || 0} Total Contributions</span>
             </div>
             <button
-              onClick={() => navigate(`/flow?eventId=${activeUserEvent.event.id}`)}
+              onClick={() => navigate(`/flow?source=${activeUserEvent.event.source_id || ''}&language=${activeUserEvent.event.target_language !== 'all' ? activeUserEvent.event.target_language : ''}`)}
               className="w-full py-1.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-xs rounded-lg shadow transition"
             >
               Start Translating &rarr;
             </button>
+
           </div>
         )}
 

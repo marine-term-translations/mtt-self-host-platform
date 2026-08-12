@@ -44,9 +44,10 @@ const Landing: React.FC = () => {
         // Set LDES feed count
         setLdesFeedCount(ldesResponse.feeds?.length || 0);
 
-        // Find active or explicitly featured event
-        const currentActive = eventsList.find(e => e.is_featured_homepage === 1) || eventsList.find(e => e.status === 'ACTIVE') || null;
+        // Only show featured event on homepage if explicitly featured (is_featured_homepage === 1)
+        const currentActive = eventsList.find(e => e.is_featured_homepage === 1) || null;
         setActiveEvent(currentActive);
+
 
 
 

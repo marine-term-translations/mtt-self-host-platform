@@ -55,21 +55,24 @@ const TranslationFlow: React.FC = () => {
   useEffect(() => {
     const resolveEventMode = async () => {
       const qEvtId = searchParams.get('eventId');
-      if (qEvtId) {
-        try {
-          const evt = await fetchEventDetails(qEvtId);
-          if (evt) setEventMode(evt);
-        } catch (e) {}
-      } else {
-        try {
-          const events = await fetchEvents();
-          const active = events.find(e => e.status === 'ACTIVE' && e.teams?.some(t => t.member_count > 0));
+      const qSource = searchParams.get('source');
+      try {
+        const events = await fetchEvents();
+        if (qEvtId) {
+          const match = events.find(e => e.id === qEvtId);
+          if (match) setEventMode(match);
+        } else if (qSource) {
+          const match = events.find(e => e.status === 'ACTIVE' && String(e.source_id) === String(qSource));
+          if (match) setEventMode(match);
+        } else {
+          const active = events.find(e => e.status === 'ACTIVE' && (e.user_team_id || e.teams?.some(t => t.is_user_member)));
           if (active) setEventMode(active);
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     };
     resolveEventMode();
   }, [searchParams]);
+
 
 
   // Initialize flow session

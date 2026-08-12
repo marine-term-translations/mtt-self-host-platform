@@ -158,6 +158,26 @@ export const AdminEvents: React.FC = () => {
         </button>
       </div>
 
+      {/* Homepage Feature Selection Bar */}
+      <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-300">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-white">Homepage Hero Card:</span>
+          <span className="text-cyan-400 font-semibold">
+            {events.find(e => e.is_featured_homepage === 1)?.title ? `Featured: "${events.find(e => e.is_featured_homepage === 1)?.title}"` : "None (Hide Event from Homepage)"}
+          </span>
+        </div>
+        <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-700 transition">
+          <input
+            type="radio"
+            name="featured_homepage_event"
+            checked={!events.some(e => e.is_featured_homepage === 1)}
+            onChange={() => handleSetFeatured("", false)}
+            className="accent-cyan-400 cursor-pointer"
+          />
+          <span className="font-semibold text-slate-300">None (Hide Event from Homepage)</span>
+        </label>
+      </div>
+
       {loading ? (
         <div className="p-12 text-center text-slate-400">Loading events...</div>
       ) : events.length === 0 ? (
@@ -166,6 +186,7 @@ export const AdminEvents: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+
           {events.map((evt) => {
             const current = evt.current_count || 0;
             const target = evt.target_count || 0;
