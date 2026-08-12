@@ -21,6 +21,10 @@ function ensureEventsTable() {
     if (!colNames.includes("target_count")) {
       try { db.prepare("ALTER TABLE events ADD COLUMN target_count INTEGER DEFAULT 100").run(); } catch(e){}
     }
+    if (!colNames.includes("is_featured_homepage")) {
+      try { db.prepare("ALTER TABLE events ADD COLUMN is_featured_homepage INTEGER DEFAULT 0").run(); } catch(e){}
+    }
+
   }
 }
 
@@ -190,6 +194,16 @@ function deleteEvent(eventId) {
   return { success: result.changes > 0 };
 }
 
+function setFeaturedHomepageEvent(eventId) {
+  ensureEventsTable();
+  const db = getDatabase();
+  db.prepare("UPDATE events SET is_featured_homepage = 0").run();
+  if (eventId) {
+    db.prepare("UPDATE events SET is_featured_homepage = 1 WHERE id = ?").run(eventId);
+  }
+  return getEventById(eventId);
+}
+
 module.exports = {
   getEventSources,
   getAllEvents,
@@ -199,6 +213,8 @@ module.exports = {
   createTeam,
   joinTeam,
   deleteTeam,
-  deleteEvent
+  deleteEvent,
+  setFeaturedHomepageEvent
 };
+
 

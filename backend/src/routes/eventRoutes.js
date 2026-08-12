@@ -44,7 +44,9 @@ addRoute("delete", "/events/:id", eventController.deleteEvent);
 
 // 10. Delete a team from an event
 addRoute("delete", "/events/:eventId/teams/:teamId", eventController.deleteTeam);
-addRoute("delete", "/events/:id/teams/:teamId", eventController.deleteTeam);
+// 11. Toggle featured homepage event
+addRoute("patch", "/events/:id/featured", eventController.setFeatured);
 
 module.exports = router;
+
 

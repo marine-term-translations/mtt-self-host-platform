@@ -129,6 +129,16 @@ async function deleteTeam(req, res) {
   }
 }
 
+async function setFeatured(req, res) {
+  try {
+    const { isFeatured } = req.body;
+    const event = eventService.setFeaturedHomepageEvent(isFeatured ? req.params.id : null);
+    res.json({ success: true, event });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   listEvents,
   getSources,
@@ -139,6 +149,8 @@ module.exports = {
   joinTeam,
   generateQR,
   deleteEvent,
-  deleteTeam
+  deleteTeam,
+  setFeatured
 };
+
 
