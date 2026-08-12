@@ -1,12 +1,25 @@
+const fs = require("fs");
+const path = require("path");
 const { getDatabase } = require("../db/database");
 const crypto = require("crypto");
 
+function ensureEventsTable() {
+  const db = getDatabase();
+  const hasEventsTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").get();
+  if (!hasEventsTable) {
+    const migrationSql = fs.readFileSync(path.join(__dirname, "../db/migrations/035_events.sql"), "utf8");
+    db.exec(migrationSql);
+  }
+}
+
 function getAllEvents() {
+  ensureEventsTable();
   const db = getDatabase();
   return db.prepare("SELECT * FROM events ORDER BY start_date DESC").all();
 }
 
 function getEventById(eventId) {
+  ensureEventsTable();
   const db = getDatabase();
   const event = db.prepare("SELECT * FROM events WHERE id = ?").get(eventId);
   if (!event) return null;
@@ -27,6 +40,7 @@ function getEventById(eventId) {
 }
 
 function createTeam(eventId, name, imageUrl, createdByUserId) {
+  ensureEventsTable();
   const db = getDatabase();
   const id = `team_${crypto.randomUUID()}`;
   const cleanName = name.replace(/[^a-zA-Z0-9]/g, "").substring(0, 4).toUpperCase() || "TEAM";
@@ -41,6 +55,7 @@ function createTeam(eventId, name, imageUrl, createdByUserId) {
 }
 
 function joinTeam(eventId, identifier, userId) {
+  ensureEventsTable();
   const db = getDatabase();
   
   // Find team by team_id or join_code

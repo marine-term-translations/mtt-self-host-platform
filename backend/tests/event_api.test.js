@@ -2,11 +2,20 @@ const assert = require("assert");
 const { getDatabase, applySchema, isDatabaseInitialized } = require("../src/db/database");
 const eventService = require("../src/services/eventService");
 
+const fs = require("fs");
+const path = require("path");
+
 try {
   if (!isDatabaseInitialized()) {
     applySchema();
   }
   const db = getDatabase();
+
+  const hasEventsTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'").get();
+  if (!hasEventsTable) {
+    const migrationSql = fs.readFileSync(path.join(__dirname, "../src/db/migrations/035_events.sql"), "utf8");
+    db.exec(migrationSql);
+  }
 
   // Seed test user
   db.prepare("INSERT OR IGNORE INTO users (id, username) VALUES (1, 'test_user')").run();
