@@ -21,6 +21,8 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
   const [joinInputCode, setJoinInputCode] = useState("");
   const [joining, setJoining] = useState(false);
 
+  const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
+
   const loadEvent = () => {
     if (!activeEventId) return;
     setLoading(true);
@@ -32,39 +34,63 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
 
   useEffect(() => {
     loadEvent();
-    const urlJoinCode = new URLSearchParams(window.location.search).get("joinCode");
-    if (urlJoinCode) {
-      setJoinInputCode(urlJoinCode);
-      toast.success(`Scanned Join Code ${urlJoinCode}! Click "Join Team" below to confirm.`, { duration: 5000 });
+    const params = new URLSearchParams(window.location.search);
+    const urlTeamId = params.get("joinTeamId") || params.get("teamId");
+    const urlJoinCode = params.get("joinCode");
+    
+    if (urlTeamId) {
+      setTargetTeamId(urlTeamId);
+    } else if (urlJoinCode && event?.teams) {
+      const match = event.teams.find(t => t.join_code === urlJoinCode);
+      if (match) setTargetTeamId(match.id);
     }
   }, [activeEventId]);
 
-  const handleJoinTeam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeEventId || !joinInputCode) return;
+  useEffect(() => {
+    if (targetTeamId && event?.teams) {
+      const match = event.teams.find(t => t.id === targetTeamId || t.join_code === targetTeamId);
+      if (match) {
+        setTargetTeamId(match.id);
+        setTimeout(() => {
+          const el = document.getElementById(`team-card-${match.id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 300);
+      }
+    }
+  }, [targetTeamId, event]);
 
+  const handleJoinTeamDirect = async (code: string) => {
+    if (!activeEventId) return;
     if (!user) {
       sessionStorage.setItem("pending_event_join", JSON.stringify({
         eventId: activeEventId,
-        joinCode: joinInputCode.trim()
+        joinCode: code
       }));
-      toast("Please sign in to join this team. Redirecting to sign in...", { icon: "🔐" });
+      toast("Please sign in to join this team. Redirecting...", { icon: "🔐" });
       navigate("/login");
       return;
     }
 
     setJoining(true);
     try {
-      await joinEventTeam(activeEventId, joinInputCode.trim());
-      toast.success("Successfully joined team!");
-      setJoinInputCode("");
+      await joinEventTeam(activeEventId, code);
+      toast.success("Successfully joined team! 🎉");
       loadEvent();
     } catch (err: any) {
-      toast.error(err.message || "Failed to join team. Check join code.");
+      toast.error(err.message || "Failed to join team.");
     } finally {
       setJoining(false);
     }
   };
+
+  const handleJoinTeam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeEventId || !joinInputCode) return;
+    handleJoinTeamDirect(joinInputCode.trim());
+  };
+
 
   const handleDeleteEvent = async () => {
     if (!event || !confirm(`Are you sure you want to delete event "${event.title}"? All competition rankings for this event will be removed.`)) {
@@ -223,28 +249,51 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
       {event.teams && event.teams.length > 0 ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-            {event.teams.slice(0, 3).map((team, idx) => (
-              <div
-                key={team.id}
-                className={`bg-slate-800/90 border rounded-xl p-5 shadow-lg relative overflow-hidden ${
-                  idx === 0 ? "border-amber-500/50 bg-amber-500/5" :
-                  idx === 1 ? "border-slate-400/50 bg-slate-400/5" :
-                  "border-amber-700/50 bg-amber-700/5"
-                }`}
-              >
-                <div className="text-3xl mb-2">{idx === 0 ? "🥇 1st Place" : idx === 1 ? "🥈 2nd Place" : "🥉 3rd Place"}</div>
-                <h3 className="font-bold text-xl text-white mb-1">{team.name}</h3>
-                <p className="text-cyan-400 font-mono font-bold text-lg">{team.total_points || 0} pts</p>
-                <p className="text-xs text-slate-400 mt-1">{team.member_count || 0} members • Code: {team.join_code}</p>
-                <button
-                  onClick={() => setActiveJoinCode(team.join_code)}
-                  className="mt-3 px-3 py-1 bg-slate-700 hover:bg-slate-600 text-cyan-300 text-xs font-semibold rounded"
+            {event.teams.slice(0, 3).map((team, idx) => {
+              const isTarget = targetTeamId === team.id;
+              return (
+                <div
+                  key={team.id}
+                  id={`team-card-${team.id}`}
+                  className={`bg-slate-800/90 border rounded-xl p-5 shadow-lg relative overflow-hidden transition-all duration-500 ${
+                    isTarget ? "ring-4 ring-cyan-400 border-cyan-400 bg-cyan-950/60 shadow-[0_0_30px_rgba(6,182,212,0.5)] scale-[1.03]" :
+                    idx === 0 ? "border-amber-500/50 bg-amber-500/5" :
+                    idx === 1 ? "border-slate-400/50 bg-slate-400/5" :
+                    "border-amber-700/50 bg-amber-700/5"
+                  }`}
                 >
-                  Show QR
-                </button>
-              </div>
-            ))}
+                  {isTarget && (
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-cyan-500 text-slate-950 font-bold text-[10px] uppercase rounded-full animate-bounce">
+                      Selected via QR
+                    </div>
+                  )}
+                  <div className="text-3xl mb-2">{idx === 0 ? "🥇 1st Place" : idx === 1 ? "🥈 2nd Place" : "🥉 3rd Place"}</div>
+                  <h3 className="font-bold text-xl text-white mb-1">{team.name}</h3>
+                  <p className="text-cyan-400 font-mono font-bold text-lg">{team.total_points || 0} pts</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-3">{team.member_count || 0} members • Code: {team.join_code}</p>
+                  
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => handleJoinTeamDirect(team.join_code)}
+                      disabled={joining}
+                      className={`px-3.5 py-1.5 font-bold text-xs rounded-lg shadow transition ${
+                        isTarget ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      }`}
+                    >
+                      Join {team.name} &rarr;
+                    </button>
+                    <button
+                      onClick={() => setActiveJoinCode(team.join_code)}
+                      className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-cyan-300 text-xs font-semibold rounded-lg"
+                    >
+                      QR
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
 
           {/* Leaderboard Table for Remaining Teams */}
           {event.teams.length > 3 && (

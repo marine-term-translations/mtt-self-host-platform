@@ -52,3 +52,8 @@ export async function deleteTeam(eventId: string, teamId: string): Promise<{ suc
   return backendApi.delete<{ success: boolean; message: string }>(`/events/${eventId}/teams/${teamId}`);
 }
 
+export async function setFeaturedEvent(eventId: string, isFeatured: boolean): Promise<{ success: boolean; event: Event }> {
+  return backendApi.patch<{ success: boolean; event: Event }>(`/events/${eventId}/featured`, { isFeatured });
+}
+
+
