@@ -42,6 +42,7 @@ import AdminAchievements from './pages/admin/AdminAchievements';
 import AdminEvents from './pages/admin/AdminEvents';
 import Banned from './pages/Banned';
 import { EventsHubPage } from './pages/EventsHubPage';
+import EventDetailPage from './pages/EventDetailPage';
 
 import NotFound from './pages/NotFound';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -89,6 +90,7 @@ const App: React.FC = () => {
         <Route path="/documentation" element={<Documentation />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/events" element={<EventsHubPage />} />
+        <Route path="/events/:id" element={<EventDetailPage />} />
         <Route path="/ldes" element={<LdesFeeds />} />
         <Route path="/banned" element={<Banned />} />
         
