@@ -7,6 +7,7 @@ try {
   }
   const db = getDatabase();
 
+  db.prepare("DELETE FROM events WHERE id = 'evt-1'").run();
   // Insert test event
   const stmtEvent = db.prepare(`
     INSERT INTO events (id, title, description, start_date, end_date, target_category, status)

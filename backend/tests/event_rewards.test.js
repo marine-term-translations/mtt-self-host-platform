@@ -18,6 +18,7 @@ try {
     VALUES ('rew-1', 'evt-rew-1', 'TITLE', 'Coral Vocab Champion 2026')
   `).run();
 
+  db.prepare("DELETE FROM user_rewards WHERE user_id = 20").run();
   rewardService.awardRewardToUser(20, 'rew-1');
   const titles = rewardService.getUserTitles(20);
   assert.ok(Array.isArray(titles));

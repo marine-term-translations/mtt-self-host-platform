@@ -26,6 +26,7 @@ try {
   db.prepare("INSERT OR IGNORE INTO term_fields (id, term_id, field_uri, original_value) VALUES (1, 1, 'http://example.org/field1', 'orig')").run();
   db.prepare("INSERT OR IGNORE INTO translations (id, term_field_id, value) VALUES (101, 1, 'test')").run();
 
+  db.prepare("DELETE FROM event_contributions WHERE user_id = 10").run();
   const recorded = scoringService.recordEventContribution(10, 101, 'TRANSLATION_APPROVED', 'ALL');
   assert.ok(Array.isArray(recorded));
   assert.strictEqual(recorded.length, 1);
