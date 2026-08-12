@@ -332,6 +332,7 @@ export interface EventTeam {
   join_code: string;
   member_count?: number;
   total_points?: number;
+  is_user_member?: boolean;
 }
 
 export interface Event {
@@ -347,9 +348,11 @@ export interface Event {
   current_count?: number;
   target_category?: string;
   is_featured_homepage?: number;
+  user_team_id?: string;
   status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
   teams?: EventTeam[];
 }
+
 
 
 export interface UserTitle {

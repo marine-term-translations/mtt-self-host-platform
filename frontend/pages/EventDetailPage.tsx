@@ -166,12 +166,13 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
           <div className="flex flex-wrap items-center gap-3">
             {user && (
               <Link
-                to={`/flow?eventId=${event.id}`}
+                to={`/flow?source=${event.source_id || ''}&language=${user?.nativeLanguage || event.target_language || ''}&eventId=${event.id}`}
                 className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white font-bold rounded-lg text-sm shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transition"
               >
                 ⚡ Start Competition Flow &rarr;
               </Link>
             )}
+
             <button
               onClick={() => setShowQR(true)}
               className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition"
@@ -260,37 +261,46 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             {event.teams.slice(0, 3).map((team, idx) => {
               const isTarget = targetTeamId === team.id;
+              const isMyTeam = team.is_user_member || event.user_team_id === team.id;
               return (
                 <div
                   key={team.id}
                   id={`team-card-${team.id}`}
                   className={`bg-slate-800/90 border rounded-xl p-5 shadow-lg relative overflow-hidden transition-all duration-500 ${
+                    isMyTeam ? "ring-2 ring-emerald-400 border-emerald-400/80 bg-emerald-950/30" :
                     isTarget ? "ring-4 ring-cyan-400 border-cyan-400 bg-cyan-950/60 shadow-[0_0_30px_rgba(6,182,212,0.5)] scale-[1.03]" :
                     idx === 0 ? "border-amber-500/50 bg-amber-500/5" :
                     idx === 1 ? "border-slate-400/50 bg-slate-400/5" :
                     "border-amber-700/50 bg-amber-700/5"
                   }`}
                 >
-                  {isTarget && (
+                  {isMyTeam ? (
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500 text-slate-950 font-bold text-[10px] uppercase rounded-full">
+                      ✓ Your Team
+                    </div>
+                  ) : isTarget ? (
                     <div className="absolute top-2 right-2 px-2 py-0.5 bg-cyan-500 text-slate-950 font-bold text-[10px] uppercase rounded-full animate-bounce">
                       Selected via QR
                     </div>
-                  )}
+                  ) : null}
                   <div className="text-3xl mb-2">{idx === 0 ? "🥇 1st Place" : idx === 1 ? "🥈 2nd Place" : "🥉 3rd Place"}</div>
                   <h3 className="font-bold text-xl text-white mb-1">{team.name}</h3>
                   <p className="text-cyan-400 font-mono font-bold text-lg">{team.total_points || 0} pts</p>
                   <p className="text-xs text-slate-400 mt-1 mb-3">{team.member_count || 0} members • Code: {team.join_code}</p>
                   
                   <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => handleJoinTeamDirect(team.join_code)}
-                      disabled={joining}
-                      className={`px-3.5 py-1.5 font-bold text-xs rounded-lg shadow transition ${
-                        isTarget ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300" : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                      }`}
-                    >
-                      Join {team.name} &rarr;
-                    </button>
+                    {!isMyTeam && (
+                      <button
+                        onClick={() => handleJoinTeamDirect(team.join_code)}
+                        disabled={joining}
+                        className={`px-3.5 py-1.5 font-bold text-xs rounded-lg shadow transition ${
+                          isTarget ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                        }`}
+                      >
+                        Join {team.name} &rarr;
+                      </button>
+                    )}
+
                     <button
                       onClick={() => setActiveJoinCode(team.join_code)}
                       className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-cyan-300 text-xs font-semibold rounded-lg"

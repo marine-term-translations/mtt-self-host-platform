@@ -62,7 +62,7 @@ function getAllEvents() {
   });
 }
 
-function getEventById(eventId) {
+function getEventById(eventId, userId = null) {
   ensureEventsTable();
   const db = getDatabase();
   const event = db.prepare(`
@@ -75,6 +75,12 @@ function getEventById(eventId) {
 
   if (!event) return null;
 
+  let user_team_id = null;
+  if (userId) {
+    const mem = db.prepare("SELECT team_id FROM event_memberships WHERE event_id = ? AND user_id = ? AND is_active = 1").get(eventId, userId);
+    if (mem) user_team_id = mem.team_id;
+  }
+
   const teams = db.prepare(`
     SELECT t.*, 
            COUNT(DISTINCT m.user_id) as member_count,
@@ -85,10 +91,14 @@ function getEventById(eventId) {
     WHERE t.event_id = ?
     GROUP BY t.id
     ORDER BY total_points DESC
-  `).all(eventId);
+  `).all(eventId).map(t => ({
+    ...t,
+    is_user_member: user_team_id ? t.id === user_team_id : false
+  }));
 
-  return { ...event, teams };
+  return { ...event, user_team_id, teams };
 }
+
 
 function createTeam(eventId, name, imageUrl, createdByUserId) {
   ensureEventsTable();

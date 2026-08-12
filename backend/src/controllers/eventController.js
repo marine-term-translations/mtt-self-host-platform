@@ -36,13 +36,16 @@ async function getSources(req, res) {
 
 async function getEvent(req, res) {
   try {
-    const event = eventService.getEventById(req.params.id);
+    const sessionUser = (req.session && req.session.user) || req.user;
+    const userId = sessionUser ? (sessionUser.id || sessionUser.user_id) : null;
+    const event = eventService.getEventById(req.params.id, userId);
     if (!event) return res.status(404).json({ error: "Event not found" });
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 }
+
 
 async function createEvent(req, res) {
   try {

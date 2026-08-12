@@ -4,26 +4,28 @@ const crypto = require("crypto");
 function recordEventContribution(userId, translationId, actionType, category = 'ALL') {
   const db = getDatabase();
 
-  const tableInfo = db.prepare("PRAGMA table_info(events)").all();
-  const hasCategoryCol = tableInfo.some(c => c.name === 'target_category');
-
-  let activeEvents;
-  if (hasCategoryCol) {
-    activeEvents = db.prepare(`
-      SELECT e.id as event_id, m.team_id
-      FROM events e
-      JOIN event_memberships m ON e.id = m.event_id AND m.user_id = ? AND m.is_active = 1
-      WHERE e.status = 'ACTIVE'
-        AND (e.target_category = 'ALL' OR e.target_category = ? OR ? = 'ALL')
-    `).all(userId, category, category);
-  } else {
-    activeEvents = db.prepare(`
-      SELECT e.id as event_id, m.team_id
-      FROM events e
-      JOIN event_memberships m ON e.id = m.event_id AND m.user_id = ? AND m.is_active = 1
-      WHERE e.status = 'ACTIVE'
-    `).all(userId);
+  let termSourceId = null;
+  if (translationId) {
+    const row = db.prepare(`
+      SELECT t.source_id 
+      FROM translations tr
+      JOIN term_fields tf ON tr.term_field_id = tf.id
+      JOIN terms t ON tf.term_id = t.id
+      WHERE tr.id = ?
+    `).get(translationId);
+    if (row) termSourceId = row.source_id;
   }
+
+  const sId = termSourceId !== undefined && termSourceId !== null ? termSourceId : null;
+  const activeEvents = db.prepare(`
+    SELECT e.id as event_id, m.team_id
+    FROM events e
+    JOIN event_memberships m ON e.id = m.event_id AND m.user_id = ? AND m.is_active = 1
+    WHERE e.status = 'ACTIVE'
+      AND (e.source_id IS NULL OR ? IS NULL OR e.source_id = ?)
+  `).all(userId, sId, sId);
+
+
 
 
   const inserted = [];
