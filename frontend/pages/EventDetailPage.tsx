@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { fetchEventDetails, joinEventTeam } from "../services/eventApi";
 import { Event } from "../types";
 import { QRCodeModal } from "../components/QRCodeModal";
+import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propEventId }) => {
   const { id: paramEventId } = useParams<{ id: string }>();
   const activeEventId = propEventId || paramEventId;
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +40,17 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
   const handleJoinTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeEventId || !joinInputCode) return;
+
+    if (!user) {
+      sessionStorage.setItem("pending_event_join", JSON.stringify({
+        eventId: activeEventId,
+        joinCode: joinInputCode.trim()
+      }));
+      toast("Please sign in to join this team. Redirecting to sign in...", { icon: "🔐" });
+      navigate("/login");
+      return;
+    }
+
     setJoining(true);
     try {
       await joinEventTeam(activeEventId, joinInputCode.trim());

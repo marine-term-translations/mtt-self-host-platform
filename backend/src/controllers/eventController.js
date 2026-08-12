@@ -70,7 +70,8 @@ async function updateStatus(req, res) {
 async function createTeam(req, res) {
   try {
     const { name, imageUrl } = req.body;
-    const userId = req.user ? req.user.id : null;
+    const sessionUser = (req.session && req.session.user) || req.user;
+    const userId = sessionUser ? (sessionUser.id || sessionUser.user_id) : null;
     const team = eventService.createTeam(req.params.id, name, imageUrl, userId);
     res.status(201).json(team);
   } catch (err) {
@@ -82,7 +83,9 @@ async function joinTeam(req, res) {
   try {
     const { joinCode, teamId } = req.body;
     const identifier = joinCode || teamId;
-    const userId = req.user ? req.user.id : req.body.userId;
+    const sessionUser = (req.session && req.session.user) || req.user;
+    const userId = sessionUser ? (sessionUser.id || sessionUser.user_id) : req.body.userId;
+    
     if (!userId) return res.status(401).json({ error: "Authentication required to join team" });
     
     const result = eventService.joinTeam(req.params.id, identifier, userId);
