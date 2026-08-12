@@ -163,7 +163,15 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
             </div>
             <p className="text-slate-300 mt-2 text-sm">{event.description}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {user && (
+              <Link
+                to={`/flow?eventId=${event.id}`}
+                className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white font-bold rounded-lg text-sm shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transition"
+              >
+                ⚡ Start Competition Flow &rarr;
+              </Link>
+            )}
             <button
               onClick={() => setShowQR(true)}
               className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition"
@@ -179,6 +187,7 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
               </button>
             )}
           </div>
+
 
         </div>
       </div>

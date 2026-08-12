@@ -22,7 +22,9 @@ import {
   Language,
 } from '../services/flow.api';
 import { backendApi } from '../services/api';
-import { ApiCommunityGoal, ApiCommunityGoalProgress } from '../types';
+import { fetchEventDetails, fetchEvents } from '../services/eventApi';
+import { ApiCommunityGoal, ApiCommunityGoalProgress, Event } from '../types';
+
 
 const TranslationFlow: React.FC = () => {
   const { user } = useAuth();
@@ -48,6 +50,27 @@ const TranslationFlow: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [relevantGoal, setRelevantGoal] = useState<{ goal: ApiCommunityGoal; progress: ApiCommunityGoalProgress } | null>(null);
+  const [eventMode, setEventMode] = useState<Event | null>(null);
+
+  useEffect(() => {
+    const resolveEventMode = async () => {
+      const qEvtId = searchParams.get('eventId');
+      if (qEvtId) {
+        try {
+          const evt = await fetchEventDetails(qEvtId);
+          if (evt) setEventMode(evt);
+        } catch (e) {}
+      } else {
+        try {
+          const events = await fetchEvents();
+          const active = events.find(e => e.status === 'ACTIVE' && e.teams?.some(t => t.member_count > 0));
+          if (active) setEventMode(active);
+        } catch (e) {}
+      }
+    };
+    resolveEventMode();
+  }, [searchParams]);
+
 
   // Initialize flow session
   useEffect(() => {
@@ -528,7 +551,26 @@ const TranslationFlow: React.FC = () => {
       )}
 
       <div className="container mx-auto px-0 md:px-4 py-0 md:py-8">
+        {eventMode && (
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-cyan-900/90 via-marine-900/90 to-emerald-900/90 border-2 border-cyan-400/60 shadow-xl flex items-center justify-between text-white">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl animate-pulse">🏆</span>
+              <div>
+                <h3 className="font-bold text-base text-cyan-200">Competition Mode Active: {eventMode.title}</h3>
+                <p className="text-xs text-slate-300">Filtering tasks for target vocabulary & language scope</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setEventMode(null)}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-cyan-500/40 rounded-lg transition"
+            >
+              Switch to Standard Flow
+            </button>
+          </div>
+        )}
+
         {/* Header - hidden on phone */}
+
         <div className="hidden md:flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
