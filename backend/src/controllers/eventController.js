@@ -1,5 +1,20 @@
 const eventService = require("../services/eventService");
 const QRCode = require("qrcode");
+const config = require("../config");
+
+function getPublicFrontendUrl(req) {
+  // 1. Prefer explicit config.frontendUrl if defined (e.g., https://mtt.vliz.be)
+  if (config.frontendUrl) {
+    return config.frontendUrl.replace(/\/$/, "");
+  }
+
+  // 2. Fall back to X-Forwarded headers from reverse proxy (Traefik / Nginx)
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const rawHost = req.headers["x-forwarded-host"] || req.get("host") || "localhost";
+  const cleanHost = rawHost.split(":")[0]; // Strip internal docker backend port 5000
+
+  return `${proto}://${cleanHost}`;
+}
 
 async function listEvents(req, res) {
   try {
@@ -80,7 +95,8 @@ async function joinTeam(req, res) {
 async function generateQR(req, res) {
   try {
     const { joinCode } = req.query;
-    const targetUrl = `${req.protocol}://${req.get("host")}/events/${req.params.id}${joinCode ? `?joinCode=${joinCode}` : ""}`;
+    const baseUrl = getPublicFrontendUrl(req);
+    const targetUrl = `${baseUrl}/events/${req.params.id}${joinCode ? `?joinCode=${joinCode}` : ""}`;
     const qrSvg = await QRCode.toString(targetUrl, { type: "svg" });
     res.type("image/svg+xml").send(qrSvg);
   } catch (err) {

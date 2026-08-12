@@ -27,6 +27,11 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
 
   useEffect(() => {
     loadEvent();
+    const urlJoinCode = new URLSearchParams(window.location.search).get("joinCode");
+    if (urlJoinCode) {
+      setJoinInputCode(urlJoinCode);
+      toast.success(`Scanned Join Code ${urlJoinCode}! Click "Join Team" below to confirm.`, { duration: 5000 });
+    }
   }, [activeEventId]);
 
   const handleJoinTeam = async (e: React.FormEvent) => {
