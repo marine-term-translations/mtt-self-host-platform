@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, EventSource } from "../../services/eventApi";
+import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, deleteEvent, deleteTeam, EventSource } from "../../services/eventApi";
 import { Event } from "../../types";
 import { QRCodeModal } from "../../components/QRCodeModal";
+import { Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+
 
 export const AdminEvents: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -101,6 +103,33 @@ export const AdminEvents: React.FC = () => {
     }
   };
 
+  const handleDeleteEvent = async (eventId: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete event "${title}"? All competition rankings and teams for this event will be removed.`)) {
+      return;
+    }
+    try {
+      await deleteEvent(eventId);
+      toast.success('Event deleted successfully');
+      loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete event');
+    }
+  };
+
+  const handleDeleteTeam = async (eventId: string, teamId: string, teamName: string) => {
+    if (!confirm(`Are you sure you want to delete team "${teamName}"?`)) {
+      return;
+    }
+    try {
+      await deleteTeam(eventId, teamId);
+      toast.success('Team deleted successfully');
+      loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete team');
+    }
+  };
+
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -169,6 +198,14 @@ export const AdminEvents: React.FC = () => {
                     >
                       + Add Team
                     </button>
+                    <button
+                      onClick={() => handleDeleteEvent(evt.id, evt.title)}
+                      className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                      title="Delete Event"
+                    >
+                      <Trash2 size={13} />
+                      Delete Event
+                    </button>
                   </div>
                 </div>
 
@@ -221,18 +258,28 @@ export const AdminEvents: React.FC = () => {
                           <h4 className="font-bold text-white text-sm">{t.name}</h4>
                           <p className="text-xs text-slate-400 font-mono">Code: {t.join_code} • {t.total_points || 0} pts</p>
                         </div>
-                        <button
-                          onClick={() => setActiveQr({ eventId: evt.id, joinCode: t.join_code })}
-                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs rounded border border-slate-700"
-                        >
-                          Team QR
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setActiveQr({ eventId: evt.id, joinCode: t.join_code })}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs rounded border border-slate-700"
+                          >
+                            Team QR
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTeam(evt.id, t.id, t.name)}
+                            className="p-1 bg-red-950/60 hover:bg-red-900 text-red-400 hover:text-red-200 text-xs rounded border border-red-800/60 transition"
+                            title="Delete Team"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic">No teams created for this competition yet.</p>
                 )}
+
               </div>
             );
           })}

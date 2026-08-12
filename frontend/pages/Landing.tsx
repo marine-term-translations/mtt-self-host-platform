@@ -59,10 +59,10 @@ const Landing: React.FC = () => {
 
         const mappedTerms: Term[] = sortedTerms.map((apiTerm: ApiTerm) => {
             // Use API-provided labelField and referenceFields (field_role based)
-            const labelField = apiTerm.labelField 
-              || apiTerm.fields.find(f => f.field_role === 'label');
-            const referenceField = apiTerm.referenceFields?.[0]
-              || apiTerm.fields.find(f => f.field_role === 'reference');
+            const labelField: any = apiTerm.labelField 
+              || apiTerm.fields?.find((f: any) => f.field_role === 'label');
+            const referenceField: any = apiTerm.referenceFields?.[0]
+              || apiTerm.fields?.find((f: any) => f.field_role === 'reference');
 
             // Find first available translation (any language)
             let translationText: string | null = null;
@@ -72,6 +72,7 @@ const Landing: React.FC = () => {
               translationText = firstTranslation.value;
               translationLang = firstTranslation.language;
             }
+
 
             const translations: Record<string, string | null> = {};
             if (translationLang && translationText) {

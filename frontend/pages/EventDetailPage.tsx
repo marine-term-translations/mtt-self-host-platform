@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { fetchEventDetails, joinEventTeam } from "../services/eventApi";
+import { fetchEventDetails, joinEventTeam, deleteEvent, deleteTeam } from "../services/eventApi";
 import { Event } from "../types";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { useAuth } from "../context/AuthContext";
+import { Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+
 
 export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propEventId }) => {
   const { id: paramEventId } = useParams<{ id: string }>();
@@ -64,6 +66,33 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
     }
   };
 
+  const handleDeleteEvent = async () => {
+    if (!event || !confirm(`Are you sure you want to delete event "${event.title}"? All competition rankings for this event will be removed.`)) {
+      return;
+    }
+    try {
+      await deleteEvent(event.id);
+      toast.success('Event deleted successfully');
+      navigate('/events');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete event');
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    if (!event || !confirm(`Are you sure you want to delete team "${teamName}"?`)) {
+      return;
+    }
+    try {
+      await deleteTeam(event.id, teamId);
+      toast.success('Team deleted successfully');
+      loadEvent();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete team');
+    }
+  };
+
+
   if (loading) {
     return <div className="p-12 text-center text-white font-medium">Loading competition leaderboard...</div>;
   }
@@ -115,7 +144,16 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
             >
               📱 Event QR Code
             </button>
+            {(user?.isAdmin || user?.isSuperAdmin) && (
+              <button
+                onClick={handleDeleteEvent}
+                className="px-4 py-2.5 bg-red-600/80 hover:bg-red-600 text-white rounded-lg font-medium text-sm flex items-center gap-2 transition"
+              >
+                <Trash2 size={16} /> Delete Event
+              </button>
+            )}
           </div>
+
         </div>
       </div>
 
