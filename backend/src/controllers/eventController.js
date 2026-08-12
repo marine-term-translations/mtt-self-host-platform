@@ -56,9 +56,34 @@ async function generateQR(req, res) {
   }
 }
 
+async function createEvent(req, res) {
+  try {
+    const { title, description, startDate, endDate, targetCategory, rewardTitle } = req.body;
+    if (!title || !startDate || !endDate) {
+      return res.status(400).json({ error: "Title, start date, and end date are required." });
+    }
+    const event = eventService.createEvent({ title, description, startDate, endDate, targetCategory, rewardTitle });
+    res.status(201).json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function updateStatus(req, res) {
+  try {
+    const { status } = req.body;
+    const event = eventService.updateEventStatus(req.params.id, status);
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   listEvents,
   getEvent,
+  createEvent,
+  updateStatus,
   createTeam,
   joinTeam,
   generateQR

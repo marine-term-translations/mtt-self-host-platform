@@ -75,9 +75,49 @@ function joinTeam(eventId, identifier, userId) {
   return { success: true, teamId: team.id, teamName: team.name };
 }
 
+function createEvent({ title, description, startDate, endDate, targetCategory, rewardTitle }) {
+  ensureEventsTable();
+  const db = getDatabase();
+  const id = `evt_${crypto.randomUUID()}`;
+
+  // Determine initial status based on start_date
+  const now = new Date().toISOString();
+  let status = "UPCOMING";
+  if (startDate <= now && endDate >= now) {
+    status = "ACTIVE";
+  } else if (endDate < now) {
+    status = "ENDED";
+  }
+
+  db.prepare(`
+    INSERT INTO events (id, title, description, start_date, end_date, target_category, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, description || "", startDate, endDate, targetCategory || "ALL", status);
+
+  // If a custom reward title name was provided, create an event_rewards entry
+  if (rewardTitle) {
+    const rewardId = `rew_${crypto.randomUUID()}`;
+    db.prepare(`
+      INSERT INTO event_rewards (id, event_id, reward_type, name)
+      VALUES (?, ?, 'TITLE', ?)
+    `).run(rewardId, id, rewardTitle);
+  }
+
+  return getEventById(id);
+}
+
+function updateEventStatus(eventId, status) {
+  ensureEventsTable();
+  const db = getDatabase();
+  db.prepare("UPDATE events SET status = ? WHERE id = ?").run(status, eventId);
+  return getEventById(eventId);
+}
+
 module.exports = {
   getAllEvents,
   getEventById,
+  createEvent,
+  updateEventStatus,
   createTeam,
   joinTeam
 };
