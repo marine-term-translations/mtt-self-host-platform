@@ -311,8 +311,20 @@ function applyReputationChange(
 
   // Update user reputation
   db.prepare(
-    "UPDATE users SET reputation = reputation + ? WHERE id = ?"
+    "UPDATE users SET reputation = MAX(0, reputation + ?) WHERE id = ?"
   ).run(delta, userId);
+
+  // Synchronize user_stats.points
+  try {
+    db.prepare(`
+      INSERT INTO user_stats (user_id, points, daily_streak, longest_streak)
+      VALUES (?, MAX(0, ?), 0, 0)
+      ON CONFLICT(user_id) DO UPDATE SET points = MAX(0, points + ?), updated_at = CURRENT_TIMESTAMP
+    `).run(userId, Math.max(0, delta), delta);
+  } catch (err) {
+    console.log("Could not update user_stats points:", err.message);
+  }
+
 
   // Record the event
   const eventId = recordReputationEvent(

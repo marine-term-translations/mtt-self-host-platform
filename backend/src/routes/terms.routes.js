@@ -21,6 +21,8 @@ const {
 } = require("../services/gamification.service");
 const { harvestCollection, harvestCollectionWithProgress } = require("../services/harvest.service");
 const { getUserLanguagePreferences, selectBestTranslation } = require("../utils/languagePreferences");
+const { recordEventContribution } = require("../services/scoringService");
+
 
 /**
  * @openapi
@@ -1435,6 +1437,13 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
           updateStreak(createdByUserId);
           incrementTranslationCount(createdByUserId);
           updateChallengeProgress(createdByUserId, 'translate_5', 1);
+
+          try {
+            recordEventContribution(createdByUserId, translationResult.lastInsertRowid, 'TRANSLATION_CREATED');
+          } catch (e) {
+            console.log("Could not record event contribution on creation:", e.message);
+          }
+
         }
       }
     }

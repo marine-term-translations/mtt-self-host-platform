@@ -19,9 +19,10 @@ try {
 
   db.prepare("INSERT OR IGNORE INTO users (id, username) VALUES (10, 'marine_user')").run();
   db.prepare(`
-    INSERT OR IGNORE INTO events (id, title, start_date, end_date, target_category, status)
-    VALUES ('evt-score-1', 'Scoring Event', '2026-08-01T00:00:00Z', '2026-08-31T23:59:59Z', 'ALL', 'ACTIVE')
+    INSERT OR IGNORE INTO events (id, title, start_date, end_date, target_language, status)
+    VALUES ('evt-score-1', 'Scoring Event', '2026-08-01T00:00:00Z', '2026-08-31T23:59:59Z', 'all', 'ACTIVE')
   `).run();
+
   db.prepare(`
     INSERT OR IGNORE INTO event_teams (id, event_id, name, join_code)
     VALUES ('team-score-1', 'evt-score-1', 'Score Team', 'TM-SC-01')
