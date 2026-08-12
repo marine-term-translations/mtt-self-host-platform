@@ -22,9 +22,10 @@ try {
 
   // Seed test event and team
   db.prepare(`
-    INSERT OR IGNORE INTO events (id, title, description, start_date, end_date, target_category, status)
-    VALUES ('evt-test-1', 'Summer Translation Rally', 'Translate marine species', '2026-08-01T00:00:00Z', '2026-08-31T23:59:59Z', 'ALL', 'ACTIVE')
+    INSERT OR IGNORE INTO events (id, title, description, start_date, end_date, status)
+    VALUES ('evt-test-1', 'Summer Translation Rally', 'Translate marine species', '2026-08-01T00:00:00Z', '2026-08-31T23:59:59Z', 'ACTIVE')
   `).run();
+
 
   db.prepare(`
     INSERT OR IGNORE INTO event_teams (id, event_id, name, join_code)
@@ -47,9 +48,11 @@ try {
   assert.strictEqual(newTeam.name, 'Deep Sea Crew');
   assert.ok(newTeam.join_code.startsWith('TM-DEEP-'));
 
+  db.prepare("DELETE FROM event_memberships WHERE event_id = 'evt-test-1' AND user_id = 1").run();
   const joinResult = eventService.joinTeam('evt-test-1', newTeam.join_code, 1);
   assert.strictEqual(joinResult.success, true);
   assert.strictEqual(joinResult.teamId, newTeam.id);
+
 
   console.log("PASS: Events API service test passed!");
 } catch (err) {
