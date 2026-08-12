@@ -9,6 +9,8 @@ import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
 import NotificationBell from './NotificationBell';
 import EmailUrgencyModal from './EmailUrgencyModal';
+import { getPreferredNonEnglishLanguage } from '../utils/userLanguage';
+
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -122,12 +124,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path ? 'text-marine-600 dark:text-marine-400 font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-300';
 
-  // Find the topmost language that the user has chosen that is not English
-  const prefs = user?.languagePreferences;
-  const priorityLangs = [prefs?.nativeLanguage, ...(prefs?.translationLanguages || [])];
-  const topmostNonEnglishLang = priorityLangs.find(
-    (lang): lang is string => typeof lang === 'string' && lang.trim().length > 0 && lang.toLowerCase() !== 'en'
-  );
+  const topmostNonEnglishLang = getPreferredNonEnglishLanguage(user);
+
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">

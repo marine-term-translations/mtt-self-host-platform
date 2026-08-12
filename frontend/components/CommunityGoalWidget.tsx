@@ -5,8 +5,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { backendApi } from '../services/api';
 import { fetchEvents } from '../services/eventApi';
 import { ApiCommunityGoal, ApiCommunityGoalProgress, Event } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { getPreferredNonEnglishLanguage } from '../utils/userLanguage';
 import toast from 'react-hot-toast';
 import SplineScene from './SplineScene';
+
 
 
 interface CommunityGoalWidgetProps {
@@ -17,7 +20,9 @@ interface CommunityGoalWidgetProps {
 const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, className = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [goals, setGoals] = useState<ApiCommunityGoal[]>([]);
+
   const [progress, setProgress] = useState<Record<number, ApiCommunityGoalProgress>>({});
   const [activeUserEvent, setActiveUserEvent] = useState<{ event: Event; userTeam: any } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -520,11 +525,12 @@ const CommunityGoalWidget: React.FC<CommunityGoalWidgetProps> = ({ onDismiss, cl
               <span className="font-mono font-bold text-emerald-400">{activeUserEvent.event.current_count || 0} Total Contributions</span>
             </div>
             <button
-              onClick={() => navigate(`/flow?source=${activeUserEvent.event.source_id || ''}&language=${activeUserEvent.event.target_language !== 'all' ? activeUserEvent.event.target_language : ''}`)}
+              onClick={() => navigate(`/flow?source=${activeUserEvent.event.source_id || ''}&language=${getPreferredNonEnglishLanguage(user, activeUserEvent.event.target_language)}`)}
               className="w-full py-1.5 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-xs rounded-lg shadow transition"
             >
               Start Translating &rarr;
             </button>
+
 
           </div>
         )}

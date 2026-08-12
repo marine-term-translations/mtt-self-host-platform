@@ -7,7 +7,10 @@ import { useAuth } from "../context/AuthContext";
 import { Trash2, Trophy, Users, Zap, QrCode } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { getPreferredNonEnglishLanguage } from "../utils/userLanguage";
+
 export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propEventId }) => {
+
   const { id: paramEventId } = useParams<{ id: string }>();
   const activeEventId = propEventId || paramEventId;
   const { user } = useAuth();
@@ -157,12 +160,13 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
           <div className="flex flex-wrap items-center gap-3">
             {user && (
               <Link
-                to={`/flow?source=${event.source_id || ''}&language=${user?.nativeLanguage || event.target_language || ''}&eventId=${event.id}`}
+                to={`/flow?source=${event.source_id || ''}&language=${getPreferredNonEnglishLanguage(user, event.target_language)}`}
                 className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition transform hover:-translate-y-0.5"
               >
                 <Zap size={16} /> Start Competition Flow &rarr;
               </Link>
             )}
+
 
             <button
               onClick={() => setShowQR(true)}
