@@ -6,7 +6,9 @@ CREATE TABLE IF NOT EXISTS events (
     description TEXT,
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
-    target_category TEXT,
+    source_id INTEGER REFERENCES sources(source_id) ON DELETE SET NULL,
+    target_language TEXT DEFAULT 'all',
+    target_count INTEGER DEFAULT 100,
     status TEXT NOT NULL DEFAULT 'UPCOMING' CHECK(status IN ('UPCOMING', 'ACTIVE', 'ENDED', 'CANCELLED')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

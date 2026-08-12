@@ -120,7 +120,7 @@ app.use("/", notificationRoutes);
 app.use("/", vocabularyRequestsRoutes);
 app.use("/", mailRoutes);
 app.use("/", achievementsRoutes);
-app.use("/api/events", eventRoutes);
+app.use("/", eventRoutes);
 
 
 app.post("/debug-log", (req, res) => {

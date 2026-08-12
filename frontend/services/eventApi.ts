@@ -1,17 +1,22 @@
-import { Event, EventTeam, UserTitle } from "../types";
+import { backendApi } from "./api";
+import { Event, EventTeam } from "../types";
 
-const API_BASE = "/api/events";
+export interface EventSource {
+  source_id: number;
+  name: string;
+  source_type: string;
+}
 
 export async function fetchEvents(): Promise<Event[]> {
-  const res = await fetch(API_BASE);
-  if (!res.ok) throw new Error("Failed to fetch events");
-  return res.json();
+  return backendApi.get<Event[]>("/events");
+}
+
+export async function fetchEventSources(): Promise<EventSource[]> {
+  return backendApi.get<EventSource[]>("/events/sources");
 }
 
 export async function fetchEventDetails(eventId: string): Promise<Event> {
-  const res = await fetch(`${API_BASE}/${eventId}`);
-  if (!res.ok) throw new Error("Failed to fetch event details");
-  return res.json();
+  return backendApi.get<Event>(`/events/${eventId}`);
 }
 
 export async function createEvent(data: {
@@ -19,44 +24,22 @@ export async function createEvent(data: {
   description: string;
   startDate: string;
   endDate: string;
-  targetCategory?: string;
+  sourceId?: string;
+  targetLanguage?: string;
+  targetCount?: number;
   rewardTitle?: string;
 }): Promise<Event> {
-  const res = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to create event");
-  return res.json();
+  return backendApi.post<Event>("/events", data);
 }
 
 export async function createEventTeam(eventId: string, name: string, imageUrl?: string): Promise<EventTeam> {
-  const res = await fetch(`${API_BASE}/${eventId}/teams`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, imageUrl }),
-  });
-  if (!res.ok) throw new Error("Failed to create team");
-  return res.json();
+  return backendApi.post<EventTeam>(`/events/${eventId}/teams`, { name, imageUrl });
 }
 
 export async function updateEventStatus(eventId: string, status: string): Promise<Event> {
-  const res = await fetch(`${API_BASE}/${eventId}/status`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) throw new Error("Failed to update event status");
-  return res.json();
+  return backendApi.patch<Event>(`/events/${eventId}/status`, { status });
 }
 
 export async function joinEventTeam(eventId: string, joinCode: string): Promise<{ success: boolean; teamId: string }> {
-  const res = await fetch(`${API_BASE}/${eventId}/join`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ joinCode })
-  });
-  if (!res.ok) throw new Error("Failed to join team");
-  return res.json();
+  return backendApi.post<{ success: boolean; teamId: string }>(`/events/${eventId}/join`, { joinCode });
 }

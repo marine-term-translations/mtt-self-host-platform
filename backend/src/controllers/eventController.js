@@ -10,10 +10,42 @@ async function listEvents(req, res) {
   }
 }
 
+async function getSources(req, res) {
+  try {
+    const sources = eventService.getEventSources();
+    res.json(sources);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function getEvent(req, res) {
   try {
     const event = eventService.getEventById(req.params.id);
     if (!event) return res.status(404).json({ error: "Event not found" });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function createEvent(req, res) {
+  try {
+    const { title, description, startDate, endDate, sourceId, targetLanguage, targetCount, rewardTitle } = req.body;
+    if (!title || !startDate || !endDate) {
+      return res.status(400).json({ error: "Title, start date, and end date are required." });
+    }
+    const event = eventService.createEvent({ title, description, startDate, endDate, sourceId, targetLanguage, targetCount, rewardTitle });
+    res.status(201).json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function updateStatus(req, res) {
+  try {
+    const { status } = req.body;
+    const event = eventService.updateEventStatus(req.params.id, status);
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -56,31 +88,9 @@ async function generateQR(req, res) {
   }
 }
 
-async function createEvent(req, res) {
-  try {
-    const { title, description, startDate, endDate, targetCategory, rewardTitle } = req.body;
-    if (!title || !startDate || !endDate) {
-      return res.status(400).json({ error: "Title, start date, and end date are required." });
-    }
-    const event = eventService.createEvent({ title, description, startDate, endDate, targetCategory, rewardTitle });
-    res.status(201).json(event);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-async function updateStatus(req, res) {
-  try {
-    const { status } = req.body;
-    const event = eventService.updateEventStatus(req.params.id, status);
-    res.json(event);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
 module.exports = {
   listEvents,
+  getSources,
   getEvent,
   createEvent,
   updateStatus,

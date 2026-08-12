@@ -340,6 +340,11 @@ export interface Event {
   description: string;
   start_date: string;
   end_date: string;
+  source_id?: number | null;
+  source_name?: string | null;
+  target_language?: string;
+  target_count?: number;
+  current_count?: number;
   target_category?: string;
   status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
   teams?: EventTeam[];

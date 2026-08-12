@@ -9,19 +9,51 @@ function ensureEventsTable() {
   if (!hasEventsTable) {
     const migrationSql = fs.readFileSync(path.join(__dirname, "../db/migrations/035_events.sql"), "utf8");
     db.exec(migrationSql);
+  } else {
+    const tableInfo = db.prepare("PRAGMA table_info(events)").all();
+    const colNames = tableInfo.map(c => c.name);
+    if (!colNames.includes("source_id")) {
+      try { db.prepare("ALTER TABLE events ADD COLUMN source_id INTEGER REFERENCES sources(source_id) ON DELETE SET NULL").run(); } catch(e){}
+    }
+    if (!colNames.includes("target_language")) {
+      try { db.prepare("ALTER TABLE events ADD COLUMN target_language TEXT DEFAULT 'all'").run(); } catch(e){}
+    }
+    if (!colNames.includes("target_count")) {
+      try { db.prepare("ALTER TABLE events ADD COLUMN target_count INTEGER DEFAULT 100").run(); } catch(e){}
+    }
   }
+}
+
+function getEventSources() {
+  const db = getDatabase();
+  const hasSources = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sources'").get();
+  if (!hasSources) return [];
+  return db.prepare("SELECT source_id, source_path as name, source_type FROM sources ORDER BY source_path ASC").all();
 }
 
 function getAllEvents() {
   ensureEventsTable();
   const db = getDatabase();
-  return db.prepare("SELECT * FROM events ORDER BY start_date DESC").all();
+  return db.prepare(`
+    SELECT e.*, COALESCE(s.source_path, s.graph_name, 'Collection #' || s.source_id) as source_name,
+           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count
+    FROM events e
+    LEFT JOIN sources s ON e.source_id = s.source_id
+    ORDER BY e.start_date DESC
+  `).all();
 }
 
 function getEventById(eventId) {
   ensureEventsTable();
   const db = getDatabase();
-  const event = db.prepare("SELECT * FROM events WHERE id = ?").get(eventId);
+  const event = db.prepare(`
+    SELECT e.*, COALESCE(s.source_path, s.graph_name, 'Collection #' || s.source_id) as source_name,
+           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count
+    FROM events e
+    LEFT JOIN sources s ON e.source_id = s.source_id
+    WHERE e.id = ?
+  `).get(eventId);
+
   if (!event) return null;
 
   const teams = db.prepare(`
@@ -75,7 +107,7 @@ function joinTeam(eventId, identifier, userId) {
   return { success: true, teamId: team.id, teamName: team.name };
 }
 
-function createEvent({ title, description, startDate, endDate, targetCategory, rewardTitle }) {
+function createEvent({ title, description, startDate, endDate, sourceId, targetLanguage, targetCount, rewardTitle }) {
   ensureEventsTable();
   const db = getDatabase();
   const id = `evt_${crypto.randomUUID()}`;
@@ -89,10 +121,13 @@ function createEvent({ title, description, startDate, endDate, targetCategory, r
     status = "ENDED";
   }
 
+  const parsedSourceId = sourceId && sourceId !== "ALL" ? parseInt(sourceId, 10) : null;
+  const parsedTargetCount = targetCount ? parseInt(targetCount, 10) : 100;
+
   db.prepare(`
-    INSERT INTO events (id, title, description, start_date, end_date, target_category, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title, description || "", startDate, endDate, targetCategory || "ALL", status);
+    INSERT INTO events (id, title, description, start_date, end_date, source_id, target_language, target_count, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title, description || "", startDate, endDate, parsedSourceId, targetLanguage || "all", parsedTargetCount, status);
 
   // If a custom reward title name was provided, create an event_rewards entry
   if (rewardTitle) {
@@ -114,6 +149,7 @@ function updateEventStatus(eventId, status) {
 }
 
 module.exports = {
+  getEventSources,
   getAllEvents,
   getEventById,
   createEvent,
