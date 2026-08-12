@@ -34,13 +34,28 @@ function getEventSources() {
 function getAllEvents() {
   ensureEventsTable();
   const db = getDatabase();
-  return db.prepare(`
+  const events = db.prepare(`
     SELECT e.*, COALESCE(s.source_path, s.graph_name, 'Collection #' || s.source_id) as source_name,
            COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count
     FROM events e
     LEFT JOIN sources s ON e.source_id = s.source_id
     ORDER BY e.start_date DESC
   `).all();
+
+  return events.map(evt => {
+    const teams = db.prepare(`
+      SELECT t.*, 
+             COUNT(DISTINCT m.user_id) as member_count,
+             COALESCE(SUM(c.points), 0) as total_points
+      FROM event_teams t
+      LEFT JOIN event_memberships m ON t.id = m.team_id AND m.is_active = 1
+      LEFT JOIN event_contributions c ON t.id = c.team_id
+      WHERE t.event_id = ?
+      GROUP BY t.id
+      ORDER BY total_points DESC
+    `).all(evt.id);
+    return { ...evt, teams };
+  });
 }
 
 function getEventById(eventId) {
@@ -122,7 +137,14 @@ function createEvent({ title, description, startDate, endDate, sourceId, targetL
   }
 
   const parsedSourceId = sourceId && sourceId !== "ALL" ? parseInt(sourceId, 10) : null;
-  const parsedTargetCount = targetCount ? parseInt(targetCount, 10) : 100;
+
+  // Handle target count mode: 0 or "highest" means team with most translations wins
+  let parsedTargetCount = 100;
+  if (targetCount === "highest" || targetCount === 0 || targetCount === -1 || targetCount === "0") {
+    parsedTargetCount = 0; // 0 represents "Highest Count Wins"
+  } else if (targetCount !== undefined && targetCount !== null) {
+    parsedTargetCount = parseInt(targetCount, 10);
+  }
 
   db.prepare(`
     INSERT INTO events (id, title, description, start_date, end_date, source_id, target_language, target_count, status)

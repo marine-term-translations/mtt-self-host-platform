@@ -33,8 +33,9 @@ export const EventsHubPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {events.map((event) => {
             const current = event.current_count || 0;
-            const target = event.target_count || 100;
-            const pct = Math.min(100, Math.round((current / target) * 100));
+            const target = event.target_count || 0;
+            const isHighestMode = target === 0;
+            const pct = isHighestMode ? 100 : Math.min(100, Math.round((current / target) * 100));
 
             return (
               <div key={event.id} className="bg-slate-800/90 border border-slate-700 rounded-xl p-6 shadow-xl flex flex-col justify-between">
@@ -64,15 +65,21 @@ export const EventsHubPage: React.FC = () => {
                     </div>
                     <div>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-400">Milestone Progress:</span>
-                        <span className="font-mono text-emerald-400 font-bold">{current} / {target} ({pct}%)</span>
+                        <span className="text-slate-400">
+                          {isHighestMode ? "Goal Mode:" : "Milestone Progress:"}
+                        </span>
+                        <span className="font-mono text-emerald-400 font-bold">
+                          {isHighestMode ? "🏆 Highest Count Wins" : `${current} / ${target} (${pct}%)`}
+                        </span>
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      {!isHighestMode && (
+                        <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -81,7 +88,7 @@ export const EventsHubPage: React.FC = () => {
                   to={`/events/${event.id}`}
                   className="w-full text-center px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold rounded-lg transition shadow-md"
                 >
-                  View Leaderboard & Teams &rarr;
+                  View Leaderboard & Teams ({event.teams?.length || 0} teams) &rarr;
                 </Link>
               </div>
             );

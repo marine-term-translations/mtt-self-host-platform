@@ -19,6 +19,7 @@ export const AdminEvents: React.FC = () => {
   const [endDate, setEndDate] = useState("");
   const [sourceId, setSourceId] = useState("ALL");
   const [targetLanguage, setTargetLanguage] = useState("all");
+  const [goalMode, setGoalMode] = useState<"FIXED" | "HIGHEST">("HIGHEST");
   const [targetCount, setTargetCount] = useState<number>(100);
   const [rewardTitle, setRewardTitle] = useState("");
 
@@ -55,7 +56,7 @@ export const AdminEvents: React.FC = () => {
         endDate: new Date(endDate).toISOString(),
         sourceId: sourceId === "ALL" ? undefined : sourceId,
         targetLanguage,
-        targetCount,
+        targetCount: goalMode === "HIGHEST" ? 0 : targetCount,
         rewardTitle,
       });
       toast.success("Competition created successfully!");
@@ -66,6 +67,7 @@ export const AdminEvents: React.FC = () => {
       setEndDate("");
       setSourceId("ALL");
       setTargetLanguage("all");
+      setGoalMode("HIGHEST");
       setTargetCount(100);
       setRewardTitle("");
       loadEvents();
@@ -124,8 +126,9 @@ export const AdminEvents: React.FC = () => {
         <div className="space-y-6">
           {events.map((evt) => {
             const current = evt.current_count || 0;
-            const target = evt.target_count || 100;
-            const pct = Math.min(100, Math.round((current / target) * 100));
+            const target = evt.target_count || 0;
+            const isHighestMode = target === 0;
+            const pct = isHighestMode ? 100 : Math.min(100, Math.round((current / target) * 100));
 
             return (
               <div key={evt.id} className="bg-slate-800/90 border border-slate-700 rounded-xl p-6 shadow-xl">
@@ -169,18 +172,24 @@ export const AdminEvents: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Milestone Progress Bar */}
+                {/* Progress / Mode Banner */}
                 <div className="mb-4 bg-slate-900/90 p-4 rounded-xl border border-slate-700/60">
                   <div className="flex justify-between items-center text-xs mb-1.5">
-                    <span className="font-semibold text-slate-300">Goal Progress</span>
-                    <span className="font-mono text-cyan-400 font-bold">{current} / {target} translations ({pct}%)</span>
+                    <span className="font-semibold text-slate-300">
+                      {isHighestMode ? "Goal Mode: Highest Translations Wins (Team with most points wins)" : "Goal Milestone Progress"}
+                    </span>
+                    <span className="font-mono text-cyan-400 font-bold">
+                      {isHighestMode ? `${current} Total Contributions` : `${current} / ${target} (${pct}%)`}
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
-                    <div
-                      className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+                  {!isHighestMode && (
+                    <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
+                      <div
+                        className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Event Metadata */}
@@ -298,6 +307,34 @@ export const AdminEvents: React.FC = () => {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Goal Metric Mode</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setGoalMode("HIGHEST")}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold border transition ${
+                      goalMode === "HIGHEST"
+                        ? "bg-cyan-600/30 border-cyan-500 text-cyan-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400"
+                    }`}
+                  >
+                    Highest Wins (Most Translations)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGoalMode("FIXED")}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold border transition ${
+                      goalMode === "FIXED"
+                        ? "bg-cyan-600/30 border-cyan-500 text-cyan-300"
+                        : "bg-slate-800 border-slate-700 text-slate-400"
+                    }`}
+                  >
+                    Fixed Milestone Target
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Target Language</label>
@@ -314,16 +351,23 @@ export const AdminEvents: React.FC = () => {
                     <option value="it">Italian (it)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Goal Count (Translations)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={targetCount}
-                    onChange={(e) => setTargetCount(parseInt(e.target.value, 10) || 100)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
+
+                {goalMode === "FIXED" ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Goal Count (Target)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={targetCount}
+                      onChange={(e) => setTargetCount(parseInt(e.target.value, 10) || 100)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center text-xs text-cyan-400 font-semibold pt-4">
+                    🏆 Highest translations count wins
+                  </div>
+                )}
               </div>
 
               <div>
