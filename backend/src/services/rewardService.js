@@ -77,6 +77,7 @@ function getUserTitles(userId) {
     LEFT JOIN event_memberships m ON m.event_id = e.id AND m.user_id = ur.user_id AND m.is_active = 1
     LEFT JOIN event_teams t ON m.team_id = t.id
     WHERE ur.user_id = ? AND r.reward_type = 'TITLE'
+    GROUP BY ur.id
     ORDER BY ur.unlocked_at DESC
   `).all(userId);
 }

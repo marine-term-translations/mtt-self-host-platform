@@ -24,6 +24,11 @@ function testRewardSettlementAndTitles() {
   db.prepare("INSERT OR IGNORE INTO users (id, username) VALUES (103, 'alpha_slacker')").run();
   db.prepare("INSERT OR IGNORE INTO users (id, username) VALUES (104, 'beta_member')").run();
 
+  // Clean up any test state for test users
+  db.prepare("DELETE FROM user_rewards WHERE user_id IN (101, 102, 103, 104)").run();
+  db.prepare("DELETE FROM event_contributions WHERE user_id IN (101, 102, 103, 104)").run();
+  db.prepare("DELETE FROM event_memberships WHERE user_id IN (101, 102, 103, 104)").run();
+
   // Create test event with custom reward title
   const evt = eventService.createEvent({
     title: "Championship Hackathon",
