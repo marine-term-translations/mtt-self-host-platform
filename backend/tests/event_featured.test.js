@@ -22,6 +22,14 @@ function testFeaturedEvent() {
   assert.strictEqual(loaded1.is_featured_homepage, 0);
   assert.strictEqual(loaded2.is_featured_homepage, 1);
 
+  // Clear featured event (Hide from homepage / set to null)
+  const cleared = eventService.setFeaturedHomepageEvent(null);
+  assert.strictEqual(cleared, null);
+  loaded1 = eventService.getEventById(evt1.id);
+  loaded2 = eventService.getEventById(evt2.id);
+  assert.strictEqual(loaded1.is_featured_homepage, 0);
+  assert.strictEqual(loaded2.is_featured_homepage, 0);
+
   console.log("✅ Featured homepage event test passed!");
 }
 
