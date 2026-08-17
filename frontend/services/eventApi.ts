@@ -52,8 +52,24 @@ export async function deleteTeam(eventId: string, teamId: string): Promise<{ suc
   return backendApi.delete<{ success: boolean; message: string }>(`/events/${eventId}/teams/${teamId}`);
 }
 
-export async function setFeaturedEvent(eventId: string, isFeatured: boolean): Promise<{ success: boolean; event: Event }> {
-  return backendApi.patch<{ success: boolean; event: Event }>(`/events/${eventId}/featured`, { isFeatured });
+export async function setFeaturedEvent(eventId?: string | null, isFeatured: boolean = true): Promise<{ success: boolean; event: Event | null }> {
+  const url = (eventId && eventId !== "none") ? `/events/${eventId}/featured` : `/events/featured`;
+  return backendApi.patch<{ success: boolean; event: Event | null }>(url, {
+    isFeatured: isFeatured && !!eventId && eventId !== "none",
+    eventId: eventId || null,
+  });
+}
+
+export async function fetchUserTitles(userId: number | string): Promise<import("../types").UserTitle[]> {
+  return backendApi.get<import("../types").UserTitle[]>(`/users/${userId}/titles`);
+}
+
+export async function equipUserTitle(rewardId: string | null): Promise<{ success: boolean; titles: import("../types").UserTitle[] }> {
+  return backendApi.post<{ success: boolean; titles: import("../types").UserTitle[] }>("/users/titles/equip", { rewardId });
+}
+
+export async function settleEventRewards(eventId: string): Promise<{ settled: boolean; teamName?: string; awardedCount?: number; userIds?: number[]; reason?: string }> {
+  return backendApi.post<{ settled: boolean; teamName?: string; awardedCount?: number; userIds?: number[]; reason?: string }>(`/events/${eventId}/settle`, {});
 }
 
 

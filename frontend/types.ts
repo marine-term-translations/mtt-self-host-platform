@@ -347,17 +347,22 @@ export interface Event {
   target_count?: number;
   current_count?: number;
   target_category?: string;
+  reward_title?: string;
   is_featured_homepage?: number;
   user_team_id?: string;
   status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
   teams?: EventTeam[];
 }
 
-
-
 export interface UserTitle {
   user_reward_id: string;
-  reward_id: string;
-  name: string;
   is_equipped: number;
+  awarded_at?: string;
+  reward_id: string;
+  title_name: string;
+  event_id?: string;
+  event_title?: string;
+  event_end_date?: string;
+  winning_team_name?: string;
+  user_points?: number;
 }
