@@ -134,9 +134,49 @@ async function deleteTeam(req, res) {
 
 async function setFeatured(req, res) {
   try {
-    const { isFeatured } = req.body;
-    const event = eventService.setFeaturedHomepageEvent(isFeatured ? req.params.id : null);
+    const { isFeatured, eventId } = req.body || {};
+    const rawId = (req.params && req.params.id && req.params.id !== "featured") ? req.params.id : eventId;
+    const shouldFeature = isFeatured !== false && isFeatured !== 0 && isFeatured !== "false";
+    const targetId = (shouldFeature && rawId && rawId !== "none" && rawId !== "") ? rawId : null;
+
+    const event = eventService.setFeaturedHomepageEvent(targetId);
     res.json({ success: true, event });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function settleEvent(req, res) {
+  try {
+    const rewardService = require("../services/rewardService");
+    const result = rewardService.settleEventRewards(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getUserTitles(req, res) {
+  try {
+    const rewardService = require("../services/rewardService");
+    const userId = req.params.id || req.params.userId;
+    const titles = rewardService.getUserTitles(userId);
+    res.json(titles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function equipUserTitle(req, res) {
+  try {
+    const sessionUser = (req.session && req.session.user) || req.user;
+    const userId = sessionUser ? (sessionUser.id || sessionUser.user_id) : req.body.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required to equip title" });
+    }
+    const rewardService = require("../services/rewardService");
+    const result = rewardService.equipUserTitle(userId, req.body.rewardId || null);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -153,7 +193,10 @@ module.exports = {
   generateQR,
   deleteEvent,
   deleteTeam,
-  setFeatured
+  setFeatured,
+  settleEvent,
+  getUserTitles,
+  equipUserTitle
 };
 
 

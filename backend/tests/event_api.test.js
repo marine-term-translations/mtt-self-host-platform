@@ -54,7 +54,19 @@ try {
   assert.strictEqual(joinResult.teamId, newTeam.id);
 
 
+  // Test event with reward title
+  const rewEvent = eventService.createEvent({
+    title: 'Autumn Coral Sprint',
+    startDate: '2026-09-01T00:00:00Z',
+    endDate: '2026-09-15T23:59:59Z',
+    rewardTitle: 'Coral Sprint Champion 2026'
+  });
+  assert.strictEqual(rewEvent.reward_title, 'Coral Sprint Champion 2026');
+  const fetchedEvent = eventService.getEventById(rewEvent.id);
+  assert.strictEqual(fetchedEvent.reward_title, 'Coral Sprint Champion 2026');
+
   console.log("PASS: Events API service test passed!");
+  process.exit(0);
 } catch (err) {
   console.error("FAIL: Events API service test failed:", err.message);
   process.exit(1);

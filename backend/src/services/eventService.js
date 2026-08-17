@@ -40,7 +40,8 @@ function getAllEvents() {
   const db = getDatabase();
   const events = db.prepare(`
     SELECT e.*, COALESCE(s.source_path, s.graph_name, 'Collection #' || s.source_id) as source_name,
-           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count
+           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count,
+           (SELECT name FROM event_rewards WHERE event_id = e.id AND reward_type = 'TITLE' LIMIT 1) as reward_title
     FROM events e
     LEFT JOIN sources s ON e.source_id = s.source_id
     ORDER BY e.start_date DESC
@@ -67,7 +68,8 @@ function getEventById(eventId, userId = null) {
   const db = getDatabase();
   const event = db.prepare(`
     SELECT e.*, COALESCE(s.source_path, s.graph_name, 'Collection #' || s.source_id) as source_name,
-           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count
+           COALESCE((SELECT SUM(points) FROM event_contributions WHERE event_id = e.id), 0) as current_count,
+           (SELECT name FROM event_rewards WHERE event_id = e.id AND reward_type = 'TITLE' LIMIT 1) as reward_title
     FROM events e
     LEFT JOIN sources s ON e.source_id = s.source_id
     WHERE e.id = ?
@@ -188,6 +190,14 @@ function updateEventStatus(eventId, status) {
   ensureEventsTable();
   const db = getDatabase();
   db.prepare("UPDATE events SET status = ? WHERE id = ?").run(status, eventId);
+  if (status === 'ENDED') {
+    const rewardService = require("./rewardService");
+    try {
+      rewardService.settleEventRewards(eventId);
+    } catch (e) {
+      console.error("[Event Reward Settle Error]", e);
+    }
+  }
   return getEventById(eventId);
 }
 
@@ -217,8 +227,9 @@ function setFeaturedHomepageEvent(eventId) {
   db.prepare("UPDATE events SET is_featured_homepage = 0").run();
   if (eventId) {
     db.prepare("UPDATE events SET is_featured_homepage = 1 WHERE id = ?").run(eventId);
+    return getEventById(eventId);
   }
-  return getEventById(eventId);
+  return null;
 }
 
 module.exports = {

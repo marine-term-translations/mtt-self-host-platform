@@ -44,8 +44,16 @@ addRoute("delete", "/events/:id", eventController.deleteEvent);
 
 // 10. Delete a team from an event
 addRoute("delete", "/events/:eventId/teams/:teamId", eventController.deleteTeam);
-// 11. Toggle featured homepage event
+// 11. Toggle featured homepage event (both general and per-event routes)
+addRoute("patch", "/events/featured", eventController.setFeatured);
 addRoute("patch", "/events/:id/featured", eventController.setFeatured);
+
+// 12. Settle event rewards (determine winner & award titles)
+addRoute("post", "/events/:id/settle", eventController.settleEvent);
+
+// 13. User competition titles & equipping
+addRoute("get", "/users/:id/titles", eventController.getUserTitles);
+addRoute("post", "/users/titles/equip", eventController.equipUserTitle);
 
 module.exports = router;
 
