@@ -224,6 +224,38 @@ export const EventDetailPage: React.FC<{ eventId?: string }> = ({ eventId: propE
         </div>
       </div>
 
+      {/* Competition Reward & Title Showcase */}
+      {event.reward_title && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-cyan-500/10 border-2 border-amber-400/40 rounded-2xl p-6 mb-8 shadow-xl relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-amber-500/20 border border-amber-400/50 rounded-xl text-amber-400 flex-shrink-0">
+                <Trophy size={28} />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
+                  Grand Prize Profile Title
+                </span>
+                <h3 className="text-xl font-extrabold text-white tracking-tight">
+                  &quot;{event.reward_title}&quot;
+                </h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                  {event.status === 'ENDED'
+                    ? "🏆 Competition concluded! Members of the 1st place team with active translation contributions have received this exclusive title on their profile."
+                    : "Members of the 1st place team with active translation contributions will unlock this exclusive title on their profile."
+                  }
+                </p>
+              </div>
+            </div>
+            {event.status === 'ENDED' && event.teams && event.teams.length > 0 && (event.teams[0].total_points || 0) > 0 && (
+              <div className="px-4 py-2 bg-emerald-500/20 border border-emerald-400/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 self-start sm:self-center">
+                <span>🥇 Winner: {event.teams[0].name} ({event.teams[0].total_points} pts)</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Leaderboard Podium */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">

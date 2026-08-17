@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, deleteEvent, deleteTeam, setFeaturedEvent, EventSource } from "../../services/eventApi";
+import { fetchEvents, fetchEventSources, createEvent, createEventTeam, updateEventStatus, deleteEvent, deleteTeam, setFeaturedEvent, settleEventRewards, EventSource } from "../../services/eventApi";
 import { Event } from "../../types";
 import { QRCodeModal } from "../../components/QRCodeModal";
-import { Trash2 } from "lucide-react";
+import { Trash2, Trophy } from "lucide-react";
 import toast from "react-hot-toast";
 
 
@@ -130,18 +130,31 @@ export const AdminEvents: React.FC = () => {
     }
   };
 
-  const handleSetFeatured = async (eventId: string, isFeatured: boolean) => {
+  const handleSetFeatured = async (eventId: string | null, isFeatured: boolean) => {
     try {
       await setFeaturedEvent(eventId, isFeatured);
-      toast.success(isFeatured ? 'Event set as Featured on Homepage!' : 'Event removed from Homepage feature');
+      toast.success(isFeatured && eventId ? 'Event set as Featured on Homepage!' : 'Event removed from Homepage feature');
       loadEvents();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update featured event');
     }
   };
 
+  const handleSettleEvent = async (eventId: string, title: string) => {
+    try {
+      const res = await settleEventRewards(eventId);
+      if (res.settled) {
+        toast.success(`Rewards settled! 🏆 Winner: "${res.teamName}" (${res.awardedCount} contributors awarded titles)`);
+      } else {
+        toast(res.reason || "No qualifying winners to award.", { icon: "ℹ️" });
+      }
+      loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to settle rewards");
+    }
+  };
 
-
+  const featuredEvent = events.find(e => e.is_featured_homepage === 1);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -162,27 +175,54 @@ export const AdminEvents: React.FC = () => {
       <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-300">
         <div className="flex items-center gap-2">
           <span className="font-bold text-white">Homepage Hero Card:</span>
-          <span className="text-cyan-400 font-semibold">
-            {events.find(e => e.is_featured_homepage === 1)?.title ? `Featured: "${events.find(e => e.is_featured_homepage === 1)?.title}"` : "None (Hide Event from Homepage)"}
-          </span>
+          {featuredEvent ? (
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-400 font-semibold">
+                Featured: &quot;{featuredEvent.title}&quot;
+              </span>
+              {featuredEvent.status === 'ACTIVE' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live on Homescreen
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-medium" title="Only ACTIVE events are displayed on the homescreen">
+                  Status: {featuredEvent.status} (Hidden until Active)
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-slate-400 italic">None (No event displayed on homescreen)</span>
+          )}
         </div>
-        <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-700 transition">
-          <input
-            type="radio"
-            name="featured_homepage_event"
-            checked={!events.some(e => e.is_featured_homepage === 1)}
-            onChange={() => handleSetFeatured("", false)}
-            className="accent-cyan-400 cursor-pointer"
-          />
-          <span className="font-semibold text-slate-300">None (Hide Event from Homepage)</span>
-        </label>
+        <div className="flex items-center gap-2">
+          {featuredEvent && (
+            <button
+              type="button"
+              onClick={() => handleSetFeatured(null, false)}
+              className="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 border border-red-700/60 text-red-300 rounded-lg font-semibold cursor-pointer transition flex items-center gap-1.5"
+            >
+              <span>🚫 Hide from Homepage</span>
+            </button>
+          )}
+          <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer hover:bg-slate-700 transition">
+            <input
+              type="radio"
+              name="featured_homepage_event"
+              checked={!featuredEvent}
+              onChange={() => handleSetFeatured(null, false)}
+              className="accent-cyan-400 cursor-pointer"
+            />
+            <span className="font-semibold text-slate-300">None (Hide from Homepage)</span>
+          </label>
+        </div>
       </div>
 
       {loading ? (
         <div className="p-12 text-center text-slate-400">Loading events...</div>
       ) : events.length === 0 ? (
         <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-12 text-center text-slate-400">
-          No competitions created yet. Click "+ Create New Competition" above to launch your first event!
+          No competitions created yet. Click &quot;+ Create New Competition&quot; above to launch your first event!
         </div>
       ) : (
         <div className="space-y-6">
@@ -210,16 +250,27 @@ export const AdminEvents: React.FC = () => {
                     <p className="text-sm text-slate-300 mt-1">{evt.description}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-semibold text-cyan-300 cursor-pointer hover:bg-slate-800 transition">
-                      <input
-                        type="radio"
-                        name="featured_homepage_event"
-                        checked={!!evt.is_featured_homepage}
-                        onChange={() => handleSetFeatured(evt.id, !evt.is_featured_homepage)}
-                        className="accent-cyan-400 cursor-pointer"
-                      />
-                      Featured on Homepage
-                    </label>
+                    {evt.is_featured_homepage === 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSetFeatured(null, false)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-950/80 border border-cyan-500/80 hover:bg-red-950/60 hover:border-red-500/80 hover:text-red-300 rounded-lg text-xs font-semibold text-cyan-300 transition group"
+                        title="Click to hide from homepage"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse group-hover:hidden" />
+                        <span className="hidden group-hover:inline text-red-400">&times;</span>
+                        <span className="group-hover:hidden">Featured on Homepage</span>
+                        <span className="hidden group-hover:inline">Hide from Homepage</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetFeatured(evt.id, true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-700 hover:border-cyan-500/60 hover:bg-slate-800 rounded-lg text-xs font-semibold text-slate-300 hover:text-cyan-300 transition"
+                      >
+                        Feature on Homepage
+                      </button>
+                    )}
                     <select
                       value={evt.status}
                       onChange={(e) => handleStatusChange(evt.id, e.target.value)}
@@ -230,6 +281,15 @@ export const AdminEvents: React.FC = () => {
                       <option value="ENDED">Set ENDED</option>
                       <option value="CANCELLED">Set CANCELLED</option>
                     </select>
+
+                    <button
+                      onClick={() => handleSettleEvent(evt.id, evt.title)}
+                      className="px-3 py-1.5 bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                      title="Settle competition and award winner titles to #1 team"
+                    >
+                      <Trophy size={13} />
+                      Settle Titles
+                    </button>
 
                     <button
                       onClick={() => setActiveQr({ eventId: evt.id })}
@@ -275,7 +335,7 @@ export const AdminEvents: React.FC = () => {
                 </div>
 
                 {/* Event Metadata */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-slate-900/60 p-3 rounded-lg text-slate-300 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs bg-slate-900/60 p-3 rounded-lg text-slate-300 mb-4">
                   <div>
                     <span className="text-slate-500 block">Start Date:</span>
                     <span className="font-mono text-slate-200">{new Date(evt.start_date).toLocaleString()}</span>
@@ -287,6 +347,10 @@ export const AdminEvents: React.FC = () => {
                   <div>
                     <span className="text-slate-500 block">Target Vocabulary:</span>
                     <span className="font-semibold text-cyan-400">{evt.source_name || "ALL Vocabularies"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Winner Prize Title:</span>
+                    <span className="font-semibold text-amber-300">{evt.reward_title ? `🏆 ${evt.reward_title}` : "None"}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Target Language / Teams:</span>

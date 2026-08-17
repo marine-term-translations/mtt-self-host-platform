@@ -44,8 +44,8 @@ const Landing: React.FC = () => {
         // Set LDES feed count
         setLdesFeedCount(ldesResponse.feeds?.length || 0);
 
-        // Only show featured event on homepage if explicitly featured (is_featured_homepage === 1)
-        const currentActive = eventsList.find(e => e.is_featured_homepage === 1) || null;
+        // ONLY show event on homepage if explicitly featured (is_featured_homepage === 1) AND status is ACTIVE
+        const currentActive = eventsList.find(e => e.is_featured_homepage === 1 && e.status === 'ACTIVE') || null;
         setActiveEvent(currentActive);
 
 
@@ -251,6 +251,12 @@ const Landing: React.FC = () => {
                                 <Trophy className="text-amber-300 group-hover:rotate-12 transition-transform" size={24} />
                             </div>
                             <h3 className="font-bold text-lg text-white mb-1 truncate">{activeEvent.title}</h3>
+                            {activeEvent.reward_title && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold mb-2.5">
+                                    <Trophy size={13} className="text-amber-300" />
+                                    Win Title: &quot;{activeEvent.reward_title}&quot;
+                                </div>
+                            )}
                             <p className="text-xs text-cyan-100/80 line-clamp-2 mb-3">{activeEvent.description || "Active translation competition ongoing!"}</p>
                             <div className="flex items-center justify-between text-xs text-cyan-200 font-medium pt-2 border-t border-white/10">
                                 <span>{activeEvent.teams?.length || 0} Teams Competing</span>

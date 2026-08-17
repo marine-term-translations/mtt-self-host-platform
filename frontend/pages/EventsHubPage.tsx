@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fetchEvents } from "../services/eventApi";
 import { Event } from "../types";
 import { Link } from "react-router-dom";
+import { Trophy } from "lucide-react";
 
 export const EventsHubPage: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -40,7 +41,7 @@ export const EventsHubPage: React.FC = () => {
             return (
               <div key={event.id} className="bg-slate-800/90 border border-slate-700 rounded-xl p-6 shadow-xl flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-start mb-3">
+                  <div className="flex justify-between items-start mb-2">
                     <h2 className="text-xl font-bold text-white">{event.title}</h2>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
                       event.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
@@ -50,6 +51,13 @@ export const EventsHubPage: React.FC = () => {
                       {event.status}
                     </span>
                   </div>
+
+                  {event.reward_title && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-bold mb-3">
+                      <Trophy size={13} className="text-amber-300 flex-shrink-0" />
+                      <span>Winner Title: &quot;{event.reward_title}&quot;</span>
+                    </div>
+                  )}
 
                   <p className="text-slate-300 text-sm mb-4 line-clamp-2">{event.description}</p>
 
