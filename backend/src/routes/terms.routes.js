@@ -658,10 +658,9 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
     const db = getDatabase();
     const timeframe = req.query.timeframe || 'last_14_days';
     
-    // Calculate date range based on timeframe
     let groupByFormat = "date(created_at)"; // Default: group by day
-    const whereConditions = ["status != 'original'"]; // Always exclude 'original' status
-    const queryParams = []; // Parameters for prepared statement
+    const whereConditions = [];
+    const queryParams = [];
     
     const now = new Date();
     let startDate;
@@ -675,7 +674,7 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
     
     switch (timeframe) {
       case 'last_hour':
-        groupByFormat = "datetime(created_at, 'start of hour')"; // Group by hour
+        groupByFormat = "datetime(created_at, 'start of hour')";
         addDateCondition(1);
         break;
       case 'last_week':
@@ -688,50 +687,66 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
         addDateCondition(30 * 24);
         break;
       case 'all_time':
-        // No date filter for all time, only exclude 'original' status
         break;
       default:
         addDateCondition(14 * 24);
     }
     
-    // Build WHERE clause
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     
-    // Get translation counts by date and status (using parameterized query)
     const query = `
       SELECT 
         ${groupByFormat} as date,
-        status,
-        COUNT(*) as count
-      FROM translations
+        COUNT(*) as total_actions,
+        COUNT(DISTINCT user_id) as active_users,
+        SUM(CASE WHEN action IN ('translation_created', 'translation_edited') THEN 1 ELSE 0 END) as translations,
+        SUM(CASE WHEN action IN ('translation_reviewed', 'translation_status_changed') THEN 1 ELSE 0 END) as reviews,
+        SUM(CASE WHEN action = 'translation_discussion' THEN 1 ELSE 0 END) as discussions
+      FROM user_activity
       ${whereClause}
-      GROUP BY date, status
-      ORDER BY date ASC, status
+      GROUP BY ${groupByFormat}
+      ORDER BY date ASC
     `;
     
     const results = db.prepare(query).all(...queryParams);
     
-    // Group by date
-    const dataByDate = {};
-    for (const row of results) {
-      if (!dataByDate[row.date]) {
-        dataByDate[row.date] = {
-          date: row.date,
-          byStatus: {}
-        };
-      }
-      dataByDate[row.date].byStatus[row.status] = row.count;
-    }
+    let totalActions = 0;
+    let peakActions = 0;
+    let peakDate = null;
     
-    // Convert to array and calculate totals
-    const data = Object.values(dataByDate).map(item => ({
-      ...item,
-      total: Object.values(item.byStatus).reduce((sum, count) => sum + count, 0)
-    }));
+    const allUsersQuery = `
+      SELECT COUNT(DISTINCT user_id) as unique_users 
+      FROM user_activity 
+      ${whereClause}
+    `;
+    const totalUniqueUsers = db.prepare(allUsersQuery).get(...queryParams)?.unique_users || 0;
+    
+    const formattedData = results.map(row => {
+      const actionsCount = row.total_actions || 0;
+      totalActions += actionsCount;
+      if (actionsCount > peakActions) {
+        peakActions = actionsCount;
+        peakDate = row.date;
+      }
+      return {
+        date: row.date,
+        total_actions: actionsCount,
+        active_users: row.active_users || 0,
+        translations: row.translations || 0,
+        reviews: row.reviews || 0,
+        discussions: row.discussions || 0
+      };
+    });
     
     res.json({
       timeframe,
-      data
+      summary: {
+        totalActions,
+        totalUniqueUsers,
+        peakDate: peakDate || (formattedData[0]?.date || 'N/A'),
+        peakActions
+      },
+      data: formattedData
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
