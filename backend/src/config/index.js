@@ -22,6 +22,7 @@ const config = {
   },
   translations: {
     dbPath: process.env.SQLITE_DB_PATH || 'backend/data/translations.db',
+    staleRejectionDays: parseInt(process.env.STALE_REJECTED_TRANSLATION_DAYS, 10) || 7,
   },
   graphdb: {
     url: process.env.GRAPHDB_URL || 'http://graphdb:7200',
