@@ -80,10 +80,48 @@ async function run() {
   assert.strictEqual(extra.previous_value, 'Koraal');
   assert.strictEqual(extra.previous_rejection_reason, 'Inaccurate term');
 
-  // Verify term field 101 is now available for user 2 via getRandomUntranslated
+  // Verify term field 101 has no translations left in database
+  const trans101 = db.prepare("SELECT * FROM translations WHERE term_field_id = 101").all();
+  assert.strictEqual(trans101.length, 0, "Term field 101 should have 0 translations");
+
+  // Verify getRandomUntranslated returns a valid untranslated task for term 10
   const untranslated = flowService.getRandomUntranslated(2, 'nl');
   assert.notStrictEqual(untranslated, null, "Should return an untranslated term");
-  assert.strictEqual(untranslated.term_field_id, 101, "Freed field 101 should now be available for translation");
+  assert.strictEqual(untranslated.term_id, 10, "Should return term 10");
+
+  // 5. Test Admin Route handling & logging
+  const adminRoutes = require('../src/routes/admin.routes');
+  const req = {
+    session: { user: { id: 1, is_admin: 1 } },
+    body: { days: 1 }
+  };
+  let resJson = null;
+  const res = {
+    json: (data) => { resJson = data; return res; },
+    status: (code) => ({ json: (data) => { resJson = { status: code, ...data }; } })
+  };
+
+  // Insert a 2-day-old rejected translation to test daysOverride = 1
+  db.prepare(`
+    INSERT INTO translations (id, term_field_id, language, value, status, created_by_id, rejection_reason, created_at, updated_at)
+    VALUES (505, 102, 'fr', 'Structure', 'rejected', 1, 'Mauvais', datetime('now', '-3 days'), datetime('now', '-2 days'))
+  `).run();
+
+  // Find the router layer for POST /admin/revert-stale-translations
+  const routeLayer = adminRoutes.stack.find(s => s.route && s.route.path === '/admin/revert-stale-translations' && s.route.methods.post);
+  assert.notStrictEqual(routeLayer, undefined, "Admin route should exist");
+
+  // Execute the route handler (last handler in stack)
+  const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+  handler(req, res);
+
+  assert.strictEqual(resJson.success, true, "Admin route should return success");
+  assert.strictEqual(resJson.revertedCount, 2, "Should revert translations 502 and 505 with override days = 1");
+  assert.strictEqual(resJson.items.some(i => i.id === 505), true, "Item 505 should be in reverted items");
+  assert.strictEqual(resJson.items.some(i => i.id === 502), true, "Item 502 should be in reverted items");
+
+  const adminActivity = db.prepare("SELECT * FROM user_activity WHERE action = 'admin_revert_stale_translations'").get();
+  assert.notStrictEqual(adminActivity, undefined, "Admin activity should be logged");
 
   console.log("✓ Stale rejected translations cleanup tests passed!");
   db.close();

@@ -1466,4 +1466,55 @@ router.post("/admin/reputation-rules/preview", requireAdmin, apiLimiter, (req, r
   }
 });
 
+/**
+ * @openapi
+ * /api/admin/revert-stale-translations:
+ *   post:
+ *     summary: Revert stale rejected translations (admin only)
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               days:
+ *                 type: integer
+ *                 description: Inactivity threshold override in days
+ *     responses:
+ *       200:
+ *         description: Stale translations reverted successfully
+ */
+router.post("/admin/revert-stale-translations", requireAdmin, apiLimiter, (req, res) => {
+  try {
+    const { revertStaleRejectedTranslations } = require("../services/flow.service");
+    const daysOverride = req.body?.days !== undefined ? parseInt(req.body.days, 10) : undefined;
+    
+    const result = revertStaleRejectedTranslations({ daysOverride });
+    
+    // Log admin activity
+    const adminUserId = req.session.user.id || req.session.user.user_id;
+    const db = getDatabase();
+    db.prepare(
+      'INSERT INTO user_activity (user_id, action, extra) VALUES (?, ?, ?)'
+    ).run(
+      adminUserId,
+      'admin_revert_stale_translations',
+      JSON.stringify({ 
+        reverted_count: result.revertedCount, 
+        days_threshold: daysOverride !== undefined ? daysOverride : (require("../config").translations?.staleRejectionDays || 7)
+      })
+    );
+
+    res.json({
+      success: true,
+      revertedCount: result.revertedCount,
+      items: result.items
+    });
+  } catch (err) {
+    console.error('[Admin] Error reverting stale translations:', err);
+    res.status(500).json({ error: 'Failed to revert stale translations' });
+  }
+});
+
 module.exports = router;
+
