@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { User } from '../types';
 import { backendApi } from '../services/api';
 import { CONFIG } from '../config';
+import toast from 'react-hot-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -120,6 +121,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
             
             setUser(userData);
+
+            // Auto-process pending event team join if user was redirected from QR scan / event detail page
+            const pendingJoinStr = sessionStorage.getItem("pending_event_join");
+            if (pendingJoinStr) {
+              try {
+                const { eventId, joinCode } = JSON.parse(pendingJoinStr);
+                sessionStorage.removeItem("pending_event_join");
+                if (eventId && joinCode) {
+                  const joinUrl = `${CONFIG.API_URL}/events/${eventId}/join`;
+                  fetch(joinUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ joinCode })
+                  })
+                    .then(res => res.json())
+                    .then(resData => {
+                      if (resData.success || resData.teamName) {
+                        toast.success(`Signed in successfully! Joined team ${resData.teamName || joinCode}! 🎉`, { duration: 6000 });
+                      } else if (resData.error) {
+                        toast.error(`Team join error: ${resData.error}`);
+                      }
+                      navigate(`/events/${eventId}`, { replace: true });
+                    })
+                    .catch(err => console.error("Auto team join error:", err));
+                }
+              } catch (e) {
+                sessionStorage.removeItem("pending_event_join");
+              }
+            }
           }
         }
       } catch (e) {

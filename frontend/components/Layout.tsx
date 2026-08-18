@@ -9,6 +9,8 @@ import BottomNav from './BottomNav';
 import ReportIssueModal from './ReportIssueModal';
 import NotificationBell from './NotificationBell';
 import EmailUrgencyModal from './EmailUrgencyModal';
+import { getPreferredNonEnglishLanguage } from '../utils/userLanguage';
+
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -122,12 +124,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path ? 'text-marine-600 dark:text-marine-400 font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-marine-600 dark:hover:text-marine-300';
 
-  // Find the topmost language that the user has chosen that is not English
-  const prefs = user?.languagePreferences;
-  const priorityLangs = [prefs?.nativeLanguage, ...(prefs?.translationLanguages || [])];
-  const topmostNonEnglishLang = priorityLangs.find(
-    (lang): lang is string => typeof lang === 'string' && lang.trim().length > 0 && lang.toLowerCase() !== 'en'
-  );
+  const topmostNonEnglishLang = getPreferredNonEnglishLanguage(user);
+
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
@@ -195,19 +193,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {/* If authenticated, show Flow button and Burger Menu */}
               {isAuthenticated && (
                 <>
-                  {topmostNonEnglishLang && (
+                  { (user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang) && (
                     <Link
-                      to={`/flow?language=${topmostNonEnglishLang}`}
+                      to={`/flow?language=${user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang}`}
                       data-tour="nav-flow"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-marine-500 to-marine-600 hover:from-marine-600 hover:to-marine-700 text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       <Zap size={15} className="fill-white" />
                       <span>Flow</span>
                       <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold uppercase">
-                        {topmostNonEnglishLang}
+                        {user?.preferredLanguages?.[0] || user?.nativeLanguage || topmostNonEnglishLang}
                       </span>
                     </Link>
                   )}
+
 
                   {/* Burger Menu */}
                   <div ref={burgerRef} className="relative">

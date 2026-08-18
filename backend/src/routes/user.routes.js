@@ -689,4 +689,30 @@ router.get("/reputation-rules/public", apiLimiter, (req, res) => {
   }
 });
 
+// Profile Title routes
+const rewardService = require("../services/rewardService");
+
+router.get("/user/profile/titles", (req, res) => {
+  try {
+    const userId = req.session && req.session.user ? req.session.user.id : req.query.userId;
+    if (!userId) return res.status(401).json({ error: "User ID required" });
+    const titles = rewardService.getUserTitles(userId);
+    res.json(titles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/user/profile/equipped-title", (req, res) => {
+  try {
+    const userId = req.session && req.session.user ? req.session.user.id : req.body.userId;
+    const { rewardId } = req.body;
+    if (!userId) return res.status(401).json({ error: "User ID required" });
+    const updated = rewardService.equipUserTitle(userId, rewardId);
+    res.json(updated || { success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

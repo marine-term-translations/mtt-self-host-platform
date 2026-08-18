@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { backendApi } from '../services/api';
-import { ApiPublicUser, ApiUserActivity, ApiCommunity } from '../types';
-import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle, Users, Pin, PinOff } from 'lucide-react';
+import { fetchUserTitles, equipUserTitle } from '../services/eventApi';
+import { ApiPublicUser, ApiUserActivity, ApiCommunity, UserTitle } from '../types';
+import { Loader2, Calendar, Shield, Globe, Award, Edit, User as UserIcon, ExternalLink, HelpCircle, Users, Pin, PinOff, Trophy, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { parse, format, now } from '@/src/utils/datetime';
@@ -110,9 +111,10 @@ const UserProfile: React.FC = () => {
   const [history, setHistory] = useState<ApiUserActivity[]>([]);
   const [communities, setCommunities] = useState<ApiCommunity[]>([]);
   
-  // Achievements State
+  // Achievements & Titles State
   const [achievements, setAchievements] = useState<any[]>([]);
   const [pinnedList, setPinnedList] = useState<string[]>([]);
+  const [userTitles, setUserTitles] = useState<UserTitle[]>([]);
   const [activeTab, setActiveTab] = useState<'activity' | 'achievements'>('activity');
 
   const fetchUserProfile = async () => {
@@ -164,6 +166,14 @@ const UserProfile: React.FC = () => {
           setAchievements(achievementsData);
       } catch (e) {
           console.error("Failed to fetch user achievements", e);
+      }
+
+      // Fetch User Competition Titles
+      try {
+          const titlesData = await fetchUserTitles(id);
+          setUserTitles(titlesData || []);
+      } catch (e) {
+          console.error("Failed to fetch user titles", e);
       }
 
     } catch (error) {
@@ -273,6 +283,18 @@ const UserProfile: React.FC = () => {
     }
   };
 
+  const handleEquipTitle = async (rewardId: string | null) => {
+    try {
+      const res = await equipUserTitle(rewardId);
+      if (res.success) {
+        setUserTitles(res.titles);
+        toast.success(rewardId ? "Equipped title to profile!" : "Unequipped profile title");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update equipped title");
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header Card */}
@@ -314,16 +336,32 @@ const UserProfile: React.FC = () => {
                             href={`https://orcid.org/${extraData.orcid}`}
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-marine-600 dark:text-marine-400 hover:underline mb-4 font-medium"
+                            className="inline-flex items-center gap-1.5 text-marine-600 dark:text-marine-400 hover:underline mb-3 font-medium"
                         >
                             <img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" alt="ORCID" className="w-4 h-4" />
                             https://orcid.org/{extraData.orcid} <ExternalLink size={14} />
                         </a>
                     ) : (
-                        <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2 mb-4">
+                        <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2 mb-3">
                             @{userProfile.username}
                         </p>
                     )}
+
+                    {/* Equipped Title Accolade Banner */}
+                    {userTitles.find(t => t.is_equipped === 1) && (() => {
+                      const equipped = userTitles.find(t => t.is_equipped === 1)!;
+                      return (
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border border-amber-400/40 rounded-xl text-amber-700 dark:text-amber-300 text-xs font-bold shadow-sm mb-3">
+                          <Trophy size={14} className="text-amber-500 flex-shrink-0" />
+                          <span className="tracking-wide">{equipped.title_name}</span>
+                          {equipped.event_title && (
+                            <span className="text-[11px] text-amber-600/80 dark:text-amber-400/70 font-medium hidden sm:inline">
+                              • {equipped.event_title}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
@@ -497,11 +535,124 @@ const UserProfile: React.FC = () => {
       )}
 
       {activeTab === 'achievements' && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Achievements Grid</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Track your progress and unlock marine badges. Click tiers to view criteria and global rarity.</p>
+        <div className="space-y-8">
+          {/* Competition Titles & Honors Section */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Trophy className="text-amber-500" size={22} /> Competition Titles & Honors
+                </h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                  Exclusive titles won by ranking 1st place with your team in vocabulary competitions.
+                </p>
+              </div>
+              <Link
+                to="/events"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition self-start sm:self-center"
+              >
+                Browse Competitions &rarr;
+              </Link>
+            </div>
+
+            {userTitles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {userTitles.map((t) => (
+                  <div
+                    key={t.user_reward_id}
+                    className={`p-5 rounded-xl border flex flex-col justify-between transition-all ${
+                      t.is_equipped === 1
+                        ? "bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-slate-900/40 border-amber-400/60 shadow-md"
+                        : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`p-2 rounded-lg ${t.is_equipped === 1 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'}`}>
+                            <Trophy size={18} />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-base text-slate-900 dark:text-white leading-tight">
+                              {t.title_name}
+                            </h4>
+                            {t.is_equipped === 1 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> Active Profile Title
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isOwnProfile && (
+                          t.is_equipped === 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleEquipTitle(null)}
+                              className="px-3 py-1 bg-emerald-500/15 hover:bg-red-500/15 border border-emerald-500/40 hover:border-red-400/40 text-emerald-700 dark:text-emerald-300 hover:text-red-400 text-xs font-bold rounded-lg transition group flex items-center gap-1"
+                              title="Click to unequip"
+                            >
+                              <Check size={12} className="group-hover:hidden" />
+                              <span className="group-hover:hidden">Equipped</span>
+                              <span className="hidden group-hover:inline">Unequip</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleEquipTitle(t.reward_id)}
+                              className="px-3 py-1 bg-slate-200 hover:bg-amber-500/20 dark:bg-slate-800 dark:hover:bg-amber-500/20 border border-slate-300 dark:border-slate-700 hover:border-amber-400/40 text-slate-700 dark:text-slate-200 hover:text-amber-300 text-xs font-semibold rounded-lg transition"
+                            >
+                              Equip Title
+                            </button>
+                          )
+                        )}
+                      </div>
+
+                      {/* Event Context & Backlink */}
+                      {t.event_id && (
+                        <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-700/60 text-xs space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 dark:text-slate-400 font-medium">Competition:</span>
+                            <Link
+                              to={`/events/${t.event_id}`}
+                              className="font-bold text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1"
+                            >
+                              {t.event_title || "View Event"} <ExternalLink size={11} />
+                            </Link>
+                          </div>
+                          {t.winning_team_name && (
+                            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                              <span>Winning Team:</span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-200">{t.winning_team_name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                            <span>Contribution:</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{t.user_points || 0} pts</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center">
+                <Trophy className="mx-auto text-slate-400 dark:text-slate-500 mb-2" size={32} />
+                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Competition Titles Earned Yet</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                  Team up with other ocean data translators in active events. When your team wins 1st place, you&apos;ll unlock exclusive bragging-right titles!
+                </p>
+              </div>
+            )}
           </div>
+
+          {/* Standard Achievements Grid */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Achievements Grid</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Track your progress and unlock marine badges. Click tiers to view criteria and global rarity.</p>
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {achievements.map((ach) => {
@@ -612,9 +763,10 @@ const UserProfile: React.FC = () => {
             })}
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    )}
+  </div>
+);
 };
 
 export default UserProfile;

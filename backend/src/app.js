@@ -35,7 +35,7 @@ const notificationRoutes = require("./routes/notification.routes");
 const vocabularyRequestsRoutes = require("./routes/vocabulary-requests.routes");
 const mailRoutes = require("./routes/mail.routes");
 const achievementsRoutes = require("./routes/achievements.routes");
-
+const eventRoutes = require("./routes/eventRoutes");
 
 const app = express();
 
@@ -120,6 +120,7 @@ app.use("/", notificationRoutes);
 app.use("/", vocabularyRequestsRoutes);
 app.use("/", mailRoutes);
 app.use("/", achievementsRoutes);
+app.use("/", eventRoutes);
 
 
 app.post("/debug-log", (req, res) => {

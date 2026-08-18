@@ -322,3 +322,47 @@ export interface ApiAdminActivity {
   created_at: string;
   admin_username: string;
 }
+
+// Events & Competitions Types
+export interface EventTeam {
+  id: string;
+  event_id: string;
+  name: string;
+  image_url?: string;
+  join_code: string;
+  member_count?: number;
+  total_points?: number;
+  is_user_member?: boolean;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  source_id?: number | null;
+  source_name?: string | null;
+  target_language?: string;
+  target_count?: number;
+  current_count?: number;
+  target_category?: string;
+  reward_title?: string;
+  is_featured_homepage?: number;
+  user_team_id?: string;
+  status: 'UPCOMING' | 'ACTIVE' | 'ENDED' | 'CANCELLED';
+  teams?: EventTeam[];
+}
+
+export interface UserTitle {
+  user_reward_id: string;
+  is_equipped: number;
+  awarded_at?: string;
+  reward_id: string;
+  title_name: string;
+  event_id?: string;
+  event_title?: string;
+  event_end_date?: string;
+  winning_team_name?: string;
+  user_points?: number;
+}

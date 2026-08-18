@@ -692,8 +692,21 @@ function submitReview(params) {
   const points = 1;
   awardPoints(resolvedUserId, points, `review_${action}`);
   
+  // Record event contribution for review vote or approval
+  try {
+    const { recordEventContribution } = require("./scoringService");
+    if (nextStatus === 'approved' || nextStatus === 'merged') {
+      recordEventContribution(resolvedUserId, translationId, 'TRANSLATION_APPROVED');
+    } else {
+      recordEventContribution(resolvedUserId, translationId, 'VOTE_CAST');
+    }
+  } catch (e) {
+    console.log("Could not record event contribution for review:", e.message);
+  }
+
   // Update streak
   const streakInfo = updateStreak(resolvedUserId);
+
   
   // Increment review count
   incrementReviewCount(resolvedUserId);
