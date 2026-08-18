@@ -593,12 +593,17 @@ function startTaskDispatcher(intervalMs = 60000) {
   // Run immediately
   checkAndDispatchScheduledTasks();
   
-  // Run auto-approval immediately and hourly
-  const { autoApproveExpiredTranslations } = require("./flow.service");
+  // Run auto-approval and stale rejection cleanup immediately and hourly
+  const { autoApproveExpiredTranslations, revertStaleRejectedTranslations } = require("./flow.service");
   try {
     autoApproveExpiredTranslations();
   } catch (e) {
     console.error("Failed to run autoApproveExpiredTranslations on startup:", e.message);
+  }
+  try {
+    revertStaleRejectedTranslations();
+  } catch (e) {
+    console.error("Failed to run revertStaleRejectedTranslations on startup:", e.message);
   }
   
   // Then run periodically
@@ -606,12 +611,17 @@ function startTaskDispatcher(intervalMs = 60000) {
     checkAndDispatchScheduledTasks();
   }, intervalMs);
 
-  // Hourly interval (3600000 ms) for auto-approvals
+  // Hourly interval (3600000 ms) for auto-approvals and stale translation cleanup
   setInterval(() => {
     try {
       autoApproveExpiredTranslations();
     } catch (e) {
       console.error("Failed to run autoApproveExpiredTranslations hourly:", e.message);
+    }
+    try {
+      revertStaleRejectedTranslations();
+    } catch (e) {
+      console.error("Failed to run revertStaleRejectedTranslations hourly:", e.message);
     }
   }, 3600000);
 }
