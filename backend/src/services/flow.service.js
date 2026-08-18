@@ -848,7 +848,8 @@ module.exports = {
   getTranslationHistory,
   getTranslationTask,
   logSkipAction,
-  autoApproveExpiredTranslations
+  autoApproveExpiredTranslations,
+  revertStaleRejectedTranslations
 };
 
 /**
@@ -968,3 +969,83 @@ function autoApproveExpiredTranslations() {
     }
   }
 }
+
+/**
+ * Revert stale rejected translations after inactivity threshold
+ * Cleans up rejected translations so that community translators can translate them again
+ * @param {object} options - Options { daysOverride: number }
+ * @returns {object} { revertedCount: number, items: array }
+ */
+function revertStaleRejectedTranslations(options = {}) {
+  const db = getDatabase();
+  const config = require("../config");
+  const days = options.daysOverride !== undefined 
+    ? parseInt(options.daysOverride, 10) 
+    : (config.translations?.staleRejectionDays || 7);
+
+  // Find rejected translations older than `days` where no open appeals exist
+  const query = `
+    SELECT t.id, t.term_field_id, t.language, t.value, t.created_by_id, t.modified_by_id,
+           t.rejection_reason, t.updated_at, tf.term_id
+    FROM translations t
+    JOIN term_fields tf ON t.term_field_id = tf.id
+    WHERE t.status = 'rejected'
+      AND datetime(t.updated_at) <= datetime('now', '-' || ? || ' days')
+      AND NOT EXISTS (
+        SELECT 1 FROM appeals a 
+        WHERE a.translation_id = t.id 
+          AND a.status = 'open'
+      )
+  `;
+
+  const staleList = db.prepare(query).all(days);
+  const revertedItems = [];
+
+  for (const t of staleList) {
+    const translatorUserId = t.modified_by_id || t.created_by_id || 1;
+    
+    try {
+      const activityExtra = {
+        reverted_reason: `Stale rejected translation automatically cleared after ${days} days of inactivity`,
+        language: t.language,
+        previous_value: t.value,
+        previous_rejection_reason: t.rejection_reason || null,
+        days_inactive: days
+      };
+
+      // 1. Log activity before deletion
+      db.prepare(`
+        INSERT INTO user_activity (user_id, action, term_id, term_field_id, translation_id, extra)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        translatorUserId,
+        'translation_stale_reverted',
+        t.term_id,
+        t.term_field_id,
+        t.id,
+        JSON.stringify(activityExtra)
+      );
+
+      // 2. Delete the stale rejected translation record
+      db.prepare("DELETE FROM translations WHERE id = ?").run(t.id);
+
+      revertedItems.push({
+        id: t.id,
+        term_id: t.term_id,
+        term_field_id: t.term_field_id,
+        language: t.language,
+        value: t.value
+      });
+
+      console.log(`[StaleCleanup] Reverted stale rejected translation ${t.id} (language: ${t.language}, term_id: ${t.term_id}) after ${days} days`);
+    } catch (err) {
+      console.error(`[StaleCleanup] Error reverting translation ${t.id}:`, err.message);
+    }
+  }
+
+  return {
+    revertedCount: revertedItems.length,
+    items: revertedItems
+  };
+}
+
