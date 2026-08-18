@@ -420,7 +420,252 @@ const AdminKPI: React.FC = () => {
     );
   };
 
-  // 5. Generic Fallback Chart for Other Queries
+  // 5. Language Coverage Overview
+  const renderLanguageCoverageChart = (data: any[]) => {
+    const totalFields = data[0]?.total_fields || 1;
+    const topLanguages = data.slice(0, 15);
+
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={topLanguages} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="language_name" stroke="#94a3b8" fontSize={10} angle={-35} textAnchor="end" interval={0} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} fields (${item.payload.coverage_percent}% coverage of ${totalFields})`,
+                  name
+                ]}
+              />
+              <Legend verticalAlign="top" height={36} iconType="circle" />
+              <Bar dataKey="approved_count" stackId="a" fill="#10b981" name="Approved / Merged" />
+              <Bar dataKey="review_count" stackId="a" fill="#0ea5e9" name="In Review" />
+              <Bar dataKey="draft_count" stackId="a" fill="#94a3b8" name="Draft" />
+              <Bar dataKey="rejected_count" stackId="a" fill="#f43f5e" name="Rejected" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 6. Review Turnaround Time
+  const renderReviewTurnaroundChart = (data: any[]) => {
+    const chartData = data.slice(0, 15).map(d => ({
+      language: d.language || 'Unknown',
+      avg_days: Number(d.avg_days_to_decision) || 0,
+      sample_size: d.sample_size,
+      min_days: d.min_days,
+      max_days: d.max_days
+    }));
+
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="language" stroke="#94a3b8" fontSize={11} tickLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} days (Sample: ${item.payload.sample_size}, Min: ${item.payload.min_days}d, Max: ${item.payload.max_days}d)`,
+                  'Avg Turnaround'
+                ]}
+              />
+              <Bar dataKey="avg_days" fill="#06b6d4" name="Avg Days to Review" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 7. Reputation Tier Demographics
+  const renderReputationTiersChart = (data: any[]) => {
+    const colors = ['#94a3b8', '#0ea5e9', '#6366f1', '#a855f7', '#eab308'];
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="tier" stroke="#94a3b8" fontSize={11} tickLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} users (Avg Rep: ${item.payload.avg_reputation})`,
+                  'Users'
+                ]}
+              />
+              <Bar dataKey="user_count" fill="#818cf8" radius={[4, 4, 0, 0]}>
+                {data.map((entry, index) => (
+                  <Cell key={`tier-${index}`} fill={colors[index % colors.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 8. Appeals Resolution Metrics
+  const renderAppealsResolutionChart = (data: any[]) => {
+    const colors: Record<string, string> = {
+      open: '#f59e0b',
+      approved: '#10b981',
+      rejected: '#ef4444',
+      closed: '#64748b'
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="status" stroke="#94a3b8" fontSize={11} tickLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} appeals (Avg Resolution: ${item.payload.avg_resolution_days ?? 'N/A'} days)`,
+                  'Count'
+                ]}
+              />
+              <Bar dataKey="total_appeals" radius={[4, 4, 0, 0]}>
+                {data.map((entry, index) => (
+                  <Cell key={`appeal-${index}`} fill={colors[entry.status] || '#6366f1'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 9. Marine Creature Achievements Breakdown
+  const renderAchievementsChart = (data: any[]) => {
+    const chartData = data.slice(0, 15);
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="achievement_name" stroke="#94a3b8" fontSize={10} angle={-30} textAnchor="end" interval={0} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} unlocks across ${item.payload.unique_users} users (Category: ${item.payload.category})`,
+                  'Unlocks'
+                ]}
+              />
+              <Bar dataKey="unlock_count" fill="#ec4899" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 10. Daily Goals Streaks
+  const renderDailyGoalsChart = (data: any[]) => {
+    const chartData = data.slice(0, 15);
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="username" stroke="#94a3b8" fontSize={10} angle={-30} textAnchor="end" interval={0} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} days goal completed (${item.payload.total_actions_logged} total actions, active ${item.payload.days_active} days)`,
+                  'Days Completed'
+                ]}
+              />
+              <Bar dataKey="days_goal_completed" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 11. Debated Terms Leaderboard
+  const renderDebatedTermsChart = (data: any[]) => {
+    const chartData = data.slice(0, 15).map(d => ({
+      title: d.discussion_title ? (d.discussion_title.length > 20 ? d.discussion_title.substring(0, 20) + '...' : d.discussion_title) : `Term ${d.term_id}`,
+      fullTitle: d.discussion_title || `Term ID ${d.term_id}`,
+      message_count: d.message_count,
+      participant_count: d.participant_count
+    }));
+
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="title" stroke="#94a3b8" fontSize={10} angle={-30} textAnchor="end" interval={0} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} messages (${item.payload.participant_count} participants)`,
+                  'Messages'
+                ]}
+                labelFormatter={(label, payload) => payload?.[0]?.payload?.fullTitle || label}
+              />
+              <Bar dataKey="message_count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // 12. Review Votes & Rejection Reasons
+  const renderReviewVotesChart = (data: any[]) => {
+    return (
+      <div className="space-y-4">
+        <div className="h-80 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis dataKey="reason" stroke="#94a3b8" fontSize={10} angle={-30} textAnchor="end" interval={0} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }}
+                formatter={(value: any, name: any, item: any) => [
+                  `${value} reviews (Action: ${item.payload.action})`,
+                  'Count'
+                ]}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {data.map((entry, index) => (
+                  <Cell key={`vote-${index}`} fill={entry.action === 'approve' ? '#10b981' : '#ef4444'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
+  // Generic Fallback Chart for Other Queries
   const renderGenericChart = (data: any[]) => {
     if (!data || data.length === 0) return null;
     const firstRow = data[0];
@@ -428,7 +673,7 @@ const AdminKPI: React.FC = () => {
     
     // Find first string-like key for category and numeric keys
     const categoryKey = keys.find(k => typeof firstRow[k] === 'string') || keys[0];
-    const numericKeys = keys.filter(k => k !== categoryKey && typeof firstRow[k] === 'number' || !isNaN(Number(firstRow[k])));
+    const numericKeys = keys.filter(k => k !== categoryKey && (typeof firstRow[k] === 'number' || !isNaN(Number(firstRow[k]))));
 
     if (numericKeys.length === 0) {
       return (
@@ -475,6 +720,22 @@ const AdminKPI: React.FC = () => {
     const qId = results.query?.id || selectedQuery;
 
     switch (qId) {
+      case 'language_coverage_overview':
+        return renderLanguageCoverageChart(results.results);
+      case 'review_turnaround_time':
+        return renderReviewTurnaroundChart(results.results);
+      case 'reputation_tier_demographics':
+        return renderReputationTiersChart(results.results);
+      case 'appeals_resolution_metrics':
+        return renderAppealsResolutionChart(results.results);
+      case 'creature_achievements_distribution':
+        return renderAchievementsChart(results.results);
+      case 'daily_goals_streak_distribution':
+        return renderDailyGoalsChart(results.results);
+      case 'debated_terms_leaderboard':
+        return renderDebatedTermsChart(results.results);
+      case 'review_votes_consensus':
+        return renderReviewVotesChart(results.results);
       case 'translation_status_by_month':
         return renderTranslationStatusChart(results.results);
       case 'user_behavior_statistics':
