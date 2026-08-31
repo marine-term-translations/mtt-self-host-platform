@@ -5,6 +5,7 @@ const router = express.Router();
 const axios = require("axios");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const config = require("../config");
 
 /**
@@ -650,7 +651,7 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
  *   }
  * }
  */
-router.put("/sources/:id/config", writeLimiter, (req, res) => {
+router.put("/sources/:id/config", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { config: translationConfig } = req.body;
   const sourceId = parseInt(id, 10);
@@ -713,7 +714,7 @@ router.put("/sources/:id/config", writeLimiter, (req, res) => {
 /**
  * Synchronize terms based on source configuration
  */
-router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
+router.post("/sources/:id/sync-terms", requireAdmin, writeLimiter, async (req, res) => {
   const { id } = req.params;
   const sourceId = parseInt(id, 10);
   

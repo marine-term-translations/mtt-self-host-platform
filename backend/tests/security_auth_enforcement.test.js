@@ -145,7 +145,24 @@ async function run() {
   const publicLeaderboardLayer = teamsRoutes.stack.find(s => s.route && s.route.path === "/leaderboard/public" && s.route.methods.get);
   assert(publicLeaderboardLayer, "GET /leaderboard/public route must exist");
 
-  console.log("✓ Task 1, Task 2 & Task 3 tests passed successfully!");
+  // 9. Verify tasks, sources, task-schedulers, and eventRoutes have proper middleware
+  const tasksRoutes = require("../src/routes/tasks.routes");
+  const postTasksLayer = tasksRoutes.stack.find(s => s.route && s.route.path === "/tasks" && s.route.methods.post);
+  assert(postTasksLayer.route.stack.some(h => h.handle === requireAdmin), "POST /tasks must have requireAdmin");
+
+  const sourcesRoutes = require("../src/routes/sources.routes");
+  const postSourcesLayer = sourcesRoutes.stack.find(s => s.route && s.route.path === "/sources" && s.route.methods.post);
+  assert(postSourcesLayer.route.stack.some(h => h.handle === requireAdmin), "POST /sources must have requireAdmin");
+
+  const taskSchedulersRoutes = require("../src/routes/task-schedulers.routes");
+  const postSchedulersLayer = taskSchedulersRoutes.stack.find(s => s.route && s.route.path === "/task-schedulers" && s.route.methods.post);
+  assert(postSchedulersLayer.route.stack.some(h => h.handle === requireAdmin), "POST /task-schedulers must have requireAdmin");
+
+  const eventRoutes = require("../src/routes/eventRoutes");
+  const postEventsLayer = eventRoutes.stack.find(s => s.route && s.route.path === "/events" && s.route.methods.post);
+  assert(postEventsLayer.route.stack.some(h => h.handle === requireAdmin), "POST /events must have requireAdmin");
+
+  console.log("✓ All security auth enforcement & route protection tests passed successfully!");
 
   db.close();
   if (fs.existsSync(testDbPath)) {

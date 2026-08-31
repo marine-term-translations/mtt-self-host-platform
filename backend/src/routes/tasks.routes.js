@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 
 /**
  * @openapi
@@ -168,7 +169,7 @@ router.get("/tasks/:id", apiLimiter, (req, res) => {
  *       201:
  *         description: Task created successfully
  */
-router.post("/tasks", writeLimiter, (req, res) => {
+router.post("/tasks", requireAdmin, writeLimiter, (req, res) => {
   const { task_type, source_id, metadata } = req.body;
   
   if (!task_type) {
@@ -229,7 +230,7 @@ router.post("/tasks", writeLimiter, (req, res) => {
  *       200:
  *         description: Task updated successfully
  */
-router.put("/tasks/:id", writeLimiter, (req, res) => {
+router.put("/tasks/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { status, error_message, metadata } = req.body;
   
@@ -315,7 +316,7 @@ router.put("/tasks/:id", writeLimiter, (req, res) => {
  *       200:
  *         description: Task deleted successfully
  */
-router.delete("/tasks/:id", writeLimiter, (req, res) => {
+router.delete("/tasks/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   
   const taskId = parseInt(id, 10);
