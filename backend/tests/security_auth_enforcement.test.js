@@ -19,12 +19,13 @@ const {
 const { getDatabase } = require("../src/db/database");
 const { initializeDatabase } = require("../src/services/dbInit.service");
 
-function createMockReqRes(sessionUser = null, headers = {}, body = {}, params = {}) {
+function createMockReqRes(sessionUser = null, headers = {}, body = {}, params = {}, query = {}) {
   const req = {
     session: sessionUser ? { user: sessionUser } : {},
     headers: headers,
     body: body,
     params: params,
+    query: query,
     get(h) { return this.headers[h.toLowerCase()] || this.headers[h]; }
   };
   let statusCode = 200;
@@ -120,7 +121,7 @@ async function run() {
   const inserted = db.prepare("SELECT * FROM terms WHERE id = ?").get(info.lastInsertRowid);
   assert.strictEqual(inserted.created_by_id, 99, "Term must be attributed to user id 99");
 
-  // 7. Verify routes stack has proper middleware attached
+  // 7. Verify terms routes stack has proper middleware attached
   const termsRoutes = require("../src/routes/terms.routes");
   const postTermsLayer = termsRoutes.stack.find(s => s.route && s.route.path === "/terms" && s.route.methods.post);
   assert(postTermsLayer, "POST /terms route must exist");
@@ -135,7 +136,16 @@ async function run() {
   assert(postRepLayer, "POST /user-reputation/:username route must exist");
   assert(postRepLayer.route.stack.some(h => h.handle === requireAdmin), "POST /user-reputation/:username must have requireAdmin middleware");
 
-  console.log("✓ Task 1 & Task 2 tests passed successfully!");
+  // 8. Verify teams routes (GET /users and GET /leaderboard/public)
+  const teamsRoutes = require("../src/routes/teams.routes");
+  const getUsersLayer = teamsRoutes.stack.find(s => s.route && s.route.path === "/users" && s.route.methods.get);
+  assert(getUsersLayer, "GET /users route must exist");
+  assert(getUsersLayer.route.stack.some(h => h.handle === requireAuth), "GET /users must have requireAuth middleware");
+
+  const publicLeaderboardLayer = teamsRoutes.stack.find(s => s.route && s.route.path === "/leaderboard/public" && s.route.methods.get);
+  assert(publicLeaderboardLayer, "GET /leaderboard/public route must exist");
+
+  console.log("✓ Task 1, Task 2 & Task 3 tests passed successfully!");
 
   db.close();
   if (fs.existsSync(testDbPath)) {
