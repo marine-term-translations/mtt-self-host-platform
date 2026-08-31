@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAuth, requireAdmin, requireBrowserContext } = require("../middleware/admin");
 const {
   applyRejectionPenalty,
   applyFalseRejectionPenalty,
@@ -46,14 +47,26 @@ const { recordEventContribution } = require("../services/scoringService");
  *             schema:
  *               type: object
  */
-router.post("/terms", writeLimiter, (req, res) => {
+router.post("/terms", requireAdmin, writeLimiter, (req, res) => {
   const { uri } = req.body;
   if (!uri) return res.status(400).json({ error: "Missing uri" });
   try {
     const db = getDatabase();
-    const stmt = db.prepare("INSERT INTO terms (uri) VALUES (?)");
-    const info = stmt.run(uri);
-    res.status(201).json({ id: info.lastInsertRowid, uri });
+    const userId = req.session?.user?.id || req.session?.user?.user_id || null;
+    const stmt = db.prepare("INSERT INTO terms (uri, created_by_id) VALUES (?, ?)");
+    const info = stmt.run(uri, userId);
+    
+    if (userId) {
+      try {
+        db.prepare(
+          "INSERT INTO user_activity (user_id, action, term_id, extra) VALUES (?, 'term_created', ?, ?)"
+        ).run(userId, info.lastInsertRowid, JSON.stringify({ uri }));
+      } catch (actErr) {
+        console.error("Failed to log term_created user_activity:", actErr.message);
+      }
+    }
+
+    res.status(201).json({ id: info.lastInsertRowid, uri, created_by_id: userId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -835,7 +848,7 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *             schema:
  *               type: object
  */
-router.post("/user-reputation/:username", writeLimiter, (req, res) => {
+router.post("/user-reputation/:username", requireAdmin, writeLimiter, (req, res) => {
   const { username } = req.params;
   const { delta, reason, translation_id } = req.body;
   if (typeof delta !== "number" || !reason) {
@@ -991,7 +1004,7 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *       500:
  *         description: Server error
  */
-router.put("/terms/:id", writeLimiter, async (req, res) => {
+router.put("/terms/:id", requireAuth, requireBrowserContext, writeLimiter, async (req, res) => {
   const { id } = req.params;
   const { uri, fields, username } = req.body;
   console.log("PUT /terms/:id called", { id, uri, fields, username });
@@ -1004,11 +1017,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     return res
       .status(400)
       .json({ error: "Missing uri, fields, or username" });
-  }
-  
-  // Admin check removed - now using ORCID session auth
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
   }
   
   // Get the user_id from session
