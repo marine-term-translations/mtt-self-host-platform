@@ -10,10 +10,34 @@ const { requireAuth, sanitizePublicUser } = require("../middleware/admin");
  * @openapi
  * /api/users:
  *   get:
- *     summary: Get all users (authenticated)
+ *     summary: Get all users (Authenticated)
+ *     tags: [Users]
+ *     security:
+ *       - cookieAuth: []
  *     responses:
  *       200:
- *         description: Returns sanitized user list
+ *         description: Returns sanitized user list (no sensitive flags)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   username:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   reputation:
+ *                     type: integer
+ *                   joined_at:
+ *                     type: string
+ *                   avatar:
+ *                     type: string
+ *                   extra:
+ *                     type: string
  *       401:
  *         description: Not authenticated
  */
@@ -34,10 +58,39 @@ router.get("/users", requireAuth, apiLimiter, (req, res) => {
  * @openapi
  * /api/leaderboard/public:
  *   get:
- *     summary: Get public leaderboard / top contributors
+ *     summary: Get public leaderboard / top contributors (Public)
+ *     tags: [Gamification]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of top contributors to return (1-100)
  *     responses:
  *       200:
  *         description: Returns sanitized public contributor ranking
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   username:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ *                   reputation:
+ *                     type: integer
+ *                   joined_at:
+ *                     type: string
+ *                   avatar:
+ *                     type: string
+ *                   extra:
+ *                     type: string
  */
 router.get("/leaderboard/public", apiLimiter, (req, res) => {
   try {

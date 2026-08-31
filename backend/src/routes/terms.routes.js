@@ -29,23 +29,40 @@ const { recordEventContribution } = require("../services/scoringService");
  * @openapi
  * /api/terms:
  *   post:
- *     summary: Create a new term
+ *     summary: Create a new term (Admin only)
+ *     tags: [Terms]
+ *     security:
+ *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [uri]
  *             properties:
  *               uri:
  *                 type: string
  *     responses:
  *       201:
- *         description: Term created
+ *         description: Term created successfully with attribution
  *         content:
  *           application/json:
  *             schema:
  *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 uri:
+ *                   type: string
+ *                 created_by_id:
+ *                   type: integer
+ *       400:
+ *         description: Missing URI
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
 router.post("/terms", requireAdmin, writeLimiter, (req, res) => {
   const { uri } = req.body;
@@ -820,7 +837,10 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  * @openapi
  * /api/user-reputation/{username}:
  *   post:
- *     summary: Change a user's reputation
+ *     summary: Change a user's reputation (Admin only)
+ *     tags: [Gamification]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: username
@@ -833,6 +853,7 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [delta, reason]
  *             properties:
  *               delta:
  *                 type: integer
@@ -847,6 +868,12 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *           application/json:
  *             schema:
  *               type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
 router.post("/user-reputation/:username", requireAdmin, writeLimiter, (req, res) => {
   const { username } = req.params;
@@ -999,8 +1026,10 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *                   type: string
  *       400:
  *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
  *       403:
- *         description: Invalid token or username
+ *         description: Browser context or authentication required
  *       500:
  *         description: Server error
  */

@@ -245,6 +245,10 @@ async function updateLdesFeedsYaml(graphName, url) {
  *                   type: string
  *       400:
  *         description: Missing required fields
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
@@ -482,7 +486,11 @@ router.get("/sources/:id", apiLimiter, async (req, res) => {
  *             schema:
  *               type: object
  *       400:
- *         description: Invalid input
+ *         description: No valid fields to update
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Source not found
  */
@@ -543,7 +551,7 @@ router.put("/sources/:id", requireAdmin, writeLimiter, (req, res) => {
  *         description: The source ID
  *     responses:
  *       200:
- *         description: Source deleted successfully
+ *         description: Source and associated data deleted successfully
  *         content:
  *           application/json:
  *             schema:
@@ -553,6 +561,10 @@ router.put("/sources/:id", requireAdmin, writeLimiter, (req, res) => {
  *                   type: string
  *       400:
  *         description: Invalid source ID
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Source not found
  */
@@ -781,7 +793,11 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *                 original_filename:
  *                   type: string
  *       400:
- *         description: Invalid file or missing file
+ *         description: No file uploaded or invalid file
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
