@@ -32,7 +32,8 @@ function createMockReqRes(sessionUser = null, headers = {}, body = {}, params = 
   let jsonBody = null;
   const res = {
     status(code) { statusCode = code; return this; },
-    json(data) { jsonBody = data; return this; }
+    json(data) { jsonBody = data; return this; },
+    send(data) { jsonBody = data; return this; }
   };
   let nextCalled = false;
   const next = () => { nextCalled = true; };
@@ -162,12 +163,34 @@ async function run() {
   const postEventsLayer = eventRoutes.stack.find(s => s.route && s.route.path === "/events" && s.route.methods.post);
   assert(postEventsLayer.route.stack.some(h => h.handle === requireAdmin), "POST /events must have requireAdmin");
 
-  console.log("✓ All security auth enforcement & route protection tests passed successfully!");
+  // 10. Reproduction Scenario Verification:
+  // Step 1: Anonymous POST /api/terms must receive 401
+  const step1 = createMockReqRes(null, {}, { uri: "https://vliz-sectest.example/x" });
+  requireAdmin(step1.req, step1.res, step1.next);
+  assert.strictEqual(step1.getStatus(), 401, "Anonymous POST /api/terms must be rejected with 401");
+
+  // Step 2: Regular Authenticated User POST /api/terms must receive 403
+  const step2 = createMockReqRes({ id: 50, username: "regular_contributor", is_admin: false, is_superadmin: false }, {}, { uri: "https://vliz-sectest.example/x" });
+  requireAdmin(step2.req, step2.res, step2.next);
+  assert.strictEqual(step2.getStatus(), 403, "Non-admin POST /api/terms must be rejected with 403");
+
+  // Step 3: Admin POST /api/terms succeeds
+  const step3 = createMockReqRes({ id: 99, username: "admin_test", is_admin: true }, {}, { uri: "https://vliz-sectest.example/y" });
+  requireAdmin(step3.req, step3.res, step3.next);
+  assert.strictEqual(step3.isNext(), true, "Admin POST /api/terms must pass authentication gate");
+
+  // Step 4: Anonymous GET /api/users must receive 401
+  const step4 = createMockReqRes(null);
+  requireAuth(step4.req, step4.res, step4.next);
+  assert.strictEqual(step4.getStatus(), 401, "Anonymous GET /api/users must be rejected with 401");
+
+  console.log("✓ All security auth enforcement & vulnerability reproduction tests passed successfully!");
 
   db.close();
   if (fs.existsSync(testDbPath)) {
     fs.unlinkSync(testDbPath);
   }
+  process.exit(0);
 }
 
 run().catch(err => {
