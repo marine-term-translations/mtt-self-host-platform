@@ -1,14 +1,49 @@
 
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Users, Database, AlertTriangle, TrendingUp, Activity, PieChart, DownloadCloud, Layers, Target, Mail, Award } from 'lucide-react';
+import { 
+  ShieldCheck, 
+  Users, 
+  Database, 
+  AlertTriangle, 
+  TrendingUp, 
+  Activity, 
+  PieChart, 
+  Layers, 
+  Target, 
+  Mail, 
+  Award,
+  Zap,
+  Calendar
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  CartesianGrid
+} from 'recharts';
 import { backendApi } from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
-interface ContributionData {
+interface ActivityDataPoint {
   date: string;
-  byStatus: Record<string, number>;
-  total: number;
+  total_actions: number;
+  active_users: number;
+  translations: number;
+  reviews: number;
+  discussions: number;
+}
+
+interface ActivitySummary {
+  totalActions: number;
+  totalUniqueUsers: number;
+  peakDate: string;
+  peakActions: number;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -20,18 +55,31 @@ const AdminDashboard: React.FC = () => {
     openAppeals: 0,
   });
   const [statusDist, setStatusDist] = useState<Record<string, number>>({});
-  const [historyGraphData, setHistoryGraphData] = useState<ContributionData[]>([]);
+  const [historyGraphData, setHistoryGraphData] = useState<ActivityDataPoint[]>([]);
+  const [summaryStats, setSummaryStats] = useState<ActivitySummary>({
+    totalActions: 0,
+    totalUniqueUsers: 0,
+    peakDate: 'N/A',
+    peakActions: 0,
+  });
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('last_14_days');
 
   const fetchContributionsOverTime = React.useCallback(async (timeframe: string) => {
     try {
       console.log('Fetching contributions for timeframe:', timeframe);
-      const data = await backendApi.get<{ timeframe: string; data: ContributionData[] }>(
+      const data = await backendApi.get<{ 
+        timeframe: string; 
+        summary: ActivitySummary;
+        data: ActivityDataPoint[] 
+      }>(
         '/stats/contributions-over-time',
         { timeframe }
       );
       console.log('Received contributions data:', data);
-      setHistoryGraphData(data.data);
+      setHistoryGraphData(data.data || []);
+      if (data.summary) {
+        setSummaryStats(data.summary);
+      }
     } catch (error) {
       console.error("Failed to fetch contributions over time", error);
       toast.error("Failed to load contribution history");
@@ -75,11 +123,8 @@ const AdminDashboard: React.FC = () => {
     fetchAdminData();
   }, [selectedTimeframe, fetchContributionsOverTime]);
 
-  // --- Helpers for SVG Charts ---
-
   // Simple Bar Chart for Status
   const renderStatusBars = () => {
-     // Fix: Cast Object.values to number[] to handle TS 'unknown' inference
      const values = Object.values(statusDist) as number[];
      const max = Math.max(...values, 1);
      const colors: Record<string, string> = {
@@ -105,239 +150,190 @@ const AdminDashboard: React.FC = () => {
 
   // Helper function to format date labels
   const formatDateLabel = (dateStr: string): string => {
-    // Handle both date-only (YYYY-MM-DD) and datetime (YYYY-MM-DD HH:MM:SS) formats
+    if (!dateStr || dateStr === 'N/A') return 'N/A';
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
-      // If parsing fails, return the first part before 'T' or space
       return dateStr.split(/[T ]/)[0];
     }
     
-    // Check if it includes time (hourly grouping)
     if (dateStr.includes(':')) {
-      // Format as "MM-DD HH:mm"
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${month}-${day} ${hours}:${minutes}`;
     } else {
-      // Format as "MM-DD" for daily grouping
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       return `${month}-${day}`;
     }
   };
 
-  // Line Graph for Contributions Over Time
-  const renderLineGraph = () => {
-      if (historyGraphData.length === 0) {
-        return <div className="text-center text-slate-400 text-sm py-8">No data available for this timeframe</div>;
-      }
-
-      const statusOrder = ['draft', 'review', 'approved', 'merged', 'rejected'];
-      const colors: Record<string, string> = {
-          merged: '#a855f7',      // purple-500
-          approved: '#22c55e',    // green-500
-          review: '#f59e0b',      // amber-500
-          draft: '#94a3b8',       // slate-400
-          rejected: '#ef4444',    // red-500
-          total: '#3b82f6'        // blue-500
-      };
-      
-      // Find max total for scaling
-      const maxTotal = Math.max(...historyGraphData.map(d => d.total), 1);
-      
-      // Calculate Y-axis labels (5 evenly spaced values from 0 to maxTotal)
-      const yAxisSteps = 5;
-      const yAxisLabels = Array.from({ length: yAxisSteps }, (_, i) => {
-        return Math.round((maxTotal / (yAxisSteps - 1)) * (yAxisSteps - 1 - i));
-      });
-      
-      // Chart dimensions
-      const chartHeight = 320; // h-80 in pixels
-      const chartWidth = 100; // percentage
-      
-      // Calculate points for each line
-      const getYPosition = (value: number) => {
-        return ((maxTotal - value) / maxTotal) * 100; // Inverted for SVG coordinates
-      };
-      
-      const getXPosition = (index: number) => {
-        return (index / (historyGraphData.length - 1)) * 100;
-      };
-      
-      // Generate SVG path for a line
-      const generatePath = (dataKey: 'total' | keyof ContributionData['byStatus']) => {
-        const points = historyGraphData.map((d, i) => {
-          const value = dataKey === 'total' ? d.total : (d.byStatus[dataKey] || 0);
-          const x = getXPosition(i);
-          const y = getYPosition(value);
-          return `${x},${y}`;
-        });
-        
-        // Create smooth curve using quadratic bezier
-        if (points.length === 0) return '';
-        if (points.length === 1) return `M ${points[0]}`;
-        
-        let path = `M ${points[0]}`;
-        for (let i = 1; i < points.length; i++) {
-          path += ` L ${points[i]}`;
-        }
-        return path;
-      };
-      
+  // Custom Glassmorphic Tooltip
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data: ActivityDataPoint = payload[0].payload;
       return (
-        <div className="relative">
-          <div className="flex gap-3">
-            {/* Y-axis */}
-            <div className="flex flex-col justify-between h-80 py-1 text-xs text-slate-400 w-8 text-right">
-              {yAxisLabels.map((label, idx) => (
-                <div key={idx} className="leading-none">{label}</div>
-              ))}
-            </div>
-            
-            {/* Chart area */}
-            <div className="flex-1 relative">
-              {/* Horizontal gridlines */}
-              <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                {yAxisLabels.map((_, idx) => (
-                  <div key={idx} className="border-t border-slate-200 dark:border-slate-700/50"></div>
-                ))}
-              </div>
-              
-              {/* SVG Line Graph */}
-              <div className="relative h-80">
-                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  {/* Draw lines for each status */}
-                  {statusOrder.map(status => {
-                    const hasData = historyGraphData.some(d => (d.byStatus[status] || 0) > 0);
-                    if (!hasData) return null;
-                    
-                    return (
-                      <path
-                        key={status}
-                        d={generatePath(status)}
-                        fill="none"
-                        stroke={colors[status]}
-                        strokeWidth="0.5"
-                        className="transition-all"
-                        opacity="0.7"
-                      />
-                    );
-                  })}
-                  
-                  {/* Draw total line (thicker and more prominent) */}
-                  <path
-                    d={generatePath('total')}
-                    fill="none"
-                    stroke={colors.total}
-                    strokeWidth="1"
-                    className="transition-all"
-                  />
-                </svg>
-                
-                {/* Data point markers */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  {historyGraphData.map((dataPoint, idx) => {
-                    const x = getXPosition(idx);
-                    
-                    return (
-                      <g key={idx}>
-                        {/* Status points */}
-                        {statusOrder.map(status => {
-                          const value = dataPoint.byStatus[status] || 0;
-                          if (value === 0) return null;
-                          const y = getYPosition(value);
-                          
-                          return (
-                            <circle
-                              key={status}
-                              cx={x}
-                              cy={y}
-                              r="0.8"
-                              fill={colors[status]}
-                              className="transition-all hover:r-1.5"
-                            />
-                          );
-                        })}
-                        
-                        {/* Total point */}
-                        <circle
-                          cx={x}
-                          cy={getYPosition(dataPoint.total)}
-                          r="1.2"
-                          fill={colors.total}
-                          className="transition-all"
-                        />
-                      </g>
-                    );
-                  })}
-                </svg>
-                
-                {/* Interactive overlay for tooltips */}
-                <div className="absolute inset-0 flex">
-                  {historyGraphData.map((dataPoint, idx) => (
-                    <div
-                      key={idx}
-                      className="flex-1 group relative cursor-pointer"
-                    >
-                      {/* Tooltip */}
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                        <div className="bg-slate-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap shadow-lg">
-                          <div className="font-semibold mb-1">{formatDateLabel(dataPoint.date)}</div>
-                          <div className="flex items-center gap-2 font-bold text-blue-400 mb-1">
-                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                            <span>Total: {dataPoint.total}</span>
-                          </div>
-                          {statusOrder.map(status => {
-                            const count = dataPoint.byStatus[status] || 0;
-                            if (count === 0) return null;
-                            return (
-                              <div key={status} className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors[status] }}></div>
-                                <span className="capitalize">{status}: {count}</span>
-                              </div>
-                            );
-                          })}
-                          {/* Arrow */}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
-                        </div>
-                      </div>
-                      
-                      {/* Vertical line on hover */}
-                      <div className="absolute inset-y-0 left-1/2 w-px bg-slate-300 dark:bg-slate-600 opacity-0 group-hover:opacity-50 transition-opacity"></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* X-axis labels */}
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-                {historyGraphData.map((d, idx) => (
-                  <div key={idx} className="flex-1 text-center">
-                    <span className="truncate block">{formatDateLabel(d.date)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-xl p-3.5 shadow-2xl text-xs min-w-[210px]">
+          <div className="font-semibold text-slate-200 border-b border-slate-700/60 pb-1.5 mb-2 flex items-center justify-between">
+            <span>{formatDateLabel(data.date)}</span>
+            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">
+              {data.date.includes(':') ? 'Hourly' : 'Daily'}
+            </span>
           </div>
-          
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 justify-center mt-4 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 rounded-sm bg-blue-500"></div>
-              <span className="font-semibold text-slate-700 dark:text-slate-200">Total</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between font-medium">
+              <span className="flex items-center gap-1.5 text-cyan-400">
+                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                Total Actions:
+              </span>
+              <span className="font-bold text-white text-sm">{data.total_actions}</span>
             </div>
-            {statusOrder.map(status => (
-              <div key={status} className="flex items-center gap-1">
-                <div className="w-3 h-0.5 rounded-sm" style={{ backgroundColor: colors[status] }}></div>
-                <span className="capitalize text-slate-600 dark:text-slate-300">{status}</span>
+            <div className="flex items-center justify-between font-medium">
+              <span className="flex items-center gap-1.5 text-indigo-400">
+                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                Active Contributors:
+              </span>
+              <span className="font-bold text-white text-sm">{data.active_users}</span>
+            </div>
+            <div className="pt-2 mt-1 border-t border-slate-800 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+              <div className="bg-slate-800/80 rounded p-1">
+                <div className="text-sky-400 font-bold">{data.translations}</div>
+                <div className="text-slate-400 text-[9px]">Translate</div>
               </div>
-            ))}
+              <div className="bg-slate-800/80 rounded p-1">
+                <div className="text-emerald-400 font-bold">{data.reviews}</div>
+                <div className="text-slate-400 text-[9px]">Review</div>
+              </div>
+              <div className="bg-slate-800/80 rounded p-1">
+                <div className="text-amber-400 font-bold">{data.discussions}</div>
+                <div className="text-slate-400 text-[9px]">Discuss</div>
+              </div>
+            </div>
           </div>
         </div>
       );
+    }
+    return null;
   };
+
+  // Recharts Graph for Contributions Over Time
+  const renderLineGraph = () => {
+    if (historyGraphData.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-slate-400 text-sm">
+          <Activity size={32} className="mb-2 opacity-40" />
+          <p>No activity recorded for this timeframe</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {/* KPI Mini Badges */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 flex items-center gap-3">
+            <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 rounded-lg">
+              <Zap size={16} />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Total Actions</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.totalActions}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
+              <Users size={16} />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Active Users</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{summaryStats.totalUniqueUsers}</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
+              <Calendar size={16} />
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Peak Day</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                {formatDateLabel(summaryStats.peakDate)} ({summaryStats.peakActions})
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recharts Composed Chart */}
+        <div className="h-72 w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={historyGraphData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="actionsGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.25} vertical={false} />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={formatDateLabel}
+                stroke="#64748b" 
+                fontSize={11} 
+                tickLine={false}
+                axisLine={{ stroke: '#334155', opacity: 0.3 }}
+              />
+              <YAxis 
+                yAxisId="actions"
+                stroke="#06b6d4" 
+                fontSize={11} 
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <YAxis 
+                yAxisId="users"
+                orientation="right"
+                stroke="#818cf8" 
+                fontSize={11} 
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend 
+                verticalAlign="top"
+                height={32}
+                iconType="circle"
+                formatter={(value) => <span className="text-xs font-medium text-slate-600 dark:text-slate-300 mr-2">{value}</span>}
+              />
+              <Area 
+                yAxisId="actions" 
+                type="monotone" 
+                dataKey="total_actions" 
+                name="Daily Actions" 
+                stroke="#06b6d4" 
+                strokeWidth={2.5} 
+                fill="url(#actionsGradient)" 
+              />
+              <Line 
+                yAxisId="users" 
+                type="monotone" 
+                dataKey="active_users" 
+                name="Active Contributors" 
+                stroke="#818cf8" 
+                strokeWidth={2.5} 
+                dot={{ r: 3, fill: '#818cf8', strokeWidth: 0 }} 
+                activeDot={{ r: 6, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }} 
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

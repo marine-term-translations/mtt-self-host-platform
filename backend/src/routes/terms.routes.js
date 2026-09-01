@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAuth, requireAdmin, requireBrowserContext } = require("../middleware/admin");
 const {
   applyRejectionPenalty,
   applyFalseRejectionPenalty,
@@ -28,32 +29,61 @@ const { recordEventContribution } = require("../services/scoringService");
  * @openapi
  * /api/terms:
  *   post:
- *     summary: Create a new term
+ *     summary: Create a new term (Admin only)
+ *     tags: [Terms]
+ *     security:
+ *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [uri]
  *             properties:
  *               uri:
  *                 type: string
  *     responses:
  *       201:
- *         description: Term created
+ *         description: Term created successfully with attribution
  *         content:
  *           application/json:
  *             schema:
  *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 uri:
+ *                   type: string
+ *                 created_by_id:
+ *                   type: integer
+ *       400:
+ *         description: Missing URI
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.post("/terms", writeLimiter, (req, res) => {
+router.post("/terms", requireAdmin, writeLimiter, (req, res) => {
   const { uri } = req.body;
   if (!uri) return res.status(400).json({ error: "Missing uri" });
   try {
     const db = getDatabase();
-    const stmt = db.prepare("INSERT INTO terms (uri) VALUES (?)");
-    const info = stmt.run(uri);
-    res.status(201).json({ id: info.lastInsertRowid, uri });
+    const userId = req.session?.user?.id || req.session?.user?.user_id || null;
+    const stmt = db.prepare("INSERT INTO terms (uri, created_by_id) VALUES (?, ?)");
+    const info = stmt.run(uri, userId);
+    
+    if (userId) {
+      try {
+        db.prepare(
+          "INSERT INTO user_activity (user_id, action, term_id, extra) VALUES (?, 'term_created', ?, ?)"
+        ).run(userId, info.lastInsertRowid, JSON.stringify({ uri }));
+      } catch (actErr) {
+        console.error("Failed to log term_created user_activity:", actErr.message);
+      }
+    }
+
+    res.status(201).json({ id: info.lastInsertRowid, uri, created_by_id: userId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -658,10 +688,9 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
     const db = getDatabase();
     const timeframe = req.query.timeframe || 'last_14_days';
     
-    // Calculate date range based on timeframe
     let groupByFormat = "date(created_at)"; // Default: group by day
-    const whereConditions = ["status != 'original'"]; // Always exclude 'original' status
-    const queryParams = []; // Parameters for prepared statement
+    const whereConditions = [];
+    const queryParams = [];
     
     const now = new Date();
     let startDate;
@@ -675,7 +704,7 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
     
     switch (timeframe) {
       case 'last_hour':
-        groupByFormat = "datetime(created_at, 'start of hour')"; // Group by hour
+        groupByFormat = "datetime(created_at, 'start of hour')";
         addDateCondition(1);
         break;
       case 'last_week':
@@ -688,50 +717,66 @@ router.get("/stats/contributions-over-time", apiLimiter, (req, res) => {
         addDateCondition(30 * 24);
         break;
       case 'all_time':
-        // No date filter for all time, only exclude 'original' status
         break;
       default:
         addDateCondition(14 * 24);
     }
     
-    // Build WHERE clause
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     
-    // Get translation counts by date and status (using parameterized query)
     const query = `
       SELECT 
         ${groupByFormat} as date,
-        status,
-        COUNT(*) as count
-      FROM translations
+        COUNT(*) as total_actions,
+        COUNT(DISTINCT user_id) as active_users,
+        SUM(CASE WHEN action IN ('translation_created', 'translation_edited') THEN 1 ELSE 0 END) as translations,
+        SUM(CASE WHEN action IN ('translation_reviewed', 'translation_status_changed') THEN 1 ELSE 0 END) as reviews,
+        SUM(CASE WHEN action = 'translation_discussion' THEN 1 ELSE 0 END) as discussions
+      FROM user_activity
       ${whereClause}
-      GROUP BY date, status
-      ORDER BY date ASC, status
+      GROUP BY ${groupByFormat}
+      ORDER BY date ASC
     `;
     
     const results = db.prepare(query).all(...queryParams);
     
-    // Group by date
-    const dataByDate = {};
-    for (const row of results) {
-      if (!dataByDate[row.date]) {
-        dataByDate[row.date] = {
-          date: row.date,
-          byStatus: {}
-        };
-      }
-      dataByDate[row.date].byStatus[row.status] = row.count;
-    }
+    let totalActions = 0;
+    let peakActions = 0;
+    let peakDate = null;
     
-    // Convert to array and calculate totals
-    const data = Object.values(dataByDate).map(item => ({
-      ...item,
-      total: Object.values(item.byStatus).reduce((sum, count) => sum + count, 0)
-    }));
+    const allUsersQuery = `
+      SELECT COUNT(DISTINCT user_id) as unique_users 
+      FROM user_activity 
+      ${whereClause}
+    `;
+    const totalUniqueUsers = db.prepare(allUsersQuery).get(...queryParams)?.unique_users || 0;
+    
+    const formattedData = results.map(row => {
+      const actionsCount = row.total_actions || 0;
+      totalActions += actionsCount;
+      if (actionsCount > peakActions) {
+        peakActions = actionsCount;
+        peakDate = row.date;
+      }
+      return {
+        date: row.date,
+        total_actions: actionsCount,
+        active_users: row.active_users || 0,
+        translations: row.translations || 0,
+        reviews: row.reviews || 0,
+        discussions: row.discussions || 0
+      };
+    });
     
     res.json({
       timeframe,
-      data
+      summary: {
+        totalActions,
+        totalUniqueUsers,
+        peakDate: peakDate || (formattedData[0]?.date || 'N/A'),
+        peakActions
+      },
+      data: formattedData
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -792,7 +837,10 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  * @openapi
  * /api/user-reputation/{username}:
  *   post:
- *     summary: Change a user's reputation
+ *     summary: Change a user's reputation (Admin only)
+ *     tags: [Gamification]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: username
@@ -805,6 +853,7 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [delta, reason]
  *             properties:
  *               delta:
  *                 type: integer
@@ -819,8 +868,14 @@ router.get("/user-history/:userId", apiLimiter, (req, res) => {
  *           application/json:
  *             schema:
  *               type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.post("/user-reputation/:username", writeLimiter, (req, res) => {
+router.post("/user-reputation/:username", requireAdmin, writeLimiter, (req, res) => {
   const { username } = req.params;
   const { delta, reason, translation_id } = req.body;
   if (typeof delta !== "number" || !reason) {
@@ -971,12 +1026,14 @@ router.get("/term-history/:term_id", apiLimiter, (req, res) => {
  *                   type: string
  *       400:
  *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
  *       403:
- *         description: Invalid token or username
+ *         description: Browser context or authentication required
  *       500:
  *         description: Server error
  */
-router.put("/terms/:id", writeLimiter, async (req, res) => {
+router.put("/terms/:id", requireAuth, requireBrowserContext, writeLimiter, async (req, res) => {
   const { id } = req.params;
   const { uri, fields, username } = req.body;
   console.log("PUT /terms/:id called", { id, uri, fields, username });
@@ -989,11 +1046,6 @@ router.put("/terms/:id", writeLimiter, async (req, res) => {
     return res
       .status(400)
       .json({ error: "Missing uri, fields, or username" });
-  }
-  
-  // Admin check removed - now using ORCID session auth
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Not authenticated" });
   }
   
   // Get the user_id from session

@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const datetime = require("../utils/datetime");
 
 /**
@@ -124,7 +125,10 @@ router.get("/task-schedulers/:id", apiLimiter, (req, res) => {
  * @openapi
  * /api/task-schedulers:
  *   post:
- *     summary: Create a new task scheduler
+ *     summary: Create a new task scheduler (Admin only)
+ *     tags: [Task Schedulers]
+ *     security:
+ *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -153,8 +157,14 @@ router.get("/task-schedulers/:id", apiLimiter, (req, res) => {
  *     responses:
  *       201:
  *         description: Scheduler created successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.post("/task-schedulers", writeLimiter, (req, res) => {
+router.post("/task-schedulers", requireAdmin, writeLimiter, (req, res) => {
   const { name, task_type, schedule_config, enabled, source_id } = req.body;
   
   if (!name || !task_type || !schedule_config) {
@@ -209,7 +219,10 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
  * @openapi
  * /api/task-schedulers/{id}:
  *   put:
- *     summary: Update a task scheduler
+ *     summary: Update a task scheduler (Admin only)
+ *     tags: [Task Schedulers]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -228,17 +241,27 @@ router.post("/task-schedulers", writeLimiter, (req, res) => {
  *                 type: string
  *               task_type:
  *                 type: string
+ *                 enum: [file_upload, ldes_sync, ldes_feed, triplestore_sync, harvest, other]
  *               schedule_config:
  *                 type: string
  *               enabled:
  *                 type: integer
+ *                 enum: [0, 1]
  *               source_id:
  *                 type: integer
  *     responses:
  *       200:
  *         description: Scheduler updated successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Scheduler not found
  */
-router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
+router.put("/task-schedulers/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { name, task_type, schedule_config, enabled, source_id } = req.body;
   
@@ -322,7 +345,10 @@ router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
  * @openapi
  * /api/task-schedulers/{id}:
  *   delete:
- *     summary: Delete a task scheduler
+ *     summary: Delete a task scheduler (Admin only)
+ *     tags: [Task Schedulers]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -333,8 +359,14 @@ router.put("/task-schedulers/:id", writeLimiter, (req, res) => {
  *     responses:
  *       200:
  *         description: Scheduler deleted successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Scheduler not found
  */
-router.delete("/task-schedulers/:id", writeLimiter, (req, res) => {
+router.delete("/task-schedulers/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   
   const schedulerId = parseInt(id, 10);
@@ -365,7 +397,10 @@ router.delete("/task-schedulers/:id", writeLimiter, (req, res) => {
  * @openapi
  * /api/task-schedulers/{id}/toggle:
  *   post:
- *     summary: Toggle a scheduler's enabled status
+ *     summary: Toggle a scheduler on/off (Admin only)
+ *     tags: [Task Schedulers]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -376,8 +411,14 @@ router.delete("/task-schedulers/:id", writeLimiter, (req, res) => {
  *     responses:
  *       200:
  *         description: Scheduler toggled successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Scheduler not found
  */
-router.post("/task-schedulers/:id/toggle", writeLimiter, (req, res) => {
+router.post("/task-schedulers/:id/toggle", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   
   const schedulerId = parseInt(id, 10);

@@ -174,8 +174,21 @@ class ApiService {
     }
   }
 
+  public async getPublicLeaderboard(limit = 20): Promise<ApiPublicUser[]> {
+    try {
+      return await this.get<ApiPublicUser[]>(`/leaderboard/public?limit=${limit}`);
+    } catch (e) {
+      console.warn("Public leaderboard endpoint failed, returning empty array", e);
+      return [];
+    }
+  }
+
   public async getUsers(): Promise<ApiPublicUser[]> {
-    return this.get<ApiPublicUser[]>('/users');
+    try {
+      return await this.get<ApiPublicUser[]>('/users');
+    } catch (e) {
+      return await this.getPublicLeaderboard();
+    }
   }
 
   public async getUser(id: number | string): Promise<ApiPublicUser> {

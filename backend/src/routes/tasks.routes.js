@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 
 /**
  * @openapi
@@ -146,7 +147,10 @@ router.get("/tasks/:id", apiLimiter, (req, res) => {
  * @openapi
  * /api/tasks:
  *   post:
- *     summary: Create a new task
+ *     summary: Create a new task (Admin only)
+ *     tags: [Tasks]
+ *     security:
+ *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -167,8 +171,12 @@ router.get("/tasks/:id", apiLimiter, (req, res) => {
  *     responses:
  *       201:
  *         description: Task created successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.post("/tasks", writeLimiter, (req, res) => {
+router.post("/tasks", requireAdmin, writeLimiter, (req, res) => {
   const { task_type, source_id, metadata } = req.body;
   
   if (!task_type) {
@@ -203,7 +211,10 @@ router.post("/tasks", writeLimiter, (req, res) => {
  * @openapi
  * /api/tasks/{id}:
  *   put:
- *     summary: Update a task's status and details
+ *     summary: Update a task's status and details (Admin only)
+ *     tags: [Tasks]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -228,8 +239,12 @@ router.post("/tasks", writeLimiter, (req, res) => {
  *     responses:
  *       200:
  *         description: Task updated successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.put("/tasks/:id", writeLimiter, (req, res) => {
+router.put("/tasks/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { status, error_message, metadata } = req.body;
   
@@ -303,7 +318,10 @@ router.put("/tasks/:id", writeLimiter, (req, res) => {
  * @openapi
  * /api/tasks/{id}:
  *   delete:
- *     summary: Delete a task
+ *     summary: Delete a task (Admin only)
+ *     tags: [Tasks]
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -314,8 +332,12 @@ router.put("/tasks/:id", writeLimiter, (req, res) => {
  *     responses:
  *       200:
  *         description: Task deleted successfully
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  */
-router.delete("/tasks/:id", writeLimiter, (req, res) => {
+router.delete("/tasks/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   
   const taskId = parseInt(id, 10);

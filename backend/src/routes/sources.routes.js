@@ -9,6 +9,7 @@ const axios = require("axios");
 const yaml = require("js-yaml");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const config = require("../config");
 const datetime = require("../utils/datetime");
 const dockerService = require("../services/docker.service");
@@ -244,10 +245,14 @@ async function updateLdesFeedsYaml(graphName, url) {
  *                   type: string
  *       400:
  *         description: Missing required fields
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
-router.post("/sources", writeLimiter, async (req, res) => {
+router.post("/sources", requireAdmin, writeLimiter, async (req, res) => {
   const { source_path, source_type, description } = req.body;
   
   if (!source_path) {
@@ -481,11 +486,15 @@ router.get("/sources/:id", apiLimiter, async (req, res) => {
  *             schema:
  *               type: object
  *       400:
- *         description: Invalid input
+ *         description: No valid fields to update
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Source not found
  */
-router.put("/sources/:id", writeLimiter, (req, res) => {
+router.put("/sources/:id", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { source_path, source_type, description } = req.body;
   
@@ -542,7 +551,7 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
  *         description: The source ID
  *     responses:
  *       200:
- *         description: Source deleted successfully
+ *         description: Source and associated data deleted successfully
  *         content:
  *           application/json:
  *             schema:
@@ -552,10 +561,14 @@ router.put("/sources/:id", writeLimiter, (req, res) => {
  *                   type: string
  *       400:
  *         description: Invalid source ID
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Source not found
  */
-router.delete("/sources/:id", writeLimiter, async (req, res) => {
+router.delete("/sources/:id", requireAdmin, writeLimiter, async (req, res) => {
   const { id } = req.params;
   
   // Validate that id is a valid integer
@@ -780,11 +793,15 @@ router.get("/sources/:id/terms", apiLimiter, (req, res) => {
  *                 original_filename:
  *                   type: string
  *       400:
- *         description: Invalid file or missing file
+ *         description: No file uploaded or invalid file
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
  *       500:
  *         description: Server error
  */
-router.post("/sources/upload", writeLimiter, upload.single('file'), async (req, res) => {
+router.post("/sources/upload", requireAdmin, writeLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });

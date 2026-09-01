@@ -5,6 +5,7 @@ const router = express.Router();
 const axios = require("axios");
 const { getDatabase } = require("../db/database");
 const { apiLimiter, writeLimiter } = require("../middleware/rateLimit");
+const { requireAdmin } = require("../middleware/admin");
 const config = require("../config");
 
 /**
@@ -64,7 +65,22 @@ function validateRegexPattern(pattern) {
 }
 
 /**
- * Get all RDF types from a source's graph
+ * @openapi
+ * /api/sources/{id}/types:
+ *   get:
+ *     summary: Get all RDF types from a source graph
+ *     tags: [Sources]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of RDF types
+ *       404:
+ *         description: Source not found
  */
 router.get("/sources/:id/types", apiLimiter, async (req, res) => {
   const { id } = req.params;
@@ -127,7 +143,28 @@ router.get("/sources/:id/types", apiLimiter, async (req, res) => {
 });
 
 /**
- * Get all predicates for a specific RDF type in a source's graph
+ * @openapi
+ * /api/sources/{id}/predicates:
+ *   get:
+ *     summary: Get all predicates for a specific RDF type in a source graph
+ *     tags: [Sources]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: RDF type URI
+ *     responses:
+ *       200:
+ *         description: List of predicates
+ *       404:
+ *         description: Source not found
  */
 router.get("/sources/:id/predicates", apiLimiter, async (req, res) => {
   const { id } = req.params;
@@ -638,19 +675,40 @@ router.get("/sources/:id/predicate-objects", apiLimiter, async (req, res) => {
 });
 
 /**
- * Save translation configuration for a source
- * Expected body structure:
- * {
- *   config: {
- *     types: [...],
- *     paths: [...],
- *     labelField: "uri:of:label:field",
- *     referenceFields: ["uri:of:ref:field1", "uri:of:ref:field2"],
- *     translatableFields: ["uri:of:trans:field1", ...]
- *   }
- * }
+ * @openapi
+ * /api/sources/{id}/config:
+ *   put:
+ *     summary: Save translation configuration for a source (Admin only)
+ *     tags: [Sources]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [config]
+ *             properties:
+ *               config:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Configuration saved
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Source not found
  */
-router.put("/sources/:id/config", writeLimiter, (req, res) => {
+router.put("/sources/:id/config", requireAdmin, writeLimiter, (req, res) => {
   const { id } = req.params;
   const { config: translationConfig } = req.body;
   const sourceId = parseInt(id, 10);
@@ -711,9 +769,30 @@ router.put("/sources/:id/config", writeLimiter, (req, res) => {
 });
 
 /**
- * Synchronize terms based on source configuration
+ * @openapi
+ * /api/sources/{id}/sync-terms:
+ *   post:
+ *     summary: Synchronize terms from graph to terms table (Admin only)
+ *     tags: [Sources]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Terms synchronized
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Source not found
  */
-router.post("/sources/:id/sync-terms", writeLimiter, async (req, res) => {
+router.post("/sources/:id/sync-terms", requireAdmin, writeLimiter, async (req, res) => {
   const { id } = req.params;
   const sourceId = parseInt(id, 10);
   

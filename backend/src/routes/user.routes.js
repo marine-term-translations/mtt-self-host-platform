@@ -5,6 +5,7 @@ const router = express.Router();
 const { getDatabase } = require("../db/database");
 const rateLimit = require("express-rate-limit");
 const { apiLimiter } = require("../middleware/rateLimit");
+const { sanitizeUserProfileExtra } = require("../middleware/admin");
 const { encrypt, decrypt } = require("../utils/encryption");
 const { syncUserLanguageCommunities } = require("../services/community.service");
 
@@ -579,6 +580,9 @@ router.get("/user/:id", apiLimiter, (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    
+    // Sanitize extra field to remove administrative and moderation flags
+    user.extra = sanitizeUserProfileExtra(user.extra);
     
     res.json(user);
   } catch (err) {

@@ -230,18 +230,21 @@ const TermDetail: React.FC = () => {
       // 6. Fetch Permissions
       if (user?.username) {
         try {
-          const users = await backendApi.getUsers();
-          const currentUser = users.find((u: ApiPublicUser) => u.username === user.username);
           let userLangs: string[] = [];
-
-          if (currentUser?.extra) {
-            try {
-              const extra = JSON.parse(currentUser.extra);
-              if (extra.translationLanguages && Array.isArray(extra.translationLanguages)) {
-                userLangs = extra.translationLanguages;
+          const prefs = await backendApi.getUserPreferences().catch(() => null);
+          if (prefs?.translationLanguages && Array.isArray(prefs.translationLanguages)) {
+            userLangs = prefs.translationLanguages;
+          } else if (user.id || user.user_id) {
+            const currentUser = await backendApi.getUser(user.id || user.user_id!);
+            if (currentUser?.extra) {
+              try {
+                const extra = JSON.parse(currentUser.extra);
+                if (extra.translationLanguages && Array.isArray(extra.translationLanguages)) {
+                  userLangs = extra.translationLanguages;
+                }
+              } catch (e) {
+                console.warn("Failed to parse user extra data", e);
               }
-            } catch (e) {
-              console.warn("Failed to parse user extra data", e);
             }
           }
 

@@ -107,12 +107,28 @@ function createTeam(eventId, name, imageUrl, createdByUserId) {
   const db = getDatabase();
   const id = `team_${crypto.randomUUID()}`;
   const cleanName = name.replace(/[^a-zA-Z0-9]/g, "").substring(0, 4).toUpperCase() || "TEAM";
-  const joinCode = `TM-${cleanName}-${Math.floor(1000 + Math.random() * 9000)}`;
   
-  db.prepare(`
-    INSERT INTO event_teams (id, event_id, name, image_url, join_code, created_by)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, eventId, name, imageUrl || null, joinCode, createdByUserId || null);
+  let joinCode;
+  let inserted = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    joinCode = `TM-${cleanName}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    try {
+      db.prepare(`
+        INSERT INTO event_teams (id, event_id, name, image_url, join_code, created_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(id, eventId, name, imageUrl || null, joinCode, createdByUserId || null);
+      inserted = true;
+      break;
+    } catch (err) {
+      if (!err.message.includes("UNIQUE constraint failed: event_teams.join_code")) {
+        throw err;
+      }
+    }
+  }
+
+  if (!inserted) {
+    throw new Error("Failed to generate unique team join code");
+  }
 
   return db.prepare("SELECT * FROM event_teams WHERE id = ?").get(id);
 }

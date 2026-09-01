@@ -1,17 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const { getDatabase } = require("../db/database");
-const { requireAdmin } = require("../middleware/admin");
+const { requireAdmin, requireAuth } = require("../middleware/admin");
 const { apiLimiter } = require("../middleware/rateLimit");
 const { getUserAchievementsWithProgress } = require("../services/achievement.service");
-
-// Auth middleware
-const requireAuth = (req, res, next) => {
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  next();
-};
 
 /**
  * Handler for GET /api/gamification/achievements
@@ -102,9 +94,84 @@ async function updateAchievementTierHandler(req, res) {
   }
 }
 
-// Router registrations
+/**
+ * @openapi
+ * /api/gamification/achievements:
+ *   get:
+ *     summary: Get user achievements and progression tiers
+ *     tags: [Gamification]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User achievements with progress
+ *       401:
+ *         description: Not authenticated
+ */
 router.get("/gamification/achievements", apiLimiter, requireAuth, getAchievementsHandler);
+
+/**
+ * @openapi
+ * /api/admin/achievements:
+ *   get:
+ *     summary: Get achievement definitions and tier thresholds (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: List of achievements and criteria
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ */
 router.get("/admin/achievements", requireAdmin, apiLimiter, getAdminAchievementsHandler);
+
+/**
+ * @openapi
+ * /api/admin/achievements/{achievementId}/tiers/{tier}:
+ *   put:
+ *     summary: Update target criteria and points reward for an achievement tier (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: achievementId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: tier
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [target_value, reward_points]
+ *             properties:
+ *               target_value:
+ *                 type: integer
+ *               reward_points:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Criteria updated
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ */
 router.put("/admin/achievements/:achievementId/tiers/:tier", requireAdmin, apiLimiter, updateAchievementTierHandler);
 
 module.exports = router;
