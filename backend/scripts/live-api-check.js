@@ -138,16 +138,16 @@ const testCases = [
     validate: (data) => Array.isArray(data) && !data.some((u) => u.email || u.password)
   },
 
-  // --- Group C: Auth & Security Guards ---
+  // --- Group C: Auth Guards (GET) ---
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'Current user without session cookie rejects 401',
     method: 'GET',
     path: '/api/me',
     expectedStatus: [401]
   },
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'Current user with forged session cookie rejects 401',
     method: 'GET',
     path: '/api/me',
@@ -155,32 +155,277 @@ const testCases = [
     expectedStatus: [401]
   },
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'All users list without auth rejects 401',
     method: 'GET',
     path: '/api/users',
     expectedStatus: [401]
   },
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'Translation flow next task without auth rejects 401',
     method: 'GET',
     path: '/api/flow/next',
     expectedStatus: [401]
   },
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'User notifications without auth rejects 401',
     method: 'GET',
     path: '/api/notifications',
     expectedStatus: [401]
   },
   {
-    group: 'Auth Guards',
+    group: 'Auth Guards (GET)',
     name: 'Admin users management without auth rejects 401/403',
     method: 'GET',
     path: '/api/admin/users',
     expectedStatus: [401, 403]
+  },
+
+  // --- Group D: Auth Guards (Unauthenticated POST) ---
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create term without session rejects 401',
+    method: 'POST',
+    path: '/api/terms',
+    body: { uri: 'https://vocab.vliz.be/terms/live_check_test' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create term with forged cookie rejects 401',
+    method: 'POST',
+    path: '/api/terms',
+    headers: { Cookie: 'mtt.sid=forged_unauthorized_token_xyz987' },
+    body: { uri: 'https://vocab.vliz.be/terms/live_check_test' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create term with empty body without auth rejects 401',
+    method: 'POST',
+    path: '/api/terms',
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Submit appeal without auth rejects 401',
+    method: 'POST',
+    path: '/api/appeals',
+    body: { translation_id: 1, opened_by: 'unauth_user' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Submit vocabulary request without auth rejects 401',
+    method: 'POST',
+    path: '/api/vocabulary-requests',
+    body: { label: 'Marine Ecology Term' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Start flow session without auth rejects 401',
+    method: 'POST',
+    path: '/api/flow/start',
+    body: { language: 'fr' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Submit flow review without auth rejects 401',
+    method: 'POST',
+    path: '/api/flow/review',
+    body: { translationId: 1, action: 'approve' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create community without auth rejects 401',
+    method: 'POST',
+    path: '/api/communities',
+    body: { name: 'Unauthorized Community' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Join community without auth rejects 401',
+    method: 'POST',
+    path: '/api/communities/1/join',
+    body: {},
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create community goal without auth rejects 401',
+    method: 'POST',
+    path: '/api/communities/1/goals',
+    body: { target_count: 50 },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Invite to community without auth rejects 401',
+    method: 'POST',
+    path: '/api/communities/1/invite',
+    body: { username: 'unauth_user' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Accept community invitation without auth rejects 401',
+    method: 'POST',
+    path: '/api/invitations/1/accept',
+    body: {},
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create event without auth rejects 401',
+    method: 'POST',
+    path: '/api/events',
+    body: { title: 'Unauthorized Event' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create event team without auth rejects 401',
+    method: 'POST',
+    path: '/api/events/1/teams',
+    body: { name: 'Unauthorized Team' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Join event team without auth rejects 401',
+    method: 'POST',
+    path: '/api/events/1/join',
+    body: { teamId: 1 },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Equip user title without auth rejects 401',
+    method: 'POST',
+    path: '/api/users/titles/equip',
+    body: { titleId: 'master_translator' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Update user preferences without auth rejects 401',
+    method: 'POST',
+    path: '/api/user/preferences',
+    body: { preferredLanguages: ['en', 'fr'] },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Save OpenRouter API key without auth rejects 401',
+    method: 'POST',
+    path: '/api/user/preferences/openrouter-key',
+    body: { apiKey: 'sk-or-v1-fake-unauthorized-key' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Update email preferences without auth rejects 401',
+    method: 'POST',
+    path: '/api/user/preferences/email',
+    body: { enabled: true },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create data source without auth rejects 401',
+    method: 'POST',
+    path: '/api/sources',
+    body: { name: 'Unauthorized Source' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create task without auth rejects 401',
+    method: 'POST',
+    path: '/api/tasks',
+    body: { name: 'Unauthorized Task' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create task scheduler without auth rejects 401',
+    method: 'POST',
+    path: '/api/task-schedulers',
+    body: { name: 'Unauthorized Scheduler' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Create admin community goal without auth rejects 401',
+    method: 'POST',
+    path: '/api/admin/community-goals',
+    body: { title: 'Unauthorized Admin Goal' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Restart container without auth rejects 401',
+    method: 'POST',
+    path: '/api/admin/docker/containers/marine-backend/restart',
+    body: {},
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Revert stale translations without auth rejects 401',
+    method: 'POST',
+    path: '/api/admin/revert-stale-translations',
+    body: {},
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Admin moderation penalty without auth rejects 401',
+    method: 'POST',
+    path: '/api/admin/moderation/users/1/penalty',
+    body: { penaltyType: 'warning' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
+  },
+  {
+    group: 'Auth Guards (POST)',
+    name: 'Execute KPI query without auth rejects 401',
+    method: 'POST',
+    path: '/api/kpi/execute',
+    body: { queryId: 'kpi_monthly_report' },
+    expectedStatus: [401],
+    validate: (data) => data && data.error === 'Not authenticated'
   }
 ];
 
@@ -194,12 +439,21 @@ async function runSingleTest(tc) {
     ...(tc.headers || {})
   };
 
+  const fetchOptions = {
+    method: tc.method,
+    headers,
+    signal: AbortSignal.timeout(TIMEOUT_MS)
+  };
+
+  if (tc.body !== undefined) {
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    fetchOptions.body = typeof tc.body === 'string' ? tc.body : JSON.stringify(tc.body);
+  }
+
   try {
-    const res = await fetch(url, {
-      method: tc.method,
-      headers,
-      signal: AbortSignal.timeout(TIMEOUT_MS)
-    });
+    const res = await fetch(url, fetchOptions);
     
     const latency = Date.now() - startTime;
     const isStatusOk = tc.expectedStatus.includes(res.status);

@@ -34,7 +34,9 @@ node scripts/live-api-check.js --timeout=15000 --delay=200
 #### What Is Tested
 - **Health & Infrastructure**: `/api/sparql/health` (GraphDB status) and `/api/docs.json` (OpenAPI 3.x spec).
 - **Core Public Read APIs**: `/api/browse`, `/api/terms`, `/api/stats`, `/api/stats/contributions-over-time`, `/api/communities`, `/api/events`, `/api/languages`, `/api/sources`, and `/api/leaderboard/public` (ensuring sensitive data is sanitized).
-- **Security & Auth Guards**: Confirms that `/api/me`, `/api/users`, `/api/flow/next`, `/api/notifications`, and `/api/admin/users` reject unauthenticated requests with `401`/`403`, and that forged session cookies are rejected.
+- **Security & Auth Guards (GET & POST)**:
+  - **GET Guards**: Confirms that protected endpoints (`/api/me`, `/api/users`, `/api/flow/next`, `/api/notifications`, `/api/admin/users`) reject unauthenticated requests with `401`/`403`, and forged session cookies are rejected.
+  - **Unauthenticated POST Guards**: Confirms that attempts to mutate resources across terms, appeals, vocabulary requests, flow sessions/reviews, communities, events, user preferences/API keys, admin configurations, tasks, schedulers, docker restarts, and KPI executions are strictly blocked with `401 Unauthorized`.
 
 ---
 
