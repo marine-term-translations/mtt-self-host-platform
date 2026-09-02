@@ -1,0 +1,33 @@
+name: Daily Live API Health Check
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target API Base URL'
+        required: false
+        default: 'https://mtt.vliz.be'
+
+jobs:
+  health-check:
+    name: Run Live API & Auth Guard Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run live health & security check
+        env:
+          LIVE_API_URL: ${{ inputs.target_url || 'https://mtt.vliz.be' }}
+        run: |
+          cd backend
+          npm run test:live
