@@ -113,10 +113,11 @@ The script is zero-config by default, targeting the live environment, but allows
 
 ## 5. Cron Job Usage & Integration
 
-### Crontab Setup Example
-To run every hour and log results:
+### Daily Crontab Setup Example
+To run daily at midnight (00:00) or early morning (02:00) and append results to a health log:
 ```bash
-0 * * * * cd /data/projects/mtt-self-host-platform/backend && node scripts/live-api-check.js >> /var/log/mtt-api-health.log 2>&1
+# Run daily at 02:00 AM UTC
+0 2 * * * cd /data/projects/mtt-self-host-platform/backend && node scripts/live-api-check.js >> /var/log/mtt-api-health.log 2>&1
 ```
 
 ### Manual Run Examples
